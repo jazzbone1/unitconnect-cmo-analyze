@@ -124,10 +124,12 @@ function ComparisonSection({
   label,
   rows,
   chargers,
+  onMonths,
 }: {
   label: string
   rows: SettlementMetrics[]
   chargers: ChargerType[]
+  onMonths: (id: string, months: number) => void
 }) {
   return (
     <div className="subsection">
@@ -139,6 +141,7 @@ function ComparisonSection({
           <thead>
             <tr>
               <th>기간</th>
+              <th>분석 개월수</th>
               <th>이용자 수</th>
               <th>총 사용량(kWh)</th>
               {chargers.map((c) => (
@@ -169,6 +172,17 @@ function ComparisonSection({
                         *
                       </span>
                     )}
+                  </td>
+                  <td>
+                    <input
+                      className="cell-input cell-input--sm"
+                      type="number"
+                      min={1}
+                      value={m.months}
+                      onChange={(e) =>
+                        onMonths(m.id, Number(e.target.value) || 1)
+                      }
+                    />
                   </td>
                   <td>{m.users.toLocaleString()}</td>
                   <td>{formatNumber(m.usageTotal)}</td>
@@ -217,15 +231,23 @@ function ComparisonSection({
  */
 export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
   const [config, setConfig] = useState<SettlementConfig>(cloneDefault)
+  // 파일별 분석 개월수 오버라이드 (전체 기간 등 기간 미정 파일에 사용)
+  const [monthsById, setMonthsById] = useState<Record<string, number>>({})
 
-  const metrics = useMemo(() => computeAll(files, config), [files, config])
+  const metrics = useMemo(
+    () => computeAll(files, config, monthsById),
+    [files, config, monthsById],
+  )
+
+  function setMonths(id: string, months: number) {
+    setMonthsById((prev) => ({ ...prev, [id]: months }))
+  }
 
   // 비교표에는 수량이 지정된(현장에 존재하는) 종류만 컬럼으로 표시
   const visibleChargers = useMemo(
     () => config.chargers.filter((c) => c.count > 0),
     [config],
   )
-  const activeRates = config.chargers.filter((c) => c.rate > 0).length
   const anyUnsplittable = metrics.some((m) => !m.splittable)
 
   return (
@@ -243,12 +265,12 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
 
       <ChargerEditor config={config} setConfig={setConfig} />
 
-      {anyUnsplittable && activeRates > 2 && (
+      {anyUnsplittable && (
         <p className="status status--error">
-          요금이 지정된 종류가 3개 이상이면 (총 사용량·사용금액)만으로는 종류별
-          사용량을 나눌 수 없습니다. 파일에 <b>종류별 사용량 컬럼</b>(예:
-          "7kW사용량", "100kW사용량")이 있으면 자동으로 사용하고, 없으면 종류별
-          값은 —로 표시됩니다.
+          종류별 사용량·이용률은 파일에 (총 사용량·총 사용금액)만 있을 때{' '}
+          <b>요금이 서로 다른 2종류</b>에 한해 계산됩니다. 요금이 지정된 종류가
+          3개 이상이거나 요금이 서로 같으면 종류별 분리가 불가능하여 전체 값만
+          표시합니다(종류별 값은 —).
         </p>
       )}
 
@@ -261,14 +283,16 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
             label={label}
             rows={rows}
             chargers={visibleChargers}
+            onMonths={setMonths}
           />
         )
       })}
 
       <p className="table-note">
-        종류별 사용량 분리: 요금이 지정된 종류가 1개면 전량 배정, 2개면 요금
-        역산[(사용금액 − 사용량×낮은요금) ÷ 요금차이], 3개 이상이면 종류별 사용량
-        컬럼 필요. 이용률은 월 기준(연간·전체 기간 파일은 개월 수로 환산).
+        <b>이용률 = 사용량 ÷ (충전기 총용량 × 분석 개월수)</b>입니다. 월간=1개월,
+        연간·범위 파일은 파일명 기간으로 개월수를 자동 계산하며, 전체 기간처럼
+        기간이 정해지지 않은 파일은 <b>분석 개월수</b> 칸에서 직접 입력하세요.
+        종류별 분리: 요금 지정 1종은 전량 배정, 요금이 다른 2종은 요금 역산.
         개인정보(사용자명·건물명·동·호)는 표시하지 않습니다.
       </p>
     </section>

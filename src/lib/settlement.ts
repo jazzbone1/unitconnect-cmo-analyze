@@ -64,6 +64,8 @@ export interface SettlementMetrics {
   periodLabel: string
   sortKey: number
   periodType: Period['type']
+  /** 이용률 환산에 사용한 분석 개월 수 */
+  months: number
   /** 이용자 수 (사용량이 있는 행 수) */
   users: number
   /** 총 사용량 (kWh) */
@@ -140,10 +142,14 @@ function clamp(x: number, lo: number, hi: number): number {
 export function computeFile(
   file: FileEntry,
   config: SettlementConfig,
+  monthsOverride?: number,
 ): SettlementMetrics {
   const { dataset } = file
   const chargers = config.chargers
-  const months = file.period?.months ?? 1
+  const months =
+    monthsOverride && monthsOverride > 0
+      ? monthsOverride
+      : file.period?.months ?? 1
 
   const explicitCols = new Map<string, string>()
   for (const t of chargers) {
@@ -229,6 +235,7 @@ export function computeFile(
     periodLabel: file.period?.label ?? dataset.fileName,
     sortKey: file.period?.sortKey ?? Number.POSITIVE_INFINITY,
     periodType: file.period?.type ?? 'unknown',
+    months,
     users,
     usageTotal,
     amountRaw,
@@ -243,9 +250,10 @@ export function computeFile(
 export function computeAll(
   files: FileEntry[],
   config: SettlementConfig,
+  monthsById: Record<string, number> = {},
 ): SettlementMetrics[] {
   return files
-    .map((f) => computeFile(f, config))
+    .map((f) => computeFile(f, config, monthsById[f.id]))
     .sort((a, b) => {
       if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey
       return a.fileName.localeCompare(b.fileName)

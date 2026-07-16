@@ -465,6 +465,9 @@ body {
   width: 110px;
   text-align: left;
 }
+.cell-input--sm {
+  width: 58px;
+}
 .cell-input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
