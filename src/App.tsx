@@ -3,10 +3,12 @@ import Dropzone from './components/Dropzone'
 import FileList from './components/FileList'
 import GroupSection from './components/GroupSection'
 import SettlementAnalysis from './components/SettlementAnalysis'
+import RegistryAnalysis from './components/RegistryAnalysis'
 import { parseFile } from './lib/parse'
 import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
 import { detectSettlement } from './lib/settlement'
+import { detectRegistry } from './lib/registry'
 import { stripPii } from './lib/privacy'
 import type { AggKind, FileEntry } from './types'
 
@@ -32,8 +34,18 @@ export default function App() {
     () => files.filter((f) => detectSettlement(f.dataset)),
     [files],
   )
+  const registryFiles = useMemo(
+    () =>
+      files.filter(
+        (f) => !detectSettlement(f.dataset) && detectRegistry(f.dataset),
+      ),
+    [files],
+  )
   const genericFiles = useMemo(
-    () => files.filter((f) => !detectSettlement(f.dataset)),
+    () =>
+      files.filter(
+        (f) => !detectSettlement(f.dataset) && !detectRegistry(f.dataset),
+      ),
     [files],
   )
   const groups = useMemo(() => groupFiles(genericFiles), [genericFiles])
@@ -49,8 +61,9 @@ export default function App() {
         if (raw.columns.length === 0 || raw.rows.length === 0) {
           throw new Error('헤더 또는 데이터 행이 없습니다.')
         }
-        // 개인정보(사용자명·건물명·동·호 등) 컬럼은 분석·표시에서 제외
-        const dataset = stripPii(raw)
+        // 이용자 명부는 test/costel 판별에 이름·건물명이 필요하므로 원본 유지
+        // (표시는 RegistryAnalysis가 개인정보를 숨김). 그 외는 개인정보 제거.
+        const dataset = detectRegistry(raw) ? raw : stripPii(raw)
         const { category, period } = parseFileName(file.name)
         parsed.push({ id: nextId(), dataset, category, period })
       } catch (e) {
@@ -108,6 +121,10 @@ export default function App() {
 
             {settlementFiles.length > 0 && (
               <SettlementAnalysis files={settlementFiles} />
+            )}
+
+            {registryFiles.length > 0 && (
+              <RegistryAnalysis files={registryFiles} />
             )}
 
             {groups.length > 0 && (
