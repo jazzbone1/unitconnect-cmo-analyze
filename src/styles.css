@@ -803,6 +803,54 @@ body {
 .link-button--danger {
   color: var(--danger, #dc2626);
 }
+/* 프로젝트 목록(리스트 + 검색) */
+.projects__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.projects__head .projects__title {
+  margin: 0;
+}
+.projects__search {
+  flex: 0 1 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.projects__search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.project-list tbody tr {
+  cursor: pointer;
+}
+
+.report-premise {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.5rem;
+  font-size: 0.9rem;
+}
+.report-textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  resize: vertical;
+}
 
 /* 차종 통합 표: 클릭 펼치기 */
 .row--clickable {

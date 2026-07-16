@@ -219,7 +219,17 @@ export default function ProjectsView({
     'selectedProjectId',
     null,
   )
+  const [query, setQuery] = useState('')
   const selected = projects.find((p) => p.id === selectedId) ?? null
+
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? projects.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.address ?? '').toLowerCase().includes(q),
+      )
+    : projects
 
   if (selected) {
     return (
@@ -245,61 +255,79 @@ export default function ProjectsView({
 
   return (
     <div className="projects">
-      <h2 className="projects__title">프로젝트 ({projects.length})</h2>
-      <div className="project-grid">
-        {projects.map((p) => {
-          const cnt = p.chargers.reduce((a, c) => a + c.count, 0)
-          const effFiles = p.files ?? p.settlementFiles ?? []
-          const fileCount = effFiles.length
-          const regFiles = effFiles.filter(
-            (f) => !detectSettlement(f.dataset) && detectRegistry(f.dataset),
-          )
-          const people = regFiles.length
-            ? computeRegistry(regFiles.map((f) => f.dataset)).totalPeople
-            : (p.registry?.totalPeople ?? 0)
-          return (
-            <button
-              key={p.id}
-              type="button"
-              className="project-card"
-              onClick={() => setSelectedId(p.id)}
-            >
-              <div className="project-card__head">
-                <span className="project-card__name">{p.name}</span>
-                <span
-                  className="remove-button"
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${p.name} 삭제`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete(p.id)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.stopPropagation()
-                      onDelete(p.id)
-                    }
-                  }}
-                >
-                  ✕
-                </span>
-              </div>
-              {p.address && (
-                <div className="project-card__addr">{p.address}</div>
-              )}
-              <div className="project-card__meta">
-                <span>{p.households ? `${p.households.toLocaleString()}세대` : '세대수 —'}</span>
-                <span>충전기 {cnt}기</span>
-              </div>
-              <div className="project-card__meta">
-                <span>파일 {fileCount}개</span>
-                <span>{people > 0 ? `등록 ${people.toLocaleString()}명` : '명부 없음'}</span>
-              </div>
-            </button>
-          )
-        })}
+      <div className="projects__head">
+        <h2 className="projects__title">프로젝트 ({projects.length})</h2>
+        <input
+          type="search"
+          className="projects__search"
+          placeholder="단지명 · 주소 검색"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
+
+      {filtered.length === 0 ? (
+        <p className="status status--info">
+          '{query}'에 해당하는 프로젝트가 없습니다.
+        </p>
+      ) : (
+        <div className="table-scroll">
+          <table className="data-table project-list">
+            <thead>
+              <tr>
+                <th>단지명</th>
+                <th>주소</th>
+                <th>세대수</th>
+                <th>충전기</th>
+                <th>파일</th>
+                <th>등록 인원</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p) => {
+                const cnt = p.chargers.reduce((a, c) => a + c.count, 0)
+                const effFiles = p.files ?? p.settlementFiles ?? []
+                const fileCount = effFiles.length
+                const regFiles = effFiles.filter(
+                  (f) =>
+                    !detectSettlement(f.dataset) && detectRegistry(f.dataset),
+                )
+                const people = regFiles.length
+                  ? computeRegistry(regFiles.map((f) => f.dataset)).totalPeople
+                  : (p.registry?.totalPeople ?? 0)
+                return (
+                  <tr
+                    key={p.id}
+                    className="row--clickable"
+                    onClick={() => setSelectedId(p.id)}
+                  >
+                    <td className="col-name">{p.name}</td>
+                    <td className="col-name">{p.address || '—'}</td>
+                    <td>{p.households ? p.households.toLocaleString() : '—'}</td>
+                    <td>{cnt.toLocaleString()}기</td>
+                    <td>{fileCount}개</td>
+                    <td>{people > 0 ? `${people.toLocaleString()}명` : '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="remove-button"
+                        aria-label={`${p.name} 삭제`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(p.id)
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

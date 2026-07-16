@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import {
   computeElecCost,
   computeProfit,
+  defaultReport,
   opexMonthlyTotal,
   opexPerKwh,
   newOpexRow,
@@ -67,6 +69,24 @@ function TextInput({
 }
 
 export default function ReportView({ model, setModel }: ReportViewProps) {
+  // 이전에 저장된 보고서에 Part3 필드가 없으면 기본값으로 보강(기존 편집 보존)
+  useEffect(() => {
+    setModel((m) => {
+      if (m.premise !== undefined && m.compare && m.autonomy && m.cpo && m.cmo)
+        return m
+      const d = defaultReport()
+      return {
+        ...m,
+        premise: m.premise ?? d.premise,
+        autonomy: m.autonomy ?? d.autonomy,
+        cpo: m.cpo ?? d.cpo,
+        cmo: m.cmo ?? d.cmo,
+        compare: m.compare ?? d.compare,
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const opexRate = opexPerKwh(model.opex, model.opexBaseKwh)
   const opexMonth = opexMonthlyTotal(model.opex)
 
@@ -577,6 +597,155 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
                               updList('recommend', row.id, { [k]: v })
                             }
                             wide={k === 'note'}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* Part 3 */}
+        <section className="card">
+          <h2>Part 3. 해결 방안</h2>
+          <div className="report-premise">
+            <b>공통 전제</b>
+            <textarea
+              className="report-textarea"
+              value={model.premise ?? ''}
+              onChange={(e) =>
+                setModel((m) => ({ ...m, premise: e.target.value }))
+              }
+              rows={2}
+            />
+          </div>
+
+          <div className="report-block">
+            <h4 className="report-block__title">방안 ① 자치운영 — 고려사항</h4>
+            <div className="table-scroll">
+              <table className="data-table report-table">
+                <thead>
+                  <tr>
+                    <th>영역</th>
+                    <th>상세</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(model.autonomy ?? []).map((row) => (
+                    <tr key={row.id}>
+                      <td className="col-name">
+                        <TextInput
+                          value={row.area}
+                          onChange={(v) => updList('autonomy', row.id, { area: v })}
+                        />
+                      </td>
+                      <td>
+                        <TextInput
+                          value={row.detail}
+                          onChange={(v) =>
+                            updList('autonomy', row.id, { detail: v })
+                          }
+                          wide
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="report-block">
+            <h4 className="report-block__title">방안 ② CPO 위탁</h4>
+            <div className="table-scroll">
+              <table className="data-table report-table">
+                <thead>
+                  <tr>
+                    <th>항목</th>
+                    <th>내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(model.cpo ?? []).map((row) => (
+                    <tr key={row.id}>
+                      <td className="col-name">
+                        <TextInput
+                          value={row.label}
+                          onChange={(v) => updList('cpo', row.id, { label: v })}
+                        />
+                      </td>
+                      <td>
+                        <TextInput
+                          value={row.content}
+                          onChange={(v) => updList('cpo', row.id, { content: v })}
+                          wide
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="report-block">
+            <h4 className="report-block__title">방안 ③ CMO 위탁운영 (UNITCONNECT)</h4>
+            <div className="table-scroll">
+              <table className="data-table report-table">
+                <thead>
+                  <tr>
+                    <th>항목</th>
+                    <th>내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(model.cmo ?? []).map((row) => (
+                    <tr key={row.id}>
+                      <td className="col-name">
+                        <TextInput
+                          value={row.label}
+                          onChange={(v) => updList('cmo', row.id, { label: v })}
+                        />
+                      </td>
+                      <td>
+                        <TextInput
+                          value={row.content}
+                          onChange={(v) => updList('cmo', row.id, { content: v })}
+                          wide
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="report-block">
+            <h4 className="report-block__title">3가지 방안 비교</h4>
+            <div className="table-scroll">
+              <table className="data-table report-table">
+                <thead>
+                  <tr>
+                    <th>비교 항목</th>
+                    <th>자치운영</th>
+                    <th>CPO 위탁</th>
+                    <th>CMO (UC)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(model.compare ?? []).map((row) => (
+                    <tr key={row.id}>
+                      <td className="col-name">{row.item}</td>
+                      {(['self', 'cpo', 'cmo'] as const).map((k) => (
+                        <td key={k}>
+                          <TextInput
+                            value={row[k]}
+                            onChange={(v) => updList('compare', row.id, { [k]: v })}
+                            wide
                           />
                         </td>
                       ))}

@@ -62,6 +62,22 @@ export interface ReportModel {
     proposed: string
     note: string
   }[]
+  /** Part3 공통 전제 */
+  premise: string
+  /** 자치운영 고려사항 (영역/상세) */
+  autonomy: { id: string; area: string; detail: string }[]
+  /** CPO 위탁 (항목/내용) */
+  cpo: { id: string; label: string; content: string }[]
+  /** CMO 위탁 (항목/내용) */
+  cmo: { id: string; label: string; content: string }[]
+  /** 3가지 방안 비교 */
+  compare: {
+    id: string
+    item: string
+    self: string
+    cpo: string
+    cmo: string
+  }[]
 }
 
 /** 실효 전기원가 계산 결과 */
@@ -217,6 +233,52 @@ export function defaultReport(): ReportModel {
         proposed: '330원/kWh 이상',
         note: '높은 수선비 적립 필요',
       },
+    ],
+    premise:
+      '① 어떤 운영 방식을 선택하더라도 충전요금 인상(완속 250원, 급속 330원 이상)이 필요하며, ② 위탁운영 시 모자분리(EV충전 전용 계량기 분리)가 선행되어야 합니다.',
+    autonomy: [
+      { id: rid(), area: '전기안전관리', detail: '정기점검 / 긴급점검 등 자체 진행 프로세스 마련' },
+      { id: rid(), area: '고장 대응 / 입주민CS', detail: '입주민CS, AS 접수·일정 조율·현장 인력 배정' },
+      { id: rid(), area: '정산·과금', detail: '수동 정산. 주기적인 사용 패턴 파악 및 부과요금 변경' },
+      { id: rid(), area: '인력 연속성', detail: '관리소장·담당자 교체 시 운영 노하우 단절. 인수인계 체계 부재 시 서비스 품질 위험.' },
+      { id: rid(), area: '수선비 적립', detail: '고장 빈도·부품을 예상한 적정한 수선비 적립' },
+      { id: rid(), area: '실제 인건비', detail: '원가 산정 시 최소 1명 인건비 포함 추천' },
+    ],
+    cpo: [
+      { id: rid(), label: '충전기', content: 'CPO 자체 충전기로 교체 (환경부 교체 가능여부 검토 중)' },
+      { id: rid(), label: '계약 기간', content: '7~10년 장기, 중도해지 시 위약금' },
+      { id: rid(), label: '운영·유지보수', content: 'CPO가 전담' },
+      { id: rid(), label: '요금 결정권', content: 'CPO에 귀속' },
+      { id: rid(), label: '요금 민원 부담', content: 'CPO가 요금 설정(완속 300~350원, 급속 400~500원). 높은 요금으로 관리주체가 민원 부담' },
+      { id: rid(), label: '해지 시', content: 'CPO가 충전기 철거. 충전 설비(배관·배선)는 협의 사항' },
+    ],
+    cmo: [
+      { id: rid(), label: '모자분리 비용', content: '위탁운영 업체(UC)에서 부담' },
+      { id: rid(), label: '운영·유지보수', content: 'UC가 전담' },
+      { id: rid(), label: '요금', content: '아파트와 협의 결정(완속 249원, 급속 280원). 급속 이용률 증대 위해 급속 요금 인하' },
+      { id: rid(), label: '소유권·결정권', content: '아파트 유지. 요금인상 요인 발생 시 협의 후 인상' },
+      { id: rid(), label: '계약 기간', content: '3년 (유연한 갱신)' },
+      { id: rid(), label: '해지 시', content: '충전기 아파트 소유 유지' },
+    ],
+    compare: [
+      { id: rid(), item: '충전기 소유권', self: '아파트', cpo: 'CPO', cmo: '아파트' },
+      { id: rid(), item: '요금 결정권', self: '아파트', cpo: 'CPO', cmo: '아파트' },
+      { id: rid(), item: '충전 요금', self: '완속 280 / 급속 330 (추천)', cpo: '완속 300~324 / 급속 330~430', cmo: '완속 249 / 급속 280 (협의)' },
+      { id: rid(), item: '아파트 월 수익', self: '수익금 발생(수선비 적립필요)', cpo: '0원', cmo: '0원' },
+      { id: rid(), item: '관리사무소 부담', self: '있음', cpo: '없음', cmo: '없음' },
+      { id: rid(), item: '등록·규제(의무)', self: '아파트', cpo: 'CPO', cmo: 'UC' },
+      { id: rid(), item: '고장·CS 대응', self: '아파트', cpo: 'CPO', cmo: 'UC' },
+      { id: rid(), item: '정산·계량 관리', self: '아파트', cpo: 'CPO 별도', cmo: 'UC 별도' },
+      { id: rid(), item: '인력 리스크', self: '있음', cpo: '없음', cmo: '없음' },
+      { id: rid(), item: '전담 인력', self: '미보유', cpo: '보유', cmo: '보유' },
+      { id: rid(), item: '수선비 적립', self: '별도 재원 필요', cpo: 'CPO', cmo: 'UC' },
+      { id: rid(), item: '운영 전문성', self: '자체 확보 필요', cpo: 'CPO', cmo: 'UC' },
+      { id: rid(), item: '계약 기간', self: '—', cpo: '7~10년(lock-in)', cmo: '최소 3년' },
+      { id: rid(), item: '해지 시 소유권', self: '—', cpo: '철거·원상복구 협의', cmo: '변동없음' },
+      { id: rid(), item: '초기 비용부담', self: '모자분리 공사비·보험·화재예방(옵션)', cpo: '기존 충전기 매몰비용', cmo: '-' },
+      { id: rid(), item: '입주민 요금 부담', self: '낮음(280·330원)', cpo: '높음(300~324원)', cmo: '낮음(249·280원)' },
+      { id: rid(), item: '화재 예방시설', self: '아파트 투자 검토', cpo: 'CPO 협의', cmo: '열화상AI솔루션 제공' },
+      { id: rid(), item: '리스크', self: '수리비·CS 운영', cpo: '장기계약·충전요금', cmo: 'UC 문제 시 계약 해지가능' },
     ],
   }
 }
