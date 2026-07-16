@@ -151,6 +151,11 @@ const RULES: Rule[] = [
  * 파일명을 분류 기준(category)과 기간(period)으로 분해한다.
  * 기간 토큰을 제거한 나머지 문자열이 카테고리가 된다.
  */
+/** 연간 유형의 개월수를 연 단위(12의 배수, 최소 12)로 환산한다. */
+function annualizeMonths(months: number): number {
+  return Math.max(12, Math.round(months / 12) * 12)
+}
+
 export function parseFileName(fileName: string): {
   category: string
   period: Period | null
@@ -165,9 +170,14 @@ export function parseFileName(fileName: string): {
       const period = build(m)
       let category = cleanCategory(base.replace(m[0], ' '))
       if (isTotal) {
+        // 전체 기간 파일은 실제 개월수를 그대로 유지한다.
         period.type = 'total'
         category = cleanCategory(category.replace(/전체/g, ' '))
         return { category: category || '전체', period }
+      }
+      // 연간 데이터는 1년(12개월) 단위로 환산 (예: 14/13개월 → 12개월)
+      if (period.type === 'year') {
+        period.months = annualizeMonths(period.months)
       }
       return { category: category || cleanCategory(base) || base, period }
     }
