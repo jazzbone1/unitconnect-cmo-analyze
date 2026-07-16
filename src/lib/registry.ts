@@ -248,7 +248,7 @@ export function computeRegistry(datasets: Dataset[]): RegistryResult {
         .map(([name, c]) => ({ name, count: c as number }))
         .sort((a, b) => b.count - a.count),
     }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => a.count - b.count)
 
   // 표시 컬럼 = 개인정보 제외 + 통합차종 컬럼 추가
   const baseColumns = allColumns.filter((c) => !isHiddenCol(c))
