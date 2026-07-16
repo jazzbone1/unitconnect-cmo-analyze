@@ -80,6 +80,8 @@ export interface SettlementMetrics {
   types: TypeMetric[]
   /** 종류별 사용량 분리가 가능했는지 */
   splittable: boolean
+  /** 분리 방식: auto=자동 역산/컬럼, manual=직접 입력, none=분리 불가 */
+  splitMode: 'auto' | 'manual' | 'none'
 }
 
 function toNumber(value: CellValue): number | null {
@@ -143,6 +145,7 @@ export function computeFile(
   file: FileEntry,
   config: SettlementConfig,
   monthsOverride?: number,
+  manualUsage?: Record<string, number>,
 ): SettlementMetrics {
   const { dataset } = file
   const chargers = config.chargers
@@ -181,8 +184,8 @@ export function computeFile(
   const high = sorted[1]
   const denom = active.length === 2 ? high.rate - low.rate : 0
 
-  // 분리 방식: 종류별 명시 컬럼 전부 존재 > 활성 1종 전량 배정 > 활성 2종 요금 역산
-  const splittable =
+  // 자동 분리 가능 여부: 종류별 명시 컬럼 전부 존재 > 활성 1종 전량 > 활성 2종 역산
+  const autoSplittable =
     hasAllExplicit ||
     active.length === 1 ||
     (active.length === 2 && denom > 0)
@@ -210,6 +213,23 @@ export function computeFile(
       usageByType.set(low.id, (usageByType.get(low.id) ?? 0) + (usage - uHigh))
     }
   }
+
+  // 종류별 사용량 직접 입력(수동)이 있으면 자동값을 덮어쓴다.
+  let manualApplied = false
+  if (manualUsage) {
+    for (const [cid, val] of Object.entries(manualUsage)) {
+      if (Number.isFinite(val)) {
+        usageByType.set(cid, val)
+        manualApplied = true
+      }
+    }
+  }
+  const splitMode: 'auto' | 'manual' | 'none' = manualApplied
+    ? 'manual'
+    : autoSplittable
+      ? 'auto'
+      : 'none'
+  const splittable = splitMode !== 'none'
 
   const types: TypeMetric[] = chargers.map((t) => {
     const usage = usageByType.get(t.id) ?? 0
@@ -243,6 +263,7 @@ export function computeFile(
     utilTotal: capTotal > 0 ? (usageTotal / capTotal) * 100 : 0,
     types,
     splittable,
+    splitMode,
   }
 }
 
@@ -251,9 +272,10 @@ export function computeAll(
   files: FileEntry[],
   config: SettlementConfig,
   monthsById: Record<string, number> = {},
+  manualUsageById: Record<string, Record<string, number>> = {},
 ): SettlementMetrics[] {
   return files
-    .map((f) => computeFile(f, config, monthsById[f.id]))
+    .map((f) => computeFile(f, config, monthsById[f.id], manualUsageById[f.id]))
     .sort((a, b) => {
       if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey
       return a.fileName.localeCompare(b.fileName)

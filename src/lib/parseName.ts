@@ -9,21 +9,28 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/** YYMMDD 또는 YYYYMMDD 형태의 숫자 문자열을 {year,month,day}로 파싱한다. */
+/**
+ * 날짜 숫자 문자열을 {year,month,day}로 파싱한다.
+ * - 8자리: YYYYMMDD
+ * - 6자리: YYMMDD 우선(월 1~12·일 1~31이면), 아니면 YYYYMM으로 해석
+ *   (예: "240601"→2024-06-01, "202401"→2024-01)
+ */
 function parseDateDigits(d: string): { year: number; month: number; day: number } {
-  if (d.length === 6) {
+  if (d.length === 8) {
     return {
-      year: expandYear(d.slice(0, 2)),
-      month: Number(d.slice(2, 4)),
-      day: Number(d.slice(4, 6)),
+      year: Number(d.slice(0, 4)),
+      month: Number(d.slice(4, 6)),
+      day: Number(d.slice(6, 8)),
     }
   }
-  // 8자리 YYYYMMDD
-  return {
-    year: Number(d.slice(0, 4)),
-    month: Number(d.slice(4, 6)),
-    day: Number(d.slice(6, 8)),
+  // 6자리: YYMMDD 해석이 유효하면 우선
+  const mmddMonth = Number(d.slice(2, 4))
+  const mmddDay = Number(d.slice(4, 6))
+  if (mmddMonth >= 1 && mmddMonth <= 12 && mmddDay >= 1 && mmddDay <= 31) {
+    return { year: expandYear(d.slice(0, 2)), month: mmddMonth, day: mmddDay }
   }
+  // 그 외에는 YYYYMM (일=1)
+  return { year: Number(d.slice(0, 4)), month: Number(d.slice(4, 6)), day: 1 }
 }
 
 function ymd(year: number, month: number, day: number): number {
@@ -53,8 +60,12 @@ const RULES: Rule[] = [
     build: (m) => {
       const s = parseDateDigits(m[1])
       const e = parseDateDigits(m[2])
+      // 일(day) 정보가 없으면(둘 다 1일) YYYY-MM 범위로, 있으면 YY.MM.DD로 표시
+      const monthOnly = s.day === 1 && e.day === 1
       const fmt = (d: { year: number; month: number; day: number }) =>
-        `${String(d.year).slice(2)}.${pad2(d.month)}.${pad2(d.day)}`
+        monthOnly
+          ? `${d.year}-${pad2(d.month)}`
+          : `${String(d.year).slice(2)}.${pad2(d.month)}.${pad2(d.day)}`
       const months =
         (e.year * 12 + e.month) - (s.year * 12 + s.month) + 1
       // 기간 범위(예: 240601~250703)는 연간 분석 데이터로 분류한다.

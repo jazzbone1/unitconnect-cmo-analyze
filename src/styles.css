@@ -127,6 +127,11 @@ body {
   background: var(--warn-soft);
   color: var(--warn);
 }
+.status--info {
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-align: left;
+}
 
 /* Overview stats */
 .overview {
@@ -467,6 +472,9 @@ body {
 }
 .cell-input--sm {
   width: 58px;
+}
+.cell-input--usage {
+  width: 82px;
 }
 .cell-input:focus-visible {
   outline: 2px solid var(--accent);

@@ -125,11 +125,13 @@ function ComparisonSection({
   rows,
   chargers,
   onMonths,
+  onUsage,
 }: {
   label: string
   rows: SettlementMetrics[]
   chargers: ChargerType[]
   onMonths: (id: string, months: number) => void
+  onUsage: (fileId: string, chargerId: string, usage: number) => void
 }) {
   return (
     <div className="subsection">
@@ -188,18 +190,33 @@ function ComparisonSection({
                   <td>{formatNumber(m.usageTotal)}</td>
                   {chargers.map((c) => (
                     <td key={`u-${c.id}`}>
-                      {m.splittable
-                        ? formatNumber(typeById.get(c.id)?.usage ?? 0)
-                        : '—'}
+                      {m.splitMode === 'auto' ? (
+                        formatNumber(typeById.get(c.id)?.usage ?? 0)
+                      ) : (
+                        <input
+                          className="cell-input cell-input--usage"
+                          type="number"
+                          min={0}
+                          placeholder="직접 입력"
+                          value={
+                            m.splitMode === 'manual'
+                              ? (typeById.get(c.id)?.usage ?? 0)
+                              : ''
+                          }
+                          onChange={(e) =>
+                            onUsage(m.id, c.id, Number(e.target.value) || 0)
+                          }
+                        />
+                      )}
                     </td>
                   ))}
                   <td>{formatNumber(Math.round(m.amountCalc))}</td>
                   <td>{formatNumber(m.utilTotal)}</td>
                   {chargers.map((c) => (
                     <td key={`r-${c.id}`}>
-                      {m.splittable
-                        ? formatNumber(typeById.get(c.id)?.utilization ?? 0)
-                        : '—'}
+                      {m.splitMode === 'none'
+                        ? '—'
+                        : formatNumber(typeById.get(c.id)?.utilization ?? 0)}
                     </td>
                   ))}
                   <td
@@ -233,14 +250,24 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
   const [config, setConfig] = useState<SettlementConfig>(cloneDefault)
   // 파일별 분석 개월수 오버라이드 (전체 기간 등 기간 미정 파일에 사용)
   const [monthsById, setMonthsById] = useState<Record<string, number>>({})
+  // 파일별·종류별 사용량 직접 입력 (파일에 종류별 컬럼이 없을 때)
+  const [manualUsage, setManualUsage] = useState<
+    Record<string, Record<string, number>>
+  >({})
 
   const metrics = useMemo(
-    () => computeAll(files, config, monthsById),
-    [files, config, monthsById],
+    () => computeAll(files, config, monthsById, manualUsage),
+    [files, config, monthsById, manualUsage],
   )
 
   function setMonths(id: string, months: number) {
     setMonthsById((prev) => ({ ...prev, [id]: months }))
+  }
+  function setUsage(fileId: string, chargerId: string, usage: number) {
+    setManualUsage((prev) => ({
+      ...prev,
+      [fileId]: { ...(prev[fileId] ?? {}), [chargerId]: usage },
+    }))
   }
 
   // 비교표에는 수량이 지정된(현장에 존재하는) 종류만 컬럼으로 표시
@@ -266,11 +293,10 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
       <ChargerEditor config={config} setConfig={setConfig} />
 
       {anyUnsplittable && (
-        <p className="status status--error">
-          종류별 사용량·이용률은 파일에 (총 사용량·총 사용금액)만 있을 때{' '}
-          <b>요금이 서로 다른 2종류</b>에 한해 계산됩니다. 요금이 지정된 종류가
-          3개 이상이거나 요금이 서로 같으면 종류별 분리가 불가능하여 전체 값만
-          표시합니다(종류별 값은 —).
+        <p className="status status--info">
+          종류가 3개 이상이거나 요금이 같아 자동 분리가 안 되는 파일은, 표의{' '}
+          <b>종류별 사용량 칸에 값을 직접 입력</b>하면 종류별 이용률이
+          계산됩니다. (요금이 다른 2종류는 자동 역산됩니다.)
         </p>
       )}
 
@@ -284,6 +310,7 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
             rows={rows}
             chargers={visibleChargers}
             onMonths={setMonths}
+            onUsage={setUsage}
           />
         )
       })}
