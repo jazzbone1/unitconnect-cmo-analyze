@@ -5,10 +5,10 @@ main = "src/index.ts"
 compatibility_date = "2024-11-01"
 
 # 프로젝트(현장) 저장용 R2 버킷.
-# `npx wrangler r2 bucket create unitconnect-cmo-store` 로 만든 뒤 이름을 맞추세요.
+# `npx wrangler r2 bucket create wecha-cmo-analysis` 로 만든 뒤 이름을 맞추세요.
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "unitconnect-cmo-store"
+bucket_name = "wecha-cmo-analysis"
 
 # (선택) 공유 키로 접근 제한하려면 주석 해제 후 값 지정.
 # 앱(Railway) 빌드 변수 VITE_APP_KEY 와 같은 값이어야 합니다.

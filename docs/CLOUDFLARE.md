@@ -23,7 +23,7 @@
 
 ### 1. R2 버킷 만들기
 1. Cloudflare 대시보드 → **R2 Object Storage** → (처음이면 R2 사용 활성화)
-2. **Create bucket** → 이름 `unitconnect-cmo-store` → 생성
+2. **Create bucket** → 이름 `wecha-cmo-analysis` → 생성
 
 ### 2. Worker 만들기
 1. **Workers & Pages → Create → Create Worker** → 이름 `unitconnect-cmo-store` → Deploy
@@ -32,7 +32,7 @@
 ### 3. Worker에 R2 버킷 연결 (가장 중요)
 1. Worker → **Settings → Bindings → Add → R2 bucket**
 2. **Variable name** 에 정확히 `BUCKET` 입력
-3. Bucket 은 1번에서 만든 `unitconnect-cmo-store` 선택 → 저장/Deploy
+3. Bucket 은 1번에서 만든 `wecha-cmo-analysis` 선택 → 저장/Deploy
 
 ### 4. Worker 주소 복사
 예: `https://unitconnect-cmo-store.<계정>.workers.dev`
@@ -59,7 +59,7 @@ Railway → 서비스 → **Variables**:
 cd worker
 npm install
 npx wrangler login
-npx wrangler r2 bucket create unitconnect-cmo-store   # wrangler.toml의 bucket_name과 동일
+npx wrangler r2 bucket create wecha-cmo-analysis   # wrangler.toml의 bucket_name과 동일
 npx wrangler deploy
 ```
 이후 Railway Variables 설정은 A-5 와 동일.
