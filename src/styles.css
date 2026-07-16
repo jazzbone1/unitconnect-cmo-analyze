@@ -883,6 +883,24 @@ body {
 .charger-table td {
   padding: 0.3rem 0.4rem;
 }
+.sep-cell {
+  text-align: center;
+}
+.sep-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sep-check input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
 .cell-input {
   background: var(--surface);
   border: 1px solid var(--border);

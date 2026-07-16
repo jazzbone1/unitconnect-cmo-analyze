@@ -159,6 +159,7 @@ export default function SiteConfigForm({
               <th>충전기 종류</th>
               <th>수량(기)</th>
               <th>요금(원/kWh)</th>
+              <th>모자분리</th>
             </tr>
           </thead>
           <tbody>
@@ -189,6 +190,18 @@ export default function SiteConfigForm({
                     }
                   />
                 </td>
+                <td className="sep-cell">
+                  <label className="sep-check" title="모자분리(모자분리계량) 적용 여부">
+                    <input
+                      type="checkbox"
+                      checked={!!c.separated}
+                      onChange={(e) =>
+                        updateCharger(c.id, { separated: e.target.checked })
+                      }
+                    />
+                    <span>{c.separated ? '적용' : '미적용'}</span>
+                  </label>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -214,7 +227,8 @@ export default function SiteConfigForm({
       </div>
       <p className="var-hint">
         여기 입력한 단지 정보와 충전기 수량·요금이 이용량 분석과 사업성 분석에
-        자동 적용됩니다. 사용하는 종류만 입력하세요.
+        자동 적용됩니다. 사용하는 종류만 입력하세요. <b>모자분리</b>를 체크한
+        종류와 미적용 종류는 이후 보고서에서 분리 발행됩니다.
       </p>
     </div>
   )

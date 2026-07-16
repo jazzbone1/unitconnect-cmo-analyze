@@ -12,6 +12,8 @@ export interface ChargerType {
   rate: number
   /** 수량 (기) */
   count: number
+  /** 모자분리(모자분리계량) 적용 여부. 이후 보고서를 분리 발행하는 기준. */
+  separated?: boolean
 }
 
 /** 충전기 정산 분석 설정. 충전기 종류 목록 + 월 가동시간. */
@@ -32,7 +34,7 @@ export const CHARGER_KW: { id: string; name: string; kw: number }[] = [
 
 // 요금·수량은 현장마다 다르므로 기본값은 비워둔다(0). 사용자가 현장별로 입력.
 export const DEFAULT_CONFIG: SettlementConfig = {
-  chargers: CHARGER_KW.map((c) => ({ ...c, rate: 0, count: 0 })),
+  chargers: CHARGER_KW.map((c) => ({ ...c, rate: 0, count: 0, separated: false })),
   hours: 720,
 }
 
