@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ChargerType, SettlementConfig } from '../lib/settlement'
 import { parseBuildingPdf } from '../lib/buildingRegister'
+import Dropzone from './Dropzone'
 
 export interface SiteInfo {
   name: string
@@ -34,7 +35,6 @@ export default function SiteConfigForm({
   onReset,
 }: SiteConfigFormProps) {
   const totalCount = config.chargers.reduce((acc, c) => acc + c.count, 0)
-  const pdfInput = useRef<HTMLInputElement>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [pdfMsg, setPdfMsg] = useState<string | null>(null)
 
@@ -86,26 +86,17 @@ export default function SiteConfigForm({
   return (
     <div className="var-panel">
       <div className="pdf-import">
-        <button
-          type="button"
-          className="btn-secondary"
+        <Dropzone
+          onFiles={(fs) => fs[0] && handlePdf(fs[0])}
           disabled={pdfBusy}
-          onClick={() => pdfInput.current?.click()}
-        >
-          {pdfBusy ? '읽는 중…' : '📄 건축물대장 PDF로 자동입력'}
-        </button>
-        <input
-          ref={pdfInput}
-          type="file"
+          compact
           accept="application/pdf,.pdf"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) handlePdf(f)
-            e.target.value = ''
-          }}
+          multiple={false}
+          icon="📄"
+          title={pdfBusy ? '읽는 중…' : '건축물대장 PDF 끌어다 놓기 또는 클릭'}
+          hint="단지명·주소·세대수·총주차대수 자동 입력 (수정 가능)"
         />
-        {pdfMsg && <span className="pdf-import__msg">{pdfMsg}</span>}
+        {pdfMsg && <p className="pdf-import__msg">{pdfMsg}</p>}
       </div>
       <div className="site-grid">
         <label className="var-field">

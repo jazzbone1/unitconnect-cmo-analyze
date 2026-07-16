@@ -19,8 +19,47 @@ export function detectRegistry(dataset: Dataset): boolean {
   return findCol(dataset.columns, ['차량번호', '차량 번호', '차번']) !== null
 }
 
+// 저장 시 제거할 개인정보 컬럼 (차량번호는 중복제거용으로 유지)
+function isStorePiiCol(column: string): boolean {
+  const n = norm(column)
+  if (n === '동' || n === '호' || n === '세대' || n === '세대주') return true
+  return [
+    '사용자',
+    '성명',
+    '이름',
+    '고객명',
+    '건물',
+    '연락처',
+    '전화',
+    '휴대',
+    '주민',
+    '스마트',
+    'email',
+    '이메일',
+    '메일',
+  ].some((p) => n.includes(p))
+}
+
 // 테스트/서비스 계정을 나타내는 값 패턴
 const TEST_PATTERN = /test|costel|코스텔/i
+
+/**
+ * 명부를 저장/업로드용으로 개인정보 제거한다.
+ *  1) test/costel 행 제거 (이름·건물명 값이 필요하므로 컬럼 제거 전에 수행)
+ *  2) 개인정보 컬럼(이름·건물·동·호·전화·스마트카드·이메일) 제거
+ * 차량번호·차종·번호 등은 중복제거·집계용으로 유지한다.
+ */
+export function sanitizeRegistry(dataset: Dataset): Dataset {
+  const keep = dataset.columns.filter((c) => !isStorePiiCol(c))
+  const rows = dataset.rows
+    .filter((r) => !isTestRow(r))
+    .map((r) => {
+      const o: Record<string, CellValue> = {}
+      for (const c of keep) o[c] = r[c] ?? null
+      return o
+    })
+  return { ...dataset, columns: keep, rows }
+}
 
 // 분석 표시에서 숨길 컬럼 판별
 // (동·호·스마트키(카드)·전화·사용자명·건물명·차량번호·이메일)

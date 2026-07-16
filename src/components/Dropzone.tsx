@@ -6,15 +6,22 @@ interface DropzoneProps {
   title?: string
   hint?: string
   icon?: string
+  accept?: string
+  multiple?: boolean
+  /** 컴팩트(작은) 표시 */
+  compact?: boolean
 }
 
-/** 드래그 앤 드롭 + 클릭 업로드를 지원하는 파일 입력 영역. (다중 파일) */
+/** 드래그 앤 드롭 + 클릭 업로드를 지원하는 파일 입력 영역. */
 export default function Dropzone({
   onFiles,
   disabled,
   title = '파일을 여기에 끌어다 놓거나 클릭해서 선택하세요 (여러 개 가능)',
   hint = 'CSV · Excel (.xlsx, .xls) 지원 · 파일명의 날짜로 자동 분류됩니다',
   icon = '⬆',
+  accept = '.csv,.txt,.xlsx,.xls',
+  multiple = true,
+  compact = false,
 }: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -31,10 +38,10 @@ export default function Dropzone({
     <div
       className={`dropzone${dragOver ? ' dropzone--over' : ''}${
         disabled ? ' dropzone--disabled' : ''
-      }`}
+      }${compact ? ' dropzone--compact' : ''}`}
       role="button"
       tabIndex={0}
-      aria-label="CSV 또는 Excel 파일 업로드"
+      aria-label={title}
       onClick={() => !disabled && inputRef.current?.click()}
       onKeyDown={(e) => {
         if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
@@ -56,8 +63,8 @@ export default function Dropzone({
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,.txt,.xlsx,.xls"
-        multiple
+        accept={accept}
+        multiple={multiple}
         hidden
         onChange={(e) => {
           handleFiles(e.target.files)

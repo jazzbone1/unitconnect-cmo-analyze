@@ -391,6 +391,13 @@ body {
   opacity: 0.6;
   cursor: default;
 }
+.dropzone--compact {
+  padding: 1rem 1.25rem;
+}
+.dropzone--compact .dropzone__icon {
+  font-size: 1.4rem;
+  margin-bottom: 0.25rem;
+}
 .dropzone__icon {
   font-size: 2rem;
   color: var(--accent);
@@ -881,14 +888,14 @@ body {
 }
 .pdf-import {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.4rem;
   margin-bottom: 0.85rem;
 }
 .pdf-import__msg {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--accent);
+  margin: 0;
 }
 @media (prefers-color-scheme: dark) {
   .saved-note {

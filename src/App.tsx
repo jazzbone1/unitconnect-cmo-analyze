@@ -12,12 +12,8 @@ import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
 import { detectRegistry, computeRegistry } from './lib/registry'
 import { parseUploadedFiles } from './lib/ingest'
-import {
-  loadSites,
-  saveSites,
-  newSiteId,
-  type SavedSite,
-} from './lib/sites'
+import { newSiteId, type SavedSite } from './lib/sites'
+import { getStore } from './lib/store'
 import type { AggKind, FileEntry } from './types'
 
 function cloneDefaultConfig(): SettlementConfig {
@@ -44,13 +40,32 @@ export default function App() {
   // 파일 업로드 전에도 먼저 기입할 수 있는 단지 정보·충전기 설정
   const [site, setSite] = useState<SiteInfo>(EMPTY_SITE)
   const [config, setConfig] = useState<SettlementConfig>(cloneDefaultConfig)
-  // 저장된 현장 목록 (localStorage 유지)
-  const [sites, setSites] = useState<SavedSite[]>(() => loadSites())
+  // 저장된 현장 목록 (localStorage 또는 원격 저장소)
+  const store = useMemo(getStore, [])
+  const [sites, setSites] = useState<SavedSite[]>([])
+  const [sitesLoaded, setSitesLoaded] = useState(false)
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
 
   useEffect(() => {
-    saveSites(sites)
-  }, [sites])
+    let alive = true
+    store
+      .load()
+      .then((s) => {
+        if (alive) setSites(s)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setSitesLoaded(true)
+      })
+    return () => {
+      alive = false
+    }
+  }, [store])
+
+  useEffect(() => {
+    // 최초 로드 완료 전에는 저장하지 않는다(빈 배열로 덮어쓰기 방지)
+    if (sitesLoaded) store.save(sites).catch(() => {})
+  }, [sites, sitesLoaded, store])
 
   function saveCurrentSite() {
     if (site.name.trim() === '') return

@@ -1,7 +1,7 @@
 import { parseFile } from './parse'
 import { parseFileName } from './parseName'
 import { stripPii } from './privacy'
-import { detectRegistry } from './registry'
+import { detectRegistry, sanitizeRegistry } from './registry'
 import type { FileEntry } from '../types'
 
 let idCounter = 0
@@ -29,7 +29,8 @@ export async function parseUploadedFiles(files: File[]): Promise<IngestResult> {
       if (raw.columns.length === 0 || raw.rows.length === 0) {
         throw new Error('헤더 또는 데이터 행이 없습니다.')
       }
-      const dataset = detectRegistry(raw) ? raw : stripPii(raw)
+      // 명부는 개인정보 제거(정제) 후 저장, 그 외는 개인정보 컬럼 제거
+      const dataset = detectRegistry(raw) ? sanitizeRegistry(raw) : stripPii(raw)
       const { category, period } = parseFileName(file.name)
       parsed.push({ id: nextFileId(), dataset, category, period })
     } catch (e) {
