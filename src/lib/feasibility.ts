@@ -273,8 +273,16 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
   const targetMargin =
     inp.rateVat >= 244 ? TARGET_MARGIN_HIGH[yIdx] : TARGET_MARGIN_LOW[yIdx]
 
+  // 영업이익률과 목표를 소수점 한 자리(0.1%)까지 반올림해 비교한다.
+  // 표시상 동일(예: 19.41% = 19.41%)한데 미세 소수 차이로 진행불가가 되는
+  // 문제를 막기 위함 — 한 자리까지 같으면 진행가능으로 본다.
+  const roundPct1 = (x: number) => Math.round(x * 1000) / 1000
   const verdict: FeasibilityResult['verdict'] =
-    revenue === 0 ? '-' : margin >= targetMargin ? '진행가능' : '진행불가'
+    revenue === 0
+      ? '-'
+      : roundPct1(margin) >= roundPct1(targetMargin)
+        ? '진행가능'
+        : '진행불가'
 
   // VAT포함 단가로 환원하는 공통 분모 (1.1 배 포함)
   const priceCut = (numerator: number, marginAdj: number): number | null => {
