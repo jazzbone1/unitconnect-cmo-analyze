@@ -137,6 +137,8 @@ export function canonicalVehicle(raw: unknown): string {
 export interface VehicleTypeCount {
   type: string
   count: number
+  /** 이 대표 명칭으로 통합된 원본 입력 명칭들 (대수 내림차순) */
+  variants: { name: string; count: number }[]
 }
 
 export interface RegistryResult {
@@ -225,15 +227,27 @@ export function computeRegistry(datasets: Dataset[]): RegistryResult {
   }
 
   // 차종별 대수 (자유 입력 명칭을 대표 명칭으로 통합)
+  // 각 대표 명칭으로 합쳐진 원본 입력 명칭도 함께 집계한다.
   const typeMap = new Map<string, number>()
+  const variantMap = new Map<string, Map<string, number>>()
   if (typeCol) {
     for (const row of cleaned) {
       const t = canonicalVehicle(row[typeCol])
       typeMap.set(t, (typeMap.get(t) ?? 0) + 1)
+      const raw = row[typeCol] == null ? '(미상)' : String(row[typeCol]).trim() || '(미상)'
+      if (!variantMap.has(t)) variantMap.set(t, new Map())
+      const vm = variantMap.get(t)!
+      vm.set(raw, (vm.get(raw) ?? 0) + 1)
     }
   }
   const byVehicleType = [...typeMap.entries()]
-    .map(([type, count]) => ({ type, count }))
+    .map(([type, count]) => ({
+      type,
+      count,
+      variants: [...(variantMap.get(type) ?? new Map()).entries()]
+        .map(([name, c]) => ({ name, count: c as number }))
+        .sort((a, b) => b.count - a.count),
+    }))
     .sort((a, b) => b.count - a.count)
 
   // 표시 컬럼 = 개인정보 제외 + 통합차종 컬럼 추가

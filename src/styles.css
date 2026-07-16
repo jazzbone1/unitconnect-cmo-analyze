@@ -731,6 +731,34 @@ body {
   line-height: 1.15;
 }
 
+/* 차종 통합 표: 클릭 펼치기 */
+.row--clickable {
+  cursor: pointer;
+}
+.row--clickable:hover td {
+  background: var(--surface-2);
+}
+.row-caret {
+  display: inline-block;
+  width: 1.1em;
+  color: var(--text-muted);
+  font-size: 0.7em;
+}
+.variant-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+.row--variant td {
+  background: var(--surface-2);
+  font-size: 0.9em;
+}
+.variant-name {
+  color: var(--text-muted);
+  font-weight: 400 !important;
+  padding-left: 1.6rem !important;
+}
+
 /* 콤보 그래프 (사용금액 막대 + 사용량 선) */
 .chart-box {
   max-width: 760px;
