@@ -1,22 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { FileEntry, Period } from '../types'
 import {
   computeAll,
-  DEFAULT_CONFIG,
   type ChargerType,
   type SettlementConfig,
   type SettlementMetrics,
 } from '../lib/settlement'
 import { formatNumber } from '../lib/stats'
+import type { SiteInfo } from './SiteInfoPanel'
 
 interface SettlementAnalysisProps {
   files: FileEntry[]
-}
-
-interface SiteInfo {
-  name: string
-  address: string
-  households: number
+  config: SettlementConfig
+  site: SiteInfo
 }
 
 // 기간 유형별 표시 순서/라벨
@@ -26,152 +22,6 @@ const PERIOD_SECTIONS: { type: Period['type']; label: string }[] = [
   { type: 'total', label: '전체 기간' },
   { type: 'unknown', label: '기타 (기간 미인식)' },
 ]
-
-function cloneDefault(): SettlementConfig {
-  return {
-    hours: DEFAULT_CONFIG.hours,
-    chargers: DEFAULT_CONFIG.chargers.map((c) => ({ ...c })),
-  }
-}
-
-/** 단지 정보 + 충전기 종류별 수량·요금 입력 패널 */
-function SiteInfoPanel({
-  site,
-  setSite,
-  config,
-  setConfig,
-}: {
-  site: SiteInfo
-  setSite: (s: SiteInfo) => void
-  config: SettlementConfig
-  setConfig: (c: SettlementConfig) => void
-}) {
-  const totalCount = config.chargers.reduce((acc, c) => acc + c.count, 0)
-
-  function updateCharger(id: string, patch: Partial<ChargerType>) {
-    setConfig({
-      ...config,
-      chargers: config.chargers.map((c) =>
-        c.id === id ? { ...c, ...patch } : c,
-      ),
-    })
-  }
-
-  return (
-    <div className="var-panel">
-      <h3 className="subsection__title">단지 정보</h3>
-      <div className="site-grid">
-        <label className="var-field">
-          <span className="var-field__label">단지명</span>
-          <input
-            className="var-field__input"
-            type="text"
-            value={site.name}
-            placeholder="예: 흑석자이아파트"
-            onChange={(e) => setSite({ ...site, name: e.target.value })}
-          />
-        </label>
-        <label className="var-field">
-          <span className="var-field__label">주소</span>
-          <input
-            className="var-field__input"
-            type="text"
-            value={site.address}
-            placeholder="예: 서울시 동작구 …"
-            onChange={(e) => setSite({ ...site, address: e.target.value })}
-          />
-        </label>
-        <label className="var-field">
-          <span className="var-field__label">세대수</span>
-          <input
-            className="var-field__input"
-            type="number"
-            min={0}
-            value={site.households || ''}
-            placeholder="0"
-            onChange={(e) =>
-              setSite({ ...site, households: Number(e.target.value) || 0 })
-            }
-          />
-        </label>
-        <div className="var-field">
-          <span className="var-field__label">충전기 수량 (자동합계)</span>
-          <div className="var-field__auto">{totalCount.toLocaleString()}기</div>
-        </div>
-      </div>
-
-      <h3 className="subsection__title">충전기 종류별 수량·요금</h3>
-      <div className="table-scroll">
-        <table className="data-table charger-table">
-          <thead>
-            <tr>
-              <th>충전기 종류</th>
-              <th>수량(기)</th>
-              <th>요금(원/kWh)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {config.chargers.map((c) => (
-              <tr key={c.id}>
-                <td className="col-name">{c.name}</td>
-                <td>
-                  <input
-                    className="cell-input"
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={c.count || ''}
-                    onChange={(e) =>
-                      updateCharger(c.id, { count: Number(e.target.value) || 0 })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    className="cell-input"
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={c.rate || ''}
-                    onChange={(e) =>
-                      updateCharger(c.id, { rate: Number(e.target.value) || 0 })
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="var-actions">
-        <label className="hours-field">
-          월 가동시간(시간)
-          <input
-            className="cell-input"
-            type="number"
-            min={1}
-            value={config.hours}
-            onChange={(e) =>
-              setConfig({ ...config, hours: Number(e.target.value) || 0 })
-            }
-          />
-        </label>
-        <button
-          type="button"
-          className="link-button"
-          onClick={() => setConfig(cloneDefault())}
-        >
-          수량·요금 모두 지우기
-        </button>
-      </div>
-      <p className="var-hint">
-        여기 입력한 단지 정보와 충전기 수량·요금이 아래 분석에 자동 적용됩니다.
-        요금·수량은 현장마다 다르니 사용하는 종류만 입력하세요.
-      </p>
-    </div>
-  )
-}
 
 /** 한 기간 유형(월간/연간/전체)에 대한 비교표 (읽기 전용) */
 function ComparisonSection({
@@ -263,17 +113,14 @@ function ComparisonSection({
 }
 
 /**
- * 충전기 정산 전용 분석. 단지 정보 패널에 입력한 충전기 수량·요금이
- * 분석에 자동 적용되며, 결과 표는 읽기 전용이다.
+ * 충전기 정산 전용 분석. 단지 정보 패널에서 입력한 충전기 수량·요금(config)이
+ * 자동 적용되며, 결과 표는 읽기 전용이다.
  */
-export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
-  const [config, setConfig] = useState<SettlementConfig>(cloneDefault)
-  const [site, setSite] = useState<SiteInfo>({
-    name: '',
-    address: '',
-    households: 0,
-  })
-
+export default function SettlementAnalysis({
+  files,
+  config,
+  site,
+}: SettlementAnalysisProps) {
   const metrics = useMemo(() => computeAll(files, config), [files, config])
 
   const visibleChargers = useMemo(
@@ -289,18 +136,13 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
           <h2>충전기 정산 분석{site.name ? ` · ${site.name}` : ''}</h2>
           <p className="group-range">
             {site.address ? `${site.address} · ` : ''}
-            {site.households > 0 ? `${site.households.toLocaleString()}세대 · ` : ''}
+            {site.households > 0
+              ? `${site.households.toLocaleString()}세대 · `
+              : ''}
             {metrics.length}개 파일
           </p>
         </div>
       </div>
-
-      <SiteInfoPanel
-        site={site}
-        setSite={setSite}
-        config={config}
-        setConfig={setConfig}
-      />
 
       {anyNone && (
         <p className="status status--info">

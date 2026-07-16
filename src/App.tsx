@@ -4,13 +4,21 @@ import FileList from './components/FileList'
 import GroupSection from './components/GroupSection'
 import SettlementAnalysis from './components/SettlementAnalysis'
 import RegistryAnalysis from './components/RegistryAnalysis'
+import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoPanel'
 import { parseFile } from './lib/parse'
 import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
-import { detectSettlement } from './lib/settlement'
+import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
 import { detectRegistry } from './lib/registry'
 import { stripPii } from './lib/privacy'
 import type { AggKind, FileEntry } from './types'
+
+function cloneDefaultConfig(): SettlementConfig {
+  return {
+    hours: DEFAULT_CONFIG.hours,
+    chargers: DEFAULT_CONFIG.chargers.map((c) => ({ ...c })),
+  }
+}
 
 const AGG_OPTIONS: { value: AggKind; label: string }[] = [
   { value: 'sum', label: '합계' },
@@ -29,6 +37,9 @@ export default function App() {
   const [errors, setErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [aggKind, setAggKind] = useState<AggKind>('sum')
+  // 파일 업로드 전에도 먼저 기입할 수 있는 단지 정보·충전기 설정
+  const [site, setSite] = useState<SiteInfo>(EMPTY_SITE)
+  const [config, setConfig] = useState<SettlementConfig>(cloneDefaultConfig)
 
   const settlementFiles = useMemo(
     () => files.filter((f) => detectSettlement(f.dataset)),
@@ -93,14 +104,22 @@ export default function App() {
       <header className="app__header">
         <h1>데이터 분석</h1>
         <p className="app__subtitle">
-          여러 CSV·Excel 파일을 올리면 <b>파일명의 날짜를 기준으로 자동 분류</b>하고
-          그룹별로 기간을 비교·취합해 요약 통계를 계산합니다.
+          <b>단지 정보와 충전기 설정을 먼저 입력</b>한 뒤 아래에서 CSV·Excel
+          파일을 올리면, 파일명의 날짜로 자동 분류해 정산·이용률을 계산합니다.
           <br />
           데이터는 서버로 전송되지 않고 전부 브라우저 안에서만 처리됩니다.
         </p>
       </header>
 
       <main className="app__main">
+        <SiteInfoPanel
+          site={site}
+          setSite={setSite}
+          config={config}
+          setConfig={setConfig}
+          onReset={() => setConfig(cloneDefaultConfig())}
+        />
+
         <Dropzone onFiles={handleFiles} disabled={loading} />
 
         {loading && <p className="status status--loading">분석 중…</p>}
@@ -120,7 +139,11 @@ export default function App() {
             <FileList files={files} onRemove={removeFile} onClear={clearAll} />
 
             {settlementFiles.length > 0 && (
-              <SettlementAnalysis files={settlementFiles} />
+              <SettlementAnalysis
+                files={settlementFiles}
+                config={config}
+                site={site}
+              />
             )}
 
             {registryFiles.length > 0 && (
