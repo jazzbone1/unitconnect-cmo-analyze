@@ -7,6 +7,7 @@ import RegistryAnalysis from './components/RegistryAnalysis'
 import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoPanel'
 import ProjectsView from './components/ProjectsView'
 import FeasibilityAnalysis from './components/FeasibilityAnalysis'
+import Logo from './components/Logo'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
@@ -174,7 +175,9 @@ export default function App() {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="sidebar__brand">⚡ UnitConnect</div>
+        <div className="sidebar__brand">
+          <Logo height={28} />
+        </div>
         <nav className="sidebar__nav">
           <button
             type="button"

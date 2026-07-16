@@ -61,10 +61,12 @@ body {
   height: 100vh;
 }
 .sidebar__brand {
-  font-weight: 700;
-  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
   padding: 0 0.6rem 1.25rem;
-  letter-spacing: -0.01em;
+}
+.brand-logo {
+  display: inline-flex;
 }
 .sidebar__nav {
   display: flex;
@@ -729,29 +731,54 @@ body {
   line-height: 1.15;
 }
 
-/* 막대 그래프 */
-.chart-scroll {
-  overflow-x: auto;
+/* 콤보 그래프 (사용금액 막대 + 사용량 선) */
+.chart-box {
+  max-width: 760px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.75rem 0.5rem 0.25rem;
+  padding: 0.75rem 0.75rem 0.5rem;
   background: var(--surface);
 }
-.bar-chart {
+.combo-chart {
   display: block;
+  width: 100%;
+  height: auto;
 }
-.bar-chart__axis {
+.combo-chart__grid {
   stroke: var(--border);
   stroke-width: 1;
 }
-.bar-chart__value {
-  font-size: 9px;
+.combo-chart__axis-left,
+.combo-chart__axis-right {
+  font-size: 11px;
   fill: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.bar-chart__label {
-  font-size: 10px;
+.combo-chart__xlabel {
+  font-size: 12px;
   fill: var(--text-muted);
+}
+.chart-legend {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.chart-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.chart-legend__swatch {
+  width: 14px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.chart-legend__swatch--line {
+  height: 3px;
+  border-radius: 2px;
 }
 .var-panel {
   display: flex;

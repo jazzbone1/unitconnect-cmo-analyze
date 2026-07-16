@@ -8,7 +8,7 @@ import {
 } from '../lib/settlement'
 import { formatNumber } from '../lib/stats'
 import type { SiteInfo } from './SiteInfoPanel'
-import BarChart from './BarChart'
+import ComboChart from './ComboChart'
 
 /** 큰 금액을 만/억 단위로 짧게 표기 */
 function compactWon(v: number): string {
@@ -26,13 +26,10 @@ function compactKwh(v: number): string {
 /** 월별 이용자 추이 + 사용량/사용금액 그래프 (월간 데이터 전용) */
 function MonthlyTrends({ rows }: { rows: SettlementMetrics[] }) {
   if (rows.length === 0) return null
-  const usageData = rows.map((m) => ({
+  const chartData = rows.map((m) => ({
     label: m.periodLabel,
-    value: Math.round(m.usageTotal),
-  }))
-  const amountData = rows.map((m) => ({
-    label: m.periodLabel,
-    value: Math.round(m.amountCalc),
+    bar: Math.round(m.amountCalc),
+    line: Math.round(m.usageTotal),
   }))
 
   return (
@@ -90,13 +87,16 @@ function MonthlyTrends({ rows }: { rows: SettlementMetrics[] }) {
       </div>
 
       <div className="subsection">
-        <h3 className="subsection__title">월별 총 사용량 (kWh)</h3>
-        <BarChart data={usageData} color="var(--accent)" valueFormat={compactKwh} />
-      </div>
-
-      <div className="subsection">
-        <h3 className="subsection__title">월별 사용금액 (원)</h3>
-        <BarChart data={amountData} color="#0ea5a4" valueFormat={compactWon} />
+        <h3 className="subsection__title">월별 사용금액 · 사용량</h3>
+        <ComboChart
+          data={chartData}
+          barLabel="사용금액(원)"
+          lineLabel="사용량(kWh)"
+          barFormat={compactWon}
+          lineFormat={compactKwh}
+          barColor="#3B82F6"
+          lineColor="#F59E0B"
+        />
       </div>
     </>
   )
