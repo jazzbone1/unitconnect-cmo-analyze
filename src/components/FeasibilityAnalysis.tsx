@@ -309,7 +309,9 @@ export default function FeasibilityAnalysis({
             <tbody>
               {inputs.opex.map((o, i) => (
                 <tr key={o.id} className={o.included ? '' : 'row--off'}>
-                  <td className="col-name">{o.label}</td>
+                  <td>
+                    <span className="opex-label-static">{o.label}</span>
+                  </td>
                   <td>
                     <input
                       className="cell-input"

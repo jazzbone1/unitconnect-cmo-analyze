@@ -285,7 +285,13 @@ body {
   width: 100%;
   text-align: left;
 }
-.opex-table .col-name {
+/* 기본 항목 텍스트를 추가 항목 입력창과 동일한 여백으로 정렬 */
+.opex-label-static {
+  display: block;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
   white-space: normal;
 }
 
