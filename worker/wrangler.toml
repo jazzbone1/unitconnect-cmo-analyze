@@ -1,14 +1,14 @@
-# Cloudflare Worker (공용 저장소 API)
+# Cloudflare Worker (공용 저장소 API) — R2 사용
 # 배포: worker/ 폴더에서  npx wrangler deploy
 name = "unitconnect-cmo-store"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 
-# 프로젝트(현장) 저장용 KV.
-# `npx wrangler kv namespace create PROJECTS` 실행 후 나온 id를 넣으세요.
-[[kv_namespaces]]
-binding = "PROJECTS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+# 프로젝트(현장) 저장용 R2 버킷.
+# `npx wrangler r2 bucket create unitconnect-cmo-store` 로 만든 뒤 이름을 맞추세요.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "unitconnect-cmo-store"
 
 # (선택) 공유 키로 접근 제한하려면 주석 해제 후 값 지정.
 # 앱(Railway) 빌드 변수 VITE_APP_KEY 와 같은 값이어야 합니다.

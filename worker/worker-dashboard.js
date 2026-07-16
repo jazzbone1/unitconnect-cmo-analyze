@@ -1,8 +1,8 @@
-// Cloudflare 대시보드에 붙여넣는 버전 (터미널 없이 사용)
+// Cloudflare 대시보드에 붙여넣는 버전 (터미널 없이 사용) — R2 저장
 // Workers & Pages → Create → Worker → Edit code 에 아래 전체를 붙여넣고 Deploy.
-// 그리고 Settings → Variables & Bindings 에서 KV 바인딩 이름을 반드시 PROJECTS 로.
+// 그리고 Settings → Bindings 에서 R2 버킷 바인딩 이름을 반드시 BUCKET 으로.
 
-const STORE_KEY = 'projects:shared'
+const OBJECT_KEY = 'projects.json'
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS',
@@ -31,8 +31,9 @@ export default {
     }
 
     if (request.method === 'GET') {
-      const data = await env.PROJECTS.get(STORE_KEY)
-      return new Response(data ?? '[]', { headers: JSON_HEADERS })
+      const obj = await env.BUCKET.get(OBJECT_KEY)
+      const data = obj ? await obj.text() : '[]'
+      return new Response(data, { headers: JSON_HEADERS })
     }
 
     if (request.method === 'PUT') {
@@ -45,7 +46,7 @@ export default {
           headers: JSON_HEADERS,
         })
       }
-      await env.PROJECTS.put(STORE_KEY, body)
+      await env.BUCKET.put(OBJECT_KEY, body)
       return new Response(JSON.stringify({ ok: true }), { headers: JSON_HEADERS })
     }
 
