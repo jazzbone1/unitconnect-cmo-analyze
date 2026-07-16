@@ -5,11 +5,12 @@ import GroupSection from './components/GroupSection'
 import SettlementAnalysis from './components/SettlementAnalysis'
 import RegistryAnalysis from './components/RegistryAnalysis'
 import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoPanel'
+import ProjectsView from './components/ProjectsView'
 import { parseFile } from './lib/parse'
 import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
-import { detectRegistry } from './lib/registry'
+import { detectRegistry, computeRegistry } from './lib/registry'
 import { stripPii } from './lib/privacy'
 import {
   loadSites,
@@ -39,6 +40,7 @@ function nextId(): string {
 }
 
 export default function App() {
+  const [tab, setTab] = useState<'analyze' | 'projects'>('analyze')
   const [files, setFiles] = useState<FileEntry[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -57,20 +59,23 @@ export default function App() {
   function saveCurrentSite() {
     if (site.name.trim() === '') return
     const chargers = config.chargers.map((c) => ({ ...c }))
+    // 저장 당시의 분석 데이터(정산 파일·명부 결과)도 함께 보관
+    const analysisData = {
+      hours: config.hours,
+      chargers,
+      settlementFiles,
+      registry: registryResult,
+      savedAt: new Date().toISOString(),
+    }
     if (selectedSiteId) {
       setSites((prev) =>
         prev.map((s) =>
-          s.id === selectedSiteId
-            ? { ...s, ...site, hours: config.hours, chargers }
-            : s,
+          s.id === selectedSiteId ? { ...s, ...site, ...analysisData } : s,
         ),
       )
     } else {
       const id = newSiteId()
-      setSites((prev) => [
-        ...prev,
-        { id, ...site, hours: config.hours, chargers },
-      ])
+      setSites((prev) => [...prev, { id, ...site, ...analysisData }])
       setSelectedSiteId(id)
     }
   }
@@ -116,6 +121,13 @@ export default function App() {
     [files],
   )
   const groups = useMemo(() => groupFiles(genericFiles), [genericFiles])
+  const registryResult = useMemo(
+    () =>
+      registryFiles.length > 0
+        ? computeRegistry(registryFiles.map((f) => f.dataset))
+        : null,
+    [registryFiles],
+  )
 
   async function handleFiles(incoming: File[]) {
     setLoading(true)
@@ -156,19 +168,49 @@ export default function App() {
   const hasData = files.length > 0
 
   return (
-    <div className="app">
-      <header className="app__header">
-        <h1>데이터 분석</h1>
-        <p className="app__subtitle">
-          <b>단지 정보와 충전기 설정을 먼저 입력</b>한 뒤 아래에서 CSV·Excel
-          파일을 올리면, 파일명의 날짜로 자동 분류해 정산·이용률을 계산합니다.
-          <br />
-          데이터는 서버로 전송되지 않고 전부 브라우저 안에서만 처리됩니다.
-        </p>
-      </header>
+    <div className="layout">
+      <aside className="sidebar">
+        <div className="sidebar__brand">⚡ UnitConnect</div>
+        <nav className="sidebar__nav">
+          <button
+            type="button"
+            className={`sidebar__tab${tab === 'analyze' ? ' sidebar__tab--active' : ''}`}
+            onClick={() => setTab('analyze')}
+          >
+            데이터 분석
+          </button>
+          <button
+            type="button"
+            className={`sidebar__tab${tab === 'projects' ? ' sidebar__tab--active' : ''}`}
+            onClick={() => setTab('projects')}
+          >
+            프로젝트
+            {sites.length > 0 && (
+              <span className="sidebar__count">{sites.length}</span>
+            )}
+          </button>
+        </nav>
+      </aside>
 
-      <main className="app__main">
-        <SiteInfoPanel
+      <div className="content">
+        {tab === 'projects' ? (
+          <div className="app">
+            <ProjectsView projects={sites} onDelete={deleteSite} />
+          </div>
+        ) : (
+          <div className="app">
+            <header className="app__header app__header--left">
+              <h1>데이터 분석</h1>
+              <p className="app__subtitle">
+                <b>단지 정보와 충전기 설정을 먼저 입력</b>한 뒤 아래에서 CSV·Excel
+                파일을 올리면, 파일명의 날짜로 자동 분류해 정산·이용률을
+                계산합니다. 데이터는 서버로 전송되지 않고 전부 브라우저 안에서만
+                처리됩니다.
+              </p>
+            </header>
+
+            <main className="app__main">
+              <SiteInfoPanel
           site={site}
           setSite={setSite}
           config={config}
@@ -208,9 +250,7 @@ export default function App() {
               />
             )}
 
-            {registryFiles.length > 0 && (
-              <RegistryAnalysis files={registryFiles} />
-            )}
+            {registryResult && <RegistryAnalysis result={registryResult} />}
 
             {groups.length > 0 && (
               <div className="toolbar">
@@ -242,11 +282,16 @@ export default function App() {
             ))}
           </>
         )}
-      </main>
+            </main>
 
-      <footer className="app__footer">
-        <p>모든 분석은 브라우저에서 처리됩니다 · 파일은 업로드되지 않습니다.</p>
-      </footer>
+            <footer className="app__footer">
+              <p>
+                모든 분석은 브라우저에서 처리됩니다 · 파일은 업로드되지 않습니다.
+              </p>
+            </footer>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

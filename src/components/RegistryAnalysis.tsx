@@ -1,21 +1,14 @@
-import { useMemo } from 'react'
-import type { FileEntry } from '../types'
-import { computeRegistry, registryToCsv } from '../lib/registry'
+import { registryToCsv, type RegistryResult } from '../lib/registry'
 
 interface RegistryAnalysisProps {
-  files: FileEntry[]
+  result: RegistryResult
 }
 
 /**
- * 이용자(차량 등록) 명부 분석. 여러 파일을 합쳐 test/costel 행 제거,
- * 차량번호 중복 제거 후 전체 인원수·차종별 대수를 보여준다.
+ * 이용자(차량 등록) 명부 분석 표시. 사전에 계산된 결과(정제·중복제거)를
+ * 받아 전체 인원수·차종별 대수·정제 명부를 보여준다.
  */
-export default function RegistryAnalysis({ files }: RegistryAnalysisProps) {
-  const result = useMemo(
-    () => computeRegistry(files.map((f) => f.dataset)),
-    [files],
-  )
-
+export default function RegistryAnalysis({ result }: RegistryAnalysisProps) {
   function download() {
     const csv = registryToCsv(result)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
