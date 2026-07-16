@@ -939,6 +939,9 @@ body {
   text-align: left;
   white-space: nowrap;
 }
+.proj-num {
+  text-align: right !important;
+}
 .proj-sortable {
   cursor: pointer;
   user-select: none;
