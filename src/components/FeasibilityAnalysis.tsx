@@ -473,11 +473,20 @@ export default function FeasibilityAnalysis({
       {/* 목표 달성 충전단가 */}
       <div className="subsection">
         <h3 className="subsection__title">목표 영업이익률 달성 충전단가</h3>
-        <p className="scenario-line">
-          영업이익률을 목표({(r.targetMargin * 100).toFixed(2)}%)에 맞추는 충전단가:{' '}
-          <b>{rateStr(r.targetRate)}</b>{' '}
-          <span className="var-field__unit">원/kWh · VAT포함</span>
-        </p>
+        <div className="target-box">
+          <div className="target-row">
+            <span>영업이익률 목표</span>
+            <b>{(r.targetMargin * 100).toFixed(2)} %</b>
+          </div>
+          <div className="target-row">
+            <span>목표 달성 충전 단가</span>
+            <b>
+              {r.targetRate == null
+                ? '달성불가'
+                : `${formatNumber(Math.round(r.targetRate))} 원/kWh`}
+            </b>
+          </div>
+        </div>
       </div>
 
       {/* ③ 영업비 차감 → 충전단가 인하 */}

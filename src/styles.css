@@ -293,15 +293,46 @@ body {
 .opex-label-input {
   width: 100%;
   text-align: left;
+  padding-left: 0.15rem;
 }
-/* 기본 항목 텍스트를 추가 항목 입력창과 동일한 여백으로 정렬 */
+/* 기본 항목 텍스트: 왼쪽 정렬(플러시), 추가 입력창과 좌측 위치 일치 */
 .opex-label-static {
   display: block;
-  padding: 0.35rem 0.45rem;
+  padding: 0.35rem 0.15rem;
   border: 1px solid transparent;
   font-size: 0.85rem;
   font-weight: 600;
+  text-align: left;
   white-space: normal;
+}
+
+/* 목표 달성 충전단가 강조 박스 */
+.target-box {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.target-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.target-row > span {
+  font-size: 0.9rem;
+  color: var(--text);
+  font-weight: 600;
+}
+.target-row > b {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .scenario-line {
