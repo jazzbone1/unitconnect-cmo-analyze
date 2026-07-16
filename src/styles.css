@@ -728,6 +728,31 @@ body {
 .settlement .data-table thead th {
   line-height: 1.15;
 }
+
+/* 막대 그래프 */
+.chart-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.5rem 0.25rem;
+  background: var(--surface);
+}
+.bar-chart {
+  display: block;
+}
+.bar-chart__axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.bar-chart__value {
+  font-size: 9px;
+  fill: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.bar-chart__label {
+  font-size: 10px;
+  fill: var(--text-muted);
+}
 .var-panel {
   display: flex;
   flex-direction: column;

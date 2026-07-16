@@ -8,6 +8,99 @@ import {
 } from '../lib/settlement'
 import { formatNumber } from '../lib/stats'
 import type { SiteInfo } from './SiteInfoPanel'
+import BarChart from './BarChart'
+
+/** 큰 금액을 만/억 단위로 짧게 표기 */
+function compactWon(v: number): string {
+  if (v >= 1e8) return `${(v / 1e8).toFixed(1)}억`
+  if (v >= 1e4) return `${Math.round(v / 1e4).toLocaleString()}만`
+  return Math.round(v).toLocaleString()
+}
+
+/** 큰 kWh 값을 짧게 표기 */
+function compactKwh(v: number): string {
+  if (v >= 1e4) return `${(v / 1e4).toFixed(1)}만`
+  return Math.round(v).toLocaleString()
+}
+
+/** 월별 이용자 추이 + 사용량/사용금액 그래프 (월간 데이터 전용) */
+function MonthlyTrends({ rows }: { rows: SettlementMetrics[] }) {
+  if (rows.length === 0) return null
+  const usageData = rows.map((m) => ({
+    label: m.periodLabel,
+    value: Math.round(m.usageTotal),
+  }))
+  const amountData = rows.map((m) => ({
+    label: m.periodLabel,
+    value: Math.round(m.amountCalc),
+  }))
+
+  return (
+    <>
+      <div className="subsection">
+        <h3 className="subsection__title">
+          월별 이용자 추이 <span className="count-tag">{rows.length}개월</span>
+        </h3>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>월</th>
+                <th>이용자 수</th>
+                <th>전월 대비 증가</th>
+                <th>증가율</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((m, i) => {
+                const prev = i > 0 ? rows[i - 1] : null
+                const inc = prev ? m.users - prev.users : null
+                const rate =
+                  prev && prev.users > 0
+                    ? ((m.users - prev.users) / prev.users) * 100
+                    : null
+                const cls =
+                  inc == null
+                    ? 'cell--null'
+                    : inc > 0
+                      ? 'cell--up'
+                      : inc < 0
+                        ? 'cell--down'
+                        : ''
+                return (
+                  <tr key={m.id}>
+                    <td className="col-name">{m.periodLabel}</td>
+                    <td>{m.users.toLocaleString()}</td>
+                    <td className={cls}>
+                      {inc == null
+                        ? '—'
+                        : `${inc > 0 ? '▲ +' : inc < 0 ? '▼ ' : ''}${inc.toLocaleString()}`}
+                    </td>
+                    <td className={cls}>
+                      {rate == null
+                        ? '—'
+                        : `${rate >= 0 ? '+' : ''}${formatNumber(rate)}%`}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="subsection">
+        <h3 className="subsection__title">월별 총 사용량 (kWh)</h3>
+        <BarChart data={usageData} color="var(--accent)" valueFormat={compactKwh} />
+      </div>
+
+      <div className="subsection">
+        <h3 className="subsection__title">월별 사용금액 (원)</h3>
+        <BarChart data={amountData} color="#0ea5a4" valueFormat={compactWon} />
+      </div>
+    </>
+  )
+}
 
 interface SettlementAnalysisProps {
   files: FileEntry[]
@@ -212,6 +305,10 @@ export default function SettlementAnalysis({
           />
         )
       })}
+
+      <MonthlyTrends
+        rows={metrics.filter((m) => m.periodType === 'month')}
+      />
 
       <p className="table-note">
         <b>이용률 = 사용량 ÷ (충전기 총용량 × 분석 개월수)</b>. 분석 개월수는
