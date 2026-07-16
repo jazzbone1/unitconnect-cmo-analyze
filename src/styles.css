@@ -853,6 +853,36 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
 }
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.pdf-import {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+.pdf-import__msg {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 @media (prefers-color-scheme: dark) {
   .saved-note {
     color: #4ade80;

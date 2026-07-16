@@ -84,7 +84,7 @@ export default function FeasibilityAnalysis({
     utilKey: keyof FeasibilityInputs
     rateKey: keyof FeasibilityInputs
   }[] = [
-    { kw: 100, label: '초급속 100kW', utilKey: 'utilFast100', rateKey: 'rateFast100' },
+    { kw: 100, label: '급속 100kW', utilKey: 'utilFast100', rateKey: 'rateFast100' },
     { kw: 50, label: '급속 50kW', utilKey: 'utilFast50', rateKey: 'rateFast50' },
     { kw: 7, label: '완속 7kW', utilKey: 'utilSlow7', rateKey: 'rateSlow7' },
     { kw: 3.5, label: '완속 3.5kW', utilKey: 'utilSlow35', rateKey: 'rateSlow35' },

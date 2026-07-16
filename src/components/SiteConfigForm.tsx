@@ -1,12 +1,21 @@
+import { useRef, useState } from 'react'
 import type { ChargerType, SettlementConfig } from '../lib/settlement'
+import { parseBuildingPdf } from '../lib/buildingRegister'
 
 export interface SiteInfo {
   name: string
   address: string
   households: number
+  /** 총 주차대수 */
+  parking: number
 }
 
-export const EMPTY_SITE: SiteInfo = { name: '', address: '', households: 0 }
+export const EMPTY_SITE: SiteInfo = {
+  name: '',
+  address: '',
+  households: 0,
+  parking: 0,
+}
 
 interface SiteConfigFormProps {
   site: SiteInfo
@@ -25,6 +34,9 @@ export default function SiteConfigForm({
   onReset,
 }: SiteConfigFormProps) {
   const totalCount = config.chargers.reduce((acc, c) => acc + c.count, 0)
+  const pdfInput = useRef<HTMLInputElement>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfMsg, setPdfMsg] = useState<string | null>(null)
 
   function updateCharger(id: string, patch: Partial<ChargerType>) {
     setConfig({
@@ -35,8 +47,66 @@ export default function SiteConfigForm({
     })
   }
 
+  async function handlePdf(file: File) {
+    setPdfBusy(true)
+    setPdfMsg(null)
+    try {
+      const info = await parseBuildingPdf(file)
+      const filled: string[] = []
+      const next = { ...site }
+      if (info.name) {
+        next.name = info.name
+        filled.push('단지명')
+      }
+      if (info.address) {
+        next.address = info.address
+        filled.push('주소')
+      }
+      if (info.households != null) {
+        next.households = info.households
+        filled.push('세대수')
+      }
+      if (info.parking != null) {
+        next.parking = info.parking
+        filled.push('총주차대수')
+      }
+      setSite(next)
+      setPdfMsg(
+        filled.length > 0
+          ? `자동 입력됨: ${filled.join(', ')} (수정 가능)`
+          : '건축물대장에서 값을 찾지 못했습니다. 직접 입력해주세요.',
+      )
+    } catch {
+      setPdfMsg('PDF를 읽지 못했습니다. 건축물대장 PDF가 맞는지 확인해주세요.')
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
   return (
     <div className="var-panel">
+      <div className="pdf-import">
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={pdfBusy}
+          onClick={() => pdfInput.current?.click()}
+        >
+          {pdfBusy ? '읽는 중…' : '📄 건축물대장 PDF로 자동입력'}
+        </button>
+        <input
+          ref={pdfInput}
+          type="file"
+          accept="application/pdf,.pdf"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) handlePdf(f)
+            e.target.value = ''
+          }}
+        />
+        {pdfMsg && <span className="pdf-import__msg">{pdfMsg}</span>}
+      </div>
       <div className="site-grid">
         <label className="var-field">
           <span className="var-field__label">단지명</span>
@@ -68,6 +138,19 @@ export default function SiteConfigForm({
             placeholder="0"
             onChange={(e) =>
               setSite({ ...site, households: Number(e.target.value) || 0 })
+            }
+          />
+        </label>
+        <label className="var-field">
+          <span className="var-field__label">총 주차대수</span>
+          <input
+            className="var-field__input"
+            type="number"
+            min={0}
+            value={site.parking || ''}
+            placeholder="0"
+            onChange={(e) =>
+              setSite({ ...site, parking: Number(e.target.value) || 0 })
             }
           />
         </label>

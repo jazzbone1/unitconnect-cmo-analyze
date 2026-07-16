@@ -86,7 +86,12 @@ export default function App() {
   }
 
   function loadSite(s: SavedSite) {
-    setSite({ name: s.name, address: s.address, households: s.households })
+    setSite({
+      name: s.name,
+      address: s.address,
+      households: s.households,
+      parking: s.parking ?? 0,
+    })
     // 저장된 요금·수량을 현재 5종 구조에 맞춰 반영
     const chargers = DEFAULT_CONFIG.chargers.map((base) => {
       const saved = s.chargers.find((c) => c.id === base.id)

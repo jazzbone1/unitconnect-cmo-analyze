@@ -9,6 +9,8 @@ export interface SavedSite {
   name: string
   address: string
   households: number
+  /** 총 주차대수 */
+  parking?: number
   hours: number
   chargers: ChargerType[]
   /** 저장 당시의 정산 파일(개인정보 제거된 수치 데이터) */

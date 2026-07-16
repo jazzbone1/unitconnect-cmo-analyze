@@ -31,6 +31,7 @@ function ProjectDetail({
     name: project.name,
     address: project.address,
     households: project.households,
+    parking: project.parking ?? 0,
   })
   const [config, setConfig] = useState<SettlementConfig>({
     hours: project.hours,
@@ -46,6 +47,7 @@ function ProjectDetail({
       name: site.name,
       address: site.address,
       households: site.households,
+      parking: site.parking,
       hours: config.hours,
       chargers: config.chargers.map((c) => ({ ...c })),
       feas,
