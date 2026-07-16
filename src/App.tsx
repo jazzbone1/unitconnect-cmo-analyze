@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import Dropzone from './components/Dropzone'
 import FileList from './components/FileList'
 import GroupSection from './components/GroupSection'
+import SettlementAnalysis from './components/SettlementAnalysis'
 import { parseFile } from './lib/parse'
 import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
+import { detectSettlement } from './lib/settlement'
 import type { AggKind, FileEntry } from './types'
 
 const AGG_OPTIONS: { value: AggKind; label: string }[] = [
@@ -25,7 +27,15 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [aggKind, setAggKind] = useState<AggKind>('sum')
 
-  const groups = useMemo(() => groupFiles(files), [files])
+  const settlementFiles = useMemo(
+    () => files.filter((f) => detectSettlement(f.dataset)),
+    [files],
+  )
+  const genericFiles = useMemo(
+    () => files.filter((f) => !detectSettlement(f.dataset)),
+    [files],
+  )
+  const groups = useMemo(() => groupFiles(genericFiles), [genericFiles])
 
   async function handleFiles(incoming: File[]) {
     setLoading(true)
@@ -93,28 +103,34 @@ export default function App() {
           <>
             <FileList files={files} onRemove={removeFile} onClear={clearAll} />
 
-            <div className="toolbar">
-              <div className="overview-inline">
-                <span>
-                  <b>{groups.length}</b>개 그룹 · <b>{files.length}</b>개 파일
-                </span>
+            {settlementFiles.length > 0 && (
+              <SettlementAnalysis files={settlementFiles} />
+            )}
+
+            {groups.length > 0 && (
+              <div className="toolbar">
+                <div className="overview-inline">
+                  <span>
+                    기타 데이터 <b>{groups.length}</b>개 그룹
+                  </span>
+                </div>
+                <div className="agg-toggle" role="group" aria-label="집계 방식">
+                  <span className="agg-toggle__label">비교 집계</span>
+                  {AGG_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`agg-toggle__btn${
+                        aggKind === opt.value ? ' agg-toggle__btn--active' : ''
+                      }`}
+                      onClick={() => setAggKind(opt.value)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="agg-toggle" role="group" aria-label="집계 방식">
-                <span className="agg-toggle__label">비교 집계</span>
-                {AGG_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`agg-toggle__btn${
-                      aggKind === opt.value ? ' agg-toggle__btn--active' : ''
-                    }`}
-                    onClick={() => setAggKind(opt.value)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
             {groups.map((group) => (
               <GroupSection key={group.category} group={group} aggKind={aggKind} />

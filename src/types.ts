@@ -47,6 +47,8 @@ export interface Period {
   /** 시간순 정렬 키 (YYYYMMDD 형태의 숫자, 시작일 기준) */
   sortKey: number
   type: 'month' | 'year' | 'range' | 'unknown'
+  /** 기간에 포함된 개월 수 (월간=1, 연간=12, 범위=계산값). 이용률 환산에 사용 */
+  months: number
 }
 
 /** 업로드되어 파싱·분류된 개별 파일 */

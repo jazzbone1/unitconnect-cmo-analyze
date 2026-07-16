@@ -383,6 +383,85 @@ body {
   font-weight: 600;
 }
 
+/* Settlement analysis */
+.settlement {
+  border-left: 3px solid var(--accent);
+}
+.var-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1rem;
+}
+.var-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.var-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.var-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 120px;
+}
+.var-field__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.var-field__unit {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.var-field__input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.var-field__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.var-field__hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.cell--up {
+  color: #15803d;
+  font-weight: 600;
+}
+.cell--down {
+  color: #b91c1c;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .cell--up {
+    color: #4ade80;
+  }
+  .cell--down {
+    color: #f87171;
+  }
+}
+
 .app__footer {
   margin-top: 3rem;
   text-align: center;

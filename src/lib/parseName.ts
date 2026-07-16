@@ -55,10 +55,13 @@ const RULES: Rule[] = [
       const e = parseDateDigits(m[2])
       const fmt = (d: { year: number; month: number; day: number }) =>
         `${String(d.year).slice(2)}.${pad2(d.month)}.${pad2(d.day)}`
+      const months =
+        (e.year * 12 + e.month) - (s.year * 12 + s.month) + 1
       return {
         label: `${fmt(s)}~${fmt(e)}`,
         sortKey: ymd(s.year, s.month, s.day),
         type: 'range',
+        months: Math.max(1, months),
       }
     },
   },
@@ -72,6 +75,7 @@ const RULES: Rule[] = [
         label: `${year}-${pad2(month)}`,
         sortKey: ymd(year, month, 1),
         type: 'month',
+        months: 1,
       }
     },
   },
@@ -80,7 +84,12 @@ const RULES: Rule[] = [
     re: /(\d{4})\s*년/,
     build: (m) => {
       const year = Number(m[1])
-      return { label: `${year}`, sortKey: ymd(year, 1, 1), type: 'year' }
+      return {
+        label: `${year}`,
+        sortKey: ymd(year, 1, 1),
+        type: 'year',
+        months: 12,
+      }
     },
   },
   // 4) YYYY-MM / YYYY.MM / YYYY_MM
@@ -93,6 +102,7 @@ const RULES: Rule[] = [
         label: `${year}-${pad2(month)}`,
         sortKey: ymd(year, month, 1),
         type: 'month',
+        months: 1,
       }
     },
   },
@@ -106,6 +116,7 @@ const RULES: Rule[] = [
         label: `${year}-${pad2(month)}`,
         sortKey: ymd(year, month, 1),
         type: 'month',
+        months: 1,
       }
     },
   },
@@ -114,7 +125,12 @@ const RULES: Rule[] = [
     re: /(20\d{2})(?!\d)/,
     build: (m) => {
       const year = Number(m[1])
-      return { label: `${year}`, sortKey: ymd(year, 1, 1), type: 'year' }
+      return {
+        label: `${year}`,
+        sortKey: ymd(year, 1, 1),
+        type: 'year',
+        months: 12,
+      }
     },
   },
 ]
