@@ -84,7 +84,7 @@ function ComparisonSection({
               {chargers.map((c, ci) => (
                 <th
                   key={`uh-${c.id}`}
-                  className={ci === 0 ? 'group-start' : undefined}
+                  className={`type-col${ci === 0 ? ' group-start' : ''}`}
                 >
                   {c.name}
                 </th>
@@ -92,7 +92,7 @@ function ComparisonSection({
               {chargers.map((c, ci) => (
                 <th
                   key={`rh-${c.id}`}
-                  className={ci === 0 ? 'group-start' : undefined}
+                  className={`type-col${ci === 0 ? ' group-start' : ''}`}
                 >
                   {c.name}
                 </th>
@@ -118,7 +118,7 @@ function ComparisonSection({
                   {chargers.map((c, ci) => (
                     <td
                       key={`u-${c.id}`}
-                      className={ci === 0 ? 'group-start' : undefined}
+                      className={`type-col${ci === 0 ? ' group-start' : ''}`}
                     >
                       {m.splitMode === 'none'
                         ? '—'
@@ -130,7 +130,7 @@ function ComparisonSection({
                   {chargers.map((c, ci) => (
                     <td
                       key={`r-${c.id}`}
-                      className={ci === 0 ? 'group-start' : undefined}
+                      className={`type-col${ci === 0 ? ' group-start' : ''}`}
                     >
                       {m.splitMode === 'none'
                         ? '—'
