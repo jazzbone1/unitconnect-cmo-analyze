@@ -196,6 +196,48 @@ body {
   font-size: 0.9rem;
 }
 
+/* Feasibility */
+.verdict-row {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.verdict-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-size: 1.35rem;
+  font-weight: 800;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.verdict-badge--ok {
+  background: #16a34a;
+  color: #fff;
+}
+.verdict-badge--no {
+  background: #dc2626;
+  color: #fff;
+}
+.verdict-row .stat {
+  justify-content: center;
+}
+.row--strong td {
+  font-weight: 700;
+  background: var(--surface-2);
+}
+.row--off td {
+  opacity: 0.5;
+}
+.pnl-table td:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
 .app__header h1 {
   font-size: 2rem;
   margin: 0 0 0.5rem;

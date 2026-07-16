@@ -6,6 +6,8 @@ import SettlementAnalysis from './components/SettlementAnalysis'
 import RegistryAnalysis from './components/RegistryAnalysis'
 import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoPanel'
 import ProjectsView from './components/ProjectsView'
+import FeasibilityAnalysis from './components/FeasibilityAnalysis'
+import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { parseFile } from './lib/parse'
 import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
@@ -40,7 +42,10 @@ function nextId(): string {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<'analyze' | 'projects'>('analyze')
+  const [tab, setTab] = useState<'analyze' | 'projects' | 'feasibility'>(
+    'analyze',
+  )
+  const [feas, setFeas] = useState<FeasibilityInputs>(() => DEFAULT_INPUTS())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -181,6 +186,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`sidebar__tab${tab === 'feasibility' ? ' sidebar__tab--active' : ''}`}
+            onClick={() => setTab('feasibility')}
+          >
+            사업성 분석
+          </button>
+          <button
+            type="button"
             className={`sidebar__tab${tab === 'projects' ? ' sidebar__tab--active' : ''}`}
             onClick={() => setTab('projects')}
           >
@@ -196,6 +208,24 @@ export default function App() {
         {tab === 'projects' ? (
           <div className="app">
             <ProjectsView projects={sites} onDelete={deleteSite} />
+          </div>
+        ) : tab === 'feasibility' ? (
+          <div className="app">
+            <header className="app__header app__header--left">
+              <h1>사업성 분석</h1>
+              <p className="app__subtitle">
+                충전기 대수·단가·이용률과 운영비·CAPEX를 입력하면 계약기간 전체
+                손익(P&amp;L)과 영업이익률로 <b>사업성(진행가능/불가)</b>을
+                판정합니다.
+              </p>
+            </header>
+            <main className="app__main">
+              <FeasibilityAnalysis
+                inputs={feas}
+                setInputs={setFeas}
+                config={config}
+              />
+            </main>
           </div>
         ) : (
           <div className="app">
