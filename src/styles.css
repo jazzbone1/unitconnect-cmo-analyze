@@ -939,6 +939,32 @@ body {
   text-align: left;
   white-space: nowrap;
 }
+/* 업로드 파일 목록 접기/펼치기 */
+.filelist-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+}
+.filelist-caret {
+  font-size: 0.7em;
+  color: var(--text-muted);
+}
+.filelist-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
 .proj-num {
   text-align: right !important;
 }
