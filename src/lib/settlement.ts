@@ -21,11 +21,27 @@ export interface SettlementConfig {
   hours: number
 }
 
+/** 고정 충전기 종류 5종. 정격(kW)은 고정, 요금·수량만 입력한다. */
+export const CHARGER_KW: { id: string; name: string; kw: number }[] = [
+  { id: 'c3', name: '3kW', kw: 3 },
+  { id: 'c35', name: '3.5kW', kw: 3.5 },
+  { id: 'c7', name: '7kW', kw: 7 },
+  { id: 'c50', name: '50kW', kw: 50 },
+  { id: 'c100', name: '100kW', kw: 100 },
+]
+
+// 현재 현장(흑석자이) 기준 기본 요금·수량. 나머지 종류는 0(미사용).
+const DEFAULT_RATE_COUNT: Record<string, { rate: number; count: number }> = {
+  c7: { rate: 200, count: 20 },
+  c50: { rate: 300, count: 3 },
+}
+
 export const DEFAULT_CONFIG: SettlementConfig = {
-  chargers: [
-    { id: 'c7', name: '7kW', kw: 7, rate: 200, count: 20 },
-    { id: 'c50', name: '50kW', kw: 50, rate: 300, count: 3 },
-  ],
+  chargers: CHARGER_KW.map((c) => ({
+    ...c,
+    rate: DEFAULT_RATE_COUNT[c.id]?.rate ?? 0,
+    count: DEFAULT_RATE_COUNT[c.id]?.count ?? 0,
+  })),
   hours: 720,
 }
 
@@ -152,12 +168,18 @@ export function computeFile(
   let usageTotal = 0
   let amountRaw = 0
 
-  const twoTypeReverse = !hasAllExplicit && chargers.length === 2
-  const sorted = [...chargers].sort((a, b) => a.rate - b.rate)
+  // 요금이 지정된(활성) 종류만 사용량 분리에 참여한다.
+  const active = chargers.filter((t) => t.rate > 0)
+  const sorted = [...active].sort((a, b) => a.rate - b.rate)
   const low = sorted[0]
   const high = sorted[1]
-  const denom = twoTypeReverse ? high.rate - low.rate : 0
-  const splittable = hasAllExplicit || (twoTypeReverse && denom > 0)
+  const denom = active.length === 2 ? high.rate - low.rate : 0
+
+  // 분리 방식: 종류별 명시 컬럼 전부 존재 > 활성 1종 전량 배정 > 활성 2종 요금 역산
+  const splittable =
+    hasAllExplicit ||
+    active.length === 1 ||
+    (active.length === 2 && denom > 0)
 
   for (const row of dataset.rows) {
     const usage = usageCol ? toNumber(row[usageCol] ?? null) : null
@@ -173,7 +195,9 @@ export function computeFile(
         const v = toNumber(row[c] ?? null) ?? 0
         usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + v)
       }
-    } else if (twoTypeReverse && denom > 0) {
+    } else if (active.length === 1) {
+      usageByType.set(low.id, (usageByType.get(low.id) ?? 0) + usage)
+    } else if (active.length === 2 && denom > 0) {
       const uHigh =
         amount !== null ? clamp((amount - usage * low.rate) / denom, 0, usage) : 0
       usageByType.set(high.id, (usageByType.get(high.id) ?? 0) + uHigh)

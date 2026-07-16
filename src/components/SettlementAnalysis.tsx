@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { FileEntry, Period } from '../types'
 import {
   computeAll,
@@ -17,7 +17,7 @@ interface SettlementAnalysisProps {
 const PERIOD_SECTIONS: { type: Period['type']; label: string }[] = [
   { type: 'month', label: '월간' },
   { type: 'year', label: '연간' },
-  { type: 'range', label: '전체 기간' },
+  { type: 'total', label: '전체 기간' },
   { type: 'unknown', label: '기타 (기간 미인식)' },
 ]
 
@@ -28,7 +28,7 @@ function cloneDefault(): SettlementConfig {
   }
 }
 
-/** 충전기 종류 설정 편집기 */
+/** 충전기 종류 설정 편집기 — 5종 고정, 요금·수량만 입력 */
 function ChargerEditor({
   config,
   setConfig,
@@ -36,8 +36,6 @@ function ChargerEditor({
   config: SettlementConfig
   setConfig: (c: SettlementConfig) => void
 }) {
-  const idSeq = useRef(0)
-
   function updateCharger(id: string, patch: Partial<ChargerType>) {
     setConfig({
       ...config,
@@ -46,58 +44,24 @@ function ChargerEditor({
       ),
     })
   }
-  function addCharger() {
-    idSeq.current += 1
-    const nc: ChargerType = {
-      id: `new${idSeq.current}`,
-      name: '',
-      kw: 0,
-      rate: 0,
-      count: 0,
-    }
-    setConfig({ ...config, chargers: [...config.chargers, nc] })
-  }
-  function removeCharger(id: string) {
-    setConfig({ ...config, chargers: config.chargers.filter((c) => c.id !== id) })
-  }
 
   return (
     <div className="var-panel">
       <div className="var-group">
-        <h3 className="subsection__title">충전기 종류 (요금·수량)</h3>
+        <h3 className="subsection__title">충전기 종류별 요금·수량</h3>
         <div className="table-scroll">
           <table className="data-table charger-table">
             <thead>
               <tr>
-                <th>종류명</th>
-                <th>정격(kW)</th>
+                <th>충전기 종류</th>
                 <th>요금(원/kWh)</th>
                 <th>수량(기)</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               {config.chargers.map((c) => (
                 <tr key={c.id}>
-                  <td>
-                    <input
-                      className="cell-input cell-input--text"
-                      value={c.name}
-                      placeholder="예: 100kW"
-                      onChange={(e) => updateCharger(c.id, { name: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="cell-input"
-                      type="number"
-                      min={0}
-                      value={c.kw}
-                      onChange={(e) =>
-                        updateCharger(c.id, { kw: Number(e.target.value) || 0 })
-                      }
-                    />
-                  </td>
+                  <td className="col-name">{c.name}</td>
                   <td>
                     <input
                       className="cell-input"
@@ -120,25 +84,12 @@ function ChargerEditor({
                       }
                     />
                   </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="remove-button"
-                      aria-label={`${c.name || '충전기'} 삭제`}
-                      onClick={() => removeCharger(c.id)}
-                    >
-                      ✕
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="var-actions">
-          <button type="button" className="link-button" onClick={addCharger}>
-            + 충전기 종류 추가
-          </button>
           <label className="hours-field">
             월 가동시간(시간)
             <input
@@ -159,6 +110,10 @@ function ChargerEditor({
             기본값으로 되돌리기
           </button>
         </div>
+        <p className="var-hint">
+          요금은 현장마다 다릅니다. 사용하는 종류의 요금·수량만 입력하고, 없는
+          종류는 0으로 두세요. (정격 kW는 종류명으로 고정)
+        </p>
       </div>
     </div>
   )
@@ -257,15 +212,20 @@ function ComparisonSection({
 }
 
 /**
- * 충전기 정산 전용 분석. 요금·충전기 구성을 변수로 입력하면
- * 사용자별 사용량을 요금으로 역산해 종류별로 분리하고,
- * 월간/연간/전체 기간으로 나누어 비교한다.
+ * 충전기 정산 전용 분석. 종류별 요금·수량을 입력하면 사용자별 사용량을
+ * 요금으로 역산해 종류별로 분리하고, 월간/연간/전체 기간으로 나누어 비교한다.
  */
 export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
   const [config, setConfig] = useState<SettlementConfig>(cloneDefault)
 
   const metrics = useMemo(() => computeAll(files, config), [files, config])
 
+  // 비교표에는 수량이 지정된(현장에 존재하는) 종류만 컬럼으로 표시
+  const visibleChargers = useMemo(
+    () => config.chargers.filter((c) => c.count > 0),
+    [config],
+  )
+  const activeRates = config.chargers.filter((c) => c.rate > 0).length
   const anyUnsplittable = metrics.some((m) => !m.splittable)
 
   return (
@@ -274,7 +234,7 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
         <div>
           <h2>충전기 정산 분석</h2>
           <p className="group-range">
-            요금·충전기 구성을 바꾸면 사용금액·종류별 사용량·이용률이 즉시 다시
+            종류별 요금·수량을 바꾸면 사용금액·종류별 사용량·이용률이 즉시 다시
             계산됩니다.
           </p>
         </div>
@@ -283,12 +243,12 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
 
       <ChargerEditor config={config} setConfig={setConfig} />
 
-      {config.chargers.length > 2 && anyUnsplittable && (
+      {anyUnsplittable && activeRates > 2 && (
         <p className="status status--error">
-          충전기 종류가 3개 이상이면 (총 사용량·사용금액)만으로는 종류별 사용량을
-          나눌 수 없습니다. 파일에 <b>종류별 사용량 컬럼</b>(예: "7kW사용량",
-          "100kW사용량")이 있으면 자동으로 사용합니다. 없으면 종류별 값은 —로
-          표시됩니다.
+          요금이 지정된 종류가 3개 이상이면 (총 사용량·사용금액)만으로는 종류별
+          사용량을 나눌 수 없습니다. 파일에 <b>종류별 사용량 컬럼</b>(예:
+          "7kW사용량", "100kW사용량")이 있으면 자동으로 사용하고, 없으면 종류별
+          값은 —로 표시됩니다.
         </p>
       )}
 
@@ -300,16 +260,16 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
             key={type}
             label={label}
             rows={rows}
-            chargers={config.chargers}
+            chargers={visibleChargers}
           />
         )
       })}
 
       <p className="table-note">
-        종류가 2개일 때 사용량 분리: 높은요금 종류 사용량 = (사용금액 −
-        사용량×낮은요금) ÷ (요금 차이). 이용률은 월 기준이며 전체 기간·연간
-        파일은 개월 수로 환산합니다. 개인정보(사용자명·건물명·동·호)는 표시하지
-        않습니다.
+        종류별 사용량 분리: 요금이 지정된 종류가 1개면 전량 배정, 2개면 요금
+        역산[(사용금액 − 사용량×낮은요금) ÷ 요금차이], 3개 이상이면 종류별 사용량
+        컬럼 필요. 이용률은 월 기준(연간·전체 기간 파일은 개월 수로 환산).
+        개인정보(사용자명·건물명·동·호)는 표시하지 않습니다.
       </p>
     </section>
   )

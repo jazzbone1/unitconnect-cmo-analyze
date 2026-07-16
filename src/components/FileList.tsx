@@ -9,7 +9,7 @@ interface FileListProps {
 const PERIOD_TYPE_LABEL: Record<string, string> = {
   month: '월간',
   year: '연간',
-  range: '기간',
+  total: '전체 기간',
   unknown: '미인식',
 }
 

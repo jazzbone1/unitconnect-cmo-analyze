@@ -57,10 +57,11 @@ const RULES: Rule[] = [
         `${String(d.year).slice(2)}.${pad2(d.month)}.${pad2(d.day)}`
       const months =
         (e.year * 12 + e.month) - (s.year * 12 + s.month) + 1
+      // 기간 범위(예: 240601~250703)는 연간 분석 데이터로 분류한다.
       return {
         label: `${fmt(s)}~${fmt(e)}`,
         sortKey: ymd(s.year, s.month, s.day),
-        type: 'range',
+        type: 'year',
         months: Math.max(1, months),
       }
     },
@@ -144,13 +145,30 @@ export function parseFileName(fileName: string): {
   period: Period | null
 } {
   const base = fileName.replace(/\.[^.]+$/, '')
+  // 파일명에 "전체"가 들어가면 전체 기간 데이터로 분류한다.
+  const isTotal = base.includes('전체')
+
   for (const { re, build } of RULES) {
     const m = base.match(re)
     if (m) {
       const period = build(m)
-      const category = cleanCategory(base.replace(m[0], ' '))
+      let category = cleanCategory(base.replace(m[0], ' '))
+      if (isTotal) {
+        period.type = 'total'
+        category = cleanCategory(category.replace(/전체/g, ' '))
+        return { category: category || '전체', period }
+      }
       return { category: category || cleanCategory(base) || base, period }
     }
   }
+
+  // 날짜는 없지만 "전체"가 있으면 전체 기간으로 분류 (기간 라벨은 "전체")
+  if (isTotal) {
+    return {
+      category: cleanCategory(base.replace(/전체/g, ' ')) || base,
+      period: { label: '전체', sortKey: Number.POSITIVE_INFINITY, type: 'total', months: 1 },
+    }
+  }
+
   return { category: cleanCategory(base) || base, period: null }
 }
