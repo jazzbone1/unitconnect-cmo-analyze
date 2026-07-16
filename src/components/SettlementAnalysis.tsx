@@ -42,19 +42,61 @@ function ComparisonSection({
         <table className="data-table">
           <thead>
             <tr>
-              <th>기간</th>
-              <th>분석 개월수</th>
-              <th>이용자 수</th>
-              <th>총 사용량(kWh)</th>
-              {chargers.map((c) => (
-                <th key={`u-${c.id}`}>{c.name} 사용량</th>
+              <th rowSpan={2}>기간</th>
+              <th rowSpan={2}>
+                분석
+                <br />
+                개월수
+              </th>
+              <th rowSpan={2}>이용자</th>
+              <th rowSpan={2}>
+                총 사용량
+                <br />
+                (kWh)
+              </th>
+              {chargers.length > 0 && (
+                <th className="group-head" colSpan={chargers.length}>
+                  종류별 사용량 (kWh)
+                </th>
+              )}
+              <th rowSpan={2}>
+                사용금액
+                <br />
+                (원)
+              </th>
+              <th rowSpan={2}>
+                전체
+                <br />
+                이용률(%)
+              </th>
+              {chargers.length > 0 && (
+                <th className="group-head" colSpan={chargers.length}>
+                  종류별 이용률 (%)
+                </th>
+              )}
+              <th rowSpan={2}>
+                사용량
+                <br />
+                증감률
+              </th>
+            </tr>
+            <tr>
+              {chargers.map((c, ci) => (
+                <th
+                  key={`uh-${c.id}`}
+                  className={ci === 0 ? 'group-start' : undefined}
+                >
+                  {c.name}
+                </th>
               ))}
-              <th>사용금액(원)</th>
-              <th>전체 이용률(%)</th>
-              {chargers.map((c) => (
-                <th key={`r-${c.id}`}>{c.name} 이용률(%)</th>
+              {chargers.map((c, ci) => (
+                <th
+                  key={`rh-${c.id}`}
+                  className={ci === 0 ? 'group-start' : undefined}
+                >
+                  {c.name}
+                </th>
               ))}
-              <th>사용량 증감률</th>
             </tr>
           </thead>
           <tbody>
@@ -73,8 +115,11 @@ function ComparisonSection({
                   <td>{m.months}</td>
                   <td>{m.users.toLocaleString()}</td>
                   <td>{formatNumber(m.usageTotal)}</td>
-                  {chargers.map((c) => (
-                    <td key={`u-${c.id}`}>
+                  {chargers.map((c, ci) => (
+                    <td
+                      key={`u-${c.id}`}
+                      className={ci === 0 ? 'group-start' : undefined}
+                    >
                       {m.splitMode === 'none'
                         ? '—'
                         : formatNumber(typeById.get(c.id)?.usage ?? 0)}
@@ -82,8 +127,11 @@ function ComparisonSection({
                   ))}
                   <td>{formatNumber(Math.round(m.amountCalc))}</td>
                   <td>{formatNumber(m.utilTotal)}</td>
-                  {chargers.map((c) => (
-                    <td key={`r-${c.id}`}>
+                  {chargers.map((c, ci) => (
+                    <td
+                      key={`r-${c.id}`}
+                      className={ci === 0 ? 'group-start' : undefined}
+                    >
                       {m.splitMode === 'none'
                         ? '—'
                         : formatNumber(typeById.get(c.id)?.utilization ?? 0)}

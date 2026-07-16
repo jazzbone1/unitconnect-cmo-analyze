@@ -206,7 +206,7 @@ export default function App() {
             />
           </div>
         ) : (
-          <div className="app">
+          <div className={`app${analyzeTab === 'usage' ? ' app--wide' : ''}`}>
             <header className="app__header app__header--left">
               <h1>데이터 분석</h1>
               <p className="app__subtitle">

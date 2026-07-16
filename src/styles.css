@@ -128,9 +128,13 @@ body {
 }
 
 .app {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 2rem 1.5rem 4rem;
+}
+/* 정산 분석처럼 폭이 넓은 화면은 좌우를 더 넓게 사용 */
+.app--wide {
+  max-width: 1760px;
 }
 
 .app__header {
@@ -692,6 +696,30 @@ body {
 /* Settlement analysis */
 .settlement {
   border-left: 3px solid var(--accent);
+}
+/* 정산 표: 컬럼이 많아도 다 보이도록 컴팩트하게 + 종류별 컬럼 그룹 헤더 */
+.settlement .data-table {
+  font-size: 0.78rem;
+  width: 100%;
+}
+.settlement .data-table th,
+.settlement .data-table td {
+  padding: 0.4rem 0.5rem;
+}
+/* 종류별 사용량/이용률 묶음 헤더 */
+.settlement .data-table .group-head {
+  text-align: center;
+  font-size: 0.72rem;
+  letter-spacing: -0.01em;
+  border-left: 2px solid var(--border);
+  background: var(--surface-2);
+}
+/* 그룹 경계(첫 종류 컬럼) 좌측 구분선 */
+.settlement .data-table .group-start {
+  border-left: 2px solid var(--border);
+}
+.settlement .data-table thead th {
+  line-height: 1.15;
 }
 .var-panel {
   display: flex;
