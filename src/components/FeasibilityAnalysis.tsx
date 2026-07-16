@@ -54,6 +54,8 @@ function Field({
 }
 
 const won = (n: number) => `${formatNumber(Math.round(n))}원`
+const rateStr = (v: number | null) =>
+  v == null ? '산정불가' : `${formatNumber(Math.round(v))}원`
 
 export default function FeasibilityAnalysis({
   inputs,
@@ -280,8 +282,14 @@ export default function FeasibilityAnalysis({
       <div className="subsection">
         <h3 className="subsection__title">
           대당 월 운영비 (OPEX){' '}
-          <span className="count-tag">합계 {won(r.opexPerUnit)}/대·월</span>
+          <span className="count-tag">
+            기본 {won(r.opexBasic)} + 추가 {won(r.opexExtra)} = {won(r.opexPerUnit)}/대·월
+          </span>
         </h3>
+
+        <h4 className="summary-block__title">
+          기본 운영비 <span className="count-tag">합계 {won(r.opexBasic)}</span>
+        </h4>
         <div className="table-scroll">
           <table className="data-table">
             <thead>
@@ -326,6 +334,96 @@ export default function FeasibilityAnalysis({
             </tbody>
           </table>
         </div>
+
+        <h4 className="summary-block__title" style={{ marginTop: '1rem' }}>
+          추가 운영비 <span className="count-tag">합계 {won(r.opexExtra)}</span>
+        </h4>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>항목</th>
+                <th>월 비용(원/대)</th>
+                <th>포함</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {inputs.opexExtra.map((o, i) => (
+                <tr key={o.id} className={o.included ? '' : 'row--off'}>
+                  <td>
+                    <input
+                      className="cell-input cell-input--text"
+                      type="text"
+                      value={o.label}
+                      placeholder="항목명"
+                      onChange={(e) => {
+                        const opexExtra = inputs.opexExtra.map((x, j) =>
+                          j === i ? { ...x, label: e.target.value } : x,
+                        )
+                        set({ opexExtra })
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="cell-input"
+                      type="number"
+                      min={0}
+                      value={Math.round(o.monthly) || ''}
+                      onChange={(e) => {
+                        const opexExtra = inputs.opexExtra.map((x, j) =>
+                          j === i ? { ...x, monthly: Number(e.target.value) || 0 } : x,
+                        )
+                        set({ opexExtra })
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={o.included}
+                      onChange={(e) => {
+                        const opexExtra = inputs.opexExtra.map((x, j) =>
+                          j === i ? { ...x, included: e.target.checked } : x,
+                        )
+                        set({ opexExtra })
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="remove-button"
+                      aria-label="항목 삭제"
+                      onClick={() =>
+                        set({
+                          opexExtra: inputs.opexExtra.filter((_, j) => j !== i),
+                        })
+                      }
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() =>
+            set({
+              opexExtra: [
+                ...inputs.opexExtra,
+                { id: 'ex' + Date.now(), label: '', monthly: 0, included: true },
+              ],
+            })
+          }
+        >
+          + 추가 항목
+        </button>
       </div>
 
       <div className="subsection">
@@ -353,6 +451,90 @@ export default function FeasibilityAnalysis({
           누적 충전량(ΣW) {formatNumber(Math.round(r.sumW))} kWh · 영업비
           환산계수 {r.convFactor.toFixed(4)}. 사업성 판정: 영업이익률 ≥ 목표이면
           진행가능.
+        </p>
+      </div>
+
+      {/* 목표 달성 충전단가 */}
+      <div className="subsection">
+        <h3 className="subsection__title">목표 영업이익률 달성 충전단가</h3>
+        <p className="scenario-line">
+          영업이익률을 목표({(r.targetMargin * 100).toFixed(2)}%)에 맞추는 충전단가:{' '}
+          <b>{rateStr(r.targetRate)}</b>{' '}
+          <span className="var-field__unit">원/kWh · VAT포함</span>
+        </p>
+      </div>
+
+      {/* ③ 영업비 차감 → 충전단가 인하 */}
+      <div className="var-panel">
+        <h3 className="subsection__title">③ 영업비 차감 → 충전단가 인하 검토</h3>
+        <div className="var-row">
+          <Field
+            label="영업비 차감/대"
+            unit="원/대(1대분)"
+            value={inputs.bizFeeDiscount}
+            onChange={(v) => set({ bizFeeDiscount: v })}
+          />
+          <div className="var-field">
+            <span className="var-field__label">영업비 절감액(총)</span>
+            <div className="var-field__auto">{won(r.savings)}</div>
+          </div>
+        </div>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>기준</th>
+                <th>단가 인하폭(원/kWh)</th>
+                <th>인하 후 충전단가(원/kWh)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="col-name">영업이익률 유지</td>
+                <td>{rateStr(r.priceCutMargin)}</td>
+                <td className="cell--up">{rateStr(r.rateAfterMargin)}</td>
+              </tr>
+              <tr>
+                <td className="col-name">영업이익(절대액) 유지</td>
+                <td>{rateStr(r.priceCutProfit)}</td>
+                <td className="cell--up">{rateStr(r.rateAfterProfit)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="table-note">
+          영업비 차감분을 충전단가 인하로 환원. 영업이익률 유지 기준은 목표
+          수익률을 지키는 범위, 영업이익(절대액) 유지 기준은 이익 총액을 지키는
+          범위입니다.
+        </p>
+      </div>
+
+      {/* ④ 영업이익 포기율 기반 단가 인하 */}
+      <div className="var-panel">
+        <h3 className="subsection__title">④ 영업이익 포기율 기반 단가 인하</h3>
+        <div className="var-row">
+          <Field
+            label="영업이익 포기율"
+            unit="%"
+            step={0.1}
+            value={+(inputs.profitGiveupRate * 100).toFixed(4)}
+            onChange={(v) => set({ profitGiveupRate: (v || 0) / 100 })}
+          />
+          <div className="var-field">
+            <span className="var-field__label">영업이익 포기 금액</span>
+            <div className="var-field__auto">{won(r.giveupAmount)}</div>
+          </div>
+          <div className="var-field">
+            <span className="var-field__label">포기 후 목표 영업이익률</span>
+            <div className="var-field__auto">
+              {(r.marginAfterGiveup * 100).toFixed(2)}%
+            </div>
+          </div>
+        </div>
+        <p className="scenario-line">
+          단가 인하폭 <b>{rateStr(r.priceCutGiveup)}</b> → 인하 후 충전단가{' '}
+          <b className="cell--up">{rateStr(r.rateAfterGiveup)}</b>{' '}
+          <span className="var-field__unit">원/kWh · VAT포함</span>
         </p>
       </div>
     </section>

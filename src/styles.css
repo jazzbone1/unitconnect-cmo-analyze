@@ -264,6 +264,13 @@ body {
 .pnl-table td:last-child {
   font-variant-numeric: tabular-nums;
 }
+.scenario-line {
+  font-size: 0.95rem;
+  margin: 0.25rem 0 0;
+}
+.scenario-line b {
+  font-size: 1.05rem;
+}
 
 .app__header h1 {
   font-size: 2rem;

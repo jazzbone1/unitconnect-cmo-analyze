@@ -36,12 +36,18 @@ export interface FeasibilityInputs {
   yearUtil5: number
   /** 영업비 1대분 단가 (원/대) */
   bizFeePerUnit: number
+  /** 영업비 차감/대 (충전단가 하락 검토용) */
+  bizFeeDiscount: number
+  /** 영업이익 포기율 (0~1) */
+  profitGiveupRate: number
   /** 모자분리 CAPEX (원/대) */
   mojaBunri: number
   /** 미니PC CAPEX (원/단지) */
   miniPc: number
-  /** 대당 월 운영비 항목 */
+  /** 기본 대당 월 운영비 항목 */
   opex: OpexItem[]
+  /** 추가 대당 월 운영비 항목 (사용자 추가) */
+  opexExtra: OpexItem[]
 }
 
 // 고정 상수
@@ -60,6 +66,7 @@ const MAX_MONTHLY = {
 const TARGET_MARGIN_HIGH = [0.1136, 0.1526, 0.1712, 0.1841, 0.1941] // 단가 ≥ 244
 const TARGET_MARGIN_LOW = [0.0775, 0.1181, 0.1376, 0.1509, 0.1613] // 단가 < 244
 
+// 기본 대당 월 운영비 항목 (유닛커넥트 기준)
 export const DEFAULT_OPEX: OpexItem[] = [
   { id: 'op1', label: '감리·정기·긴급점검 (현장인력 0.5명)', monthly: 1000, included: true },
   { id: 'op2', label: 'CS 운영 (야간) 1명', monthly: 1750, included: true },
@@ -67,7 +74,6 @@ export const DEFAULT_OPEX: OpexItem[] = [
   { id: 'op4', label: '보험 (손해배상책임 4,000원/대)', monthly: 4000 / 12, included: true },
   { id: 'op5', label: '대수선비 (소모품·충전기 교체)', monthly: 5000, included: true },
   { id: 'op6', label: '트러스테이 (CCTV)', monthly: 543, included: true },
-  { id: 'op7', label: '영업배상책임보험 (2만원/대)', monthly: 20000 / 12, included: false },
 ]
 
 /** 계약년수에 따른 영업비 1대분 기본 단가 (100,000 × 년수) */
@@ -133,9 +139,14 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
     yearUtil4: 0.1,
     yearUtil5: 0.11,
     bizFeePerUnit: 500000,
+    bizFeeDiscount: 0,
+    profitGiveupRate: 0.01,
     mojaBunri: 50000,
     miniPc: 800000,
     opex: DEFAULT_OPEX.map((o) => ({ ...o })),
+    opexExtra: [
+      { id: 'ex1', label: '영업배상책임보험 (2만원/대)', monthly: 20000 / 12, included: false },
+    ],
   }
 }
 
@@ -146,6 +157,8 @@ export interface FeasibilityResult {
   slow7Ratio: number
   convFactor: number
   opexPerUnit: number
+  opexBasic: number
+  opexExtra: number
   baseMonthlyW: number
   yearlyW: number[] // 1~5년차
   sumW: number
@@ -160,6 +173,19 @@ export interface FeasibilityResult {
   margin: number
   targetMargin: number
   verdict: '진행가능' | '진행불가' | '-'
+  /** 영업이익률=목표 달성 충전단가 (VAT포함), 달성불가 시 null */
+  targetRate: number | null
+  // ③ 영업비 차감 → 충전단가 인하
+  savings: number // 영업비 절감액 (총)
+  priceCutMargin: number | null // 영업이익률 유지 기준 인하폭
+  rateAfterMargin: number | null // 인하 후 단가
+  priceCutProfit: number | null // 영업이익 유지 기준 인하폭
+  rateAfterProfit: number | null
+  // ④ 영업이익 포기율 기반
+  giveupAmount: number // 영업이익 포기 금액
+  marginAfterGiveup: number // 영업이익률 − 포기율
+  priceCutGiveup: number | null
+  rateAfterGiveup: number | null
 }
 
 export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
@@ -168,9 +194,11 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
   const consentRatio = total > 0 ? (inp.countSlow3 + inp.countSlow35) / total : 0
   const slow7Ratio = total > 0 ? inp.countSlow7 / total : 0
   const convFactor = consentRatio / 4 + slow7Ratio
-  const opexPerUnit = inp.opex
-    .filter((o) => o.included)
-    .reduce((a, o) => a + o.monthly, 0)
+  const sumIncluded = (arr: OpexItem[]) =>
+    arr.filter((o) => o.included).reduce((a, o) => a + o.monthly, 0)
+  const opexBasic = sumIncluded(inp.opex)
+  const opexExtra = sumIncluded(inp.opexExtra ?? [])
+  const opexPerUnit = opexBasic + opexExtra
 
   // 종류별 월 기본 에너지(kWh)
   const eFast = inp.countFast50 * MAX_MONTHLY.fast50 * inp.utilFast50
@@ -223,6 +251,37 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
   const verdict: FeasibilityResult['verdict'] =
     revenue === 0 ? '-' : margin >= targetMargin ? '진행가능' : '진행불가'
 
+  // VAT포함 단가로 환원하는 공통 분모 (1.1 배 포함)
+  const priceCut = (numerator: number, marginAdj: number): number | null => {
+    const denom = 12 * sumW * (1 - PG_RATE - marginAdj)
+    if (denom <= 0) return null
+    return (numerator / denom) * 1.1
+  }
+
+  // 목표 달성 충전단가
+  const fixedCosts = -(elecCost + opsCost + bizCost + capex)
+  const targetRate = (() => {
+    const denom = 12 * sumW * (1 - PG_RATE - targetMargin)
+    return denom <= 0 ? null : (fixedCosts / denom) * 1.1
+  })()
+
+  // ③ 영업비 차감 → 충전단가 인하
+  const savings = (inp.bizFeeDiscount ?? 0) * convFactor * total
+  const priceCutMargin = priceCut(savings, margin) // 영업이익률 유지
+  const priceCutProfit = priceCut(savings, 0) // 영업이익(절대액) 유지
+  const rateAfterMargin =
+    priceCutMargin == null ? null : inp.rateVat - priceCutMargin
+  const rateAfterProfit =
+    priceCutProfit == null ? null : inp.rateVat - priceCutProfit
+
+  // ④ 영업이익 포기율 기반
+  const giveupRate = inp.profitGiveupRate ?? 0
+  const giveupAmount = giveupRate * revenue
+  const marginAfterGiveup = margin - giveupRate
+  const priceCutGiveup = priceCut(giveupAmount, marginAfterGiveup)
+  const rateAfterGiveup =
+    priceCutGiveup == null ? null : inp.rateVat - priceCutGiveup
+
   return {
     totalUnits: total,
     rateExVat,
@@ -230,6 +289,8 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     slow7Ratio,
     convFactor,
     opexPerUnit,
+    opexBasic,
+    opexExtra,
     baseMonthlyW: base,
     yearlyW,
     sumW,
@@ -244,5 +305,15 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     margin,
     targetMargin,
     verdict,
+    targetRate,
+    savings,
+    priceCutMargin,
+    rateAfterMargin,
+    priceCutProfit,
+    rateAfterProfit,
+    giveupAmount,
+    marginAfterGiveup,
+    priceCutGiveup,
+    rateAfterGiveup,
   }
 }
