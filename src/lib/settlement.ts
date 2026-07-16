@@ -30,18 +30,9 @@ export const CHARGER_KW: { id: string; name: string; kw: number }[] = [
   { id: 'c100', name: '100kW', kw: 100 },
 ]
 
-// 현재 현장(흑석자이) 기준 기본 요금·수량. 나머지 종류는 0(미사용).
-const DEFAULT_RATE_COUNT: Record<string, { rate: number; count: number }> = {
-  c7: { rate: 200, count: 20 },
-  c50: { rate: 300, count: 3 },
-}
-
+// 요금·수량은 현장마다 다르므로 기본값은 비워둔다(0). 사용자가 현장별로 입력.
 export const DEFAULT_CONFIG: SettlementConfig = {
-  chargers: CHARGER_KW.map((c) => ({
-    ...c,
-    rate: DEFAULT_RATE_COUNT[c.id]?.rate ?? 0,
-    count: DEFAULT_RATE_COUNT[c.id]?.count ?? 0,
-  })),
+  chargers: CHARGER_KW.map((c) => ({ ...c, rate: 0, count: 0 })),
   hours: 720,
 }
 

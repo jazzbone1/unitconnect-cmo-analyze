@@ -67,7 +67,8 @@ function ChargerEditor({
                       className="cell-input"
                       type="number"
                       min={0}
-                      value={c.rate}
+                      placeholder="0"
+                      value={c.rate || ''}
                       onChange={(e) =>
                         updateCharger(c.id, { rate: Number(e.target.value) || 0 })
                       }
@@ -78,7 +79,8 @@ function ChargerEditor({
                       className="cell-input"
                       type="number"
                       min={0}
-                      value={c.count}
+                      placeholder="0"
+                      value={c.count || ''}
                       onChange={(e) =>
                         updateCharger(c.id, { count: Number(e.target.value) || 0 })
                       }
@@ -107,7 +109,7 @@ function ChargerEditor({
             className="link-button"
             onClick={() => setConfig(cloneDefault())}
           >
-            기본값으로 되돌리기
+            요금·수량 모두 지우기
           </button>
         </div>
         <p className="var-hint">
