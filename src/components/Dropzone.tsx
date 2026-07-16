@@ -3,10 +3,19 @@ import { useCallback, useRef, useState } from 'react'
 interface DropzoneProps {
   onFiles: (files: File[]) => void
   disabled?: boolean
+  title?: string
+  hint?: string
+  icon?: string
 }
 
 /** 드래그 앤 드롭 + 클릭 업로드를 지원하는 파일 입력 영역. (다중 파일) */
-export default function Dropzone({ onFiles, disabled }: DropzoneProps) {
+export default function Dropzone({
+  onFiles,
+  disabled,
+  title = '파일을 여기에 끌어다 놓거나 클릭해서 선택하세요 (여러 개 가능)',
+  hint = 'CSV · Excel (.xlsx, .xls) 지원 · 파일명의 날짜로 자동 분류됩니다',
+  icon = '⬆',
+}: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
 
@@ -57,14 +66,10 @@ export default function Dropzone({ onFiles, disabled }: DropzoneProps) {
         }}
       />
       <div className="dropzone__icon" aria-hidden>
-        ⬆
+        {icon}
       </div>
-      <p className="dropzone__title">
-        파일을 여기에 끌어다 놓거나 클릭해서 선택하세요 (여러 개 가능)
-      </p>
-      <p className="dropzone__hint">
-        CSV · Excel (.xlsx, .xls) 지원 · 파일명의 날짜로 자동 분류됩니다
-      </p>
+      <p className="dropzone__title">{title}</p>
+      <p className="dropzone__hint">{hint}</p>
     </div>
   )
 }

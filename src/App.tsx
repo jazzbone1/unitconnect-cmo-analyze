@@ -270,7 +270,22 @@ export default function App() {
                 />
               ) : (
                 <>
-                  <Dropzone onFiles={handleFiles} disabled={loading} />
+                  <div className="dropzone-row">
+                    <Dropzone
+                      onFiles={handleFiles}
+                      disabled={loading}
+                      icon="📊"
+                      title="이용량 데이터 (정산)"
+                      hint="정산 CSV·Excel (사용량·사용금액) · 파일명 날짜로 월간/연간 자동 분류"
+                    />
+                    <Dropzone
+                      onFiles={handleFiles}
+                      disabled={loading}
+                      icon="🚗"
+                      title="사용자 정보 (차량 등록)"
+                      hint="차량 등록 명부 CSV·Excel · 차량번호 기준 중복 제거·차종 집계"
+                    />
+                  </div>
 
                   {loading && (
                     <p className="status status--loading">분석 중…</p>

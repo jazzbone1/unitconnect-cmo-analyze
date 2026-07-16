@@ -361,6 +361,13 @@ body {
   gap: 1.5rem;
 }
 
+/* Dropzone 두 칸 배치 */
+.dropzone-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
 /* Dropzone */
 .dropzone {
   border: 2px dashed var(--border);
