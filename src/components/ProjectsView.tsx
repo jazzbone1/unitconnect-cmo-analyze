@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { SavedSite } from '../lib/sites'
+import {
+  projectCode,
+  SALES_STATUS,
+  SURVEY_STATUS,
+  CONSTRUCTION_STATUS,
+  CPO_OPTIONS,
+} from '../lib/sites'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement } from '../lib/settlement'
@@ -220,16 +227,120 @@ export default function ProjectsView({
     null,
   )
   const [query, setQuery] = useState('')
+  const [sortKey, setSortKey] = useState<string>('code')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [rowsSel, setRowsSel] = useState<Set<string>>(new Set())
+  const [showFilter, setShowFilter] = useState(false)
+  const [filters, setFilters] = useState({
+    cpo: '',
+    sales: '',
+    survey: '',
+    construction: '',
+  })
+  const [presets, setPresets] = usePersistentState<
+    { name: string; filters: typeof filters }[]
+  >('projectFilterPresets', [])
+  const [preset, setPreset] = useState('기본 보기')
+
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
+  const chargerCount = (p: SavedSite) =>
+    p.chargers.reduce((a, c) => a + c.count, 0)
+  const val = (p: SavedSite, key: string): string | number => {
+    switch (key) {
+      case 'code':
+        return projectCode(p)
+      case 'cpo':
+        return p.cpo ?? '선택안함'
+      case 'name':
+        return p.name
+      case 'address':
+        return p.address ?? ''
+      case 'contract':
+        return p.contractTotal ?? chargerCount(p)
+      case 'survey':
+        return p.surveyStatus ?? ''
+      case 'sales':
+        return p.salesStatus ?? '계약진행필요'
+      case 'construction':
+        return p.constructionStatus ?? ''
+      case 'env':
+        return p.envSubmitDate ?? ''
+      case 'cend':
+        return p.constructionEndDate ?? ''
+      case 'safety':
+        return p.safetyCheckDate ?? ''
+      default:
+        return ''
+    }
+  }
+
   const q = query.trim().toLowerCase()
-  const filtered = q
-    ? projects.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.address ?? '').toLowerCase().includes(q),
-      )
-    : projects
+  const filtered = projects
+    .filter(
+      (p) =>
+        !q ||
+        projectCode(p).toLowerCase().includes(q) ||
+        p.name.toLowerCase().includes(q) ||
+        (p.address ?? '').toLowerCase().includes(q),
+    )
+    .filter((p) => !filters.cpo || (p.cpo ?? '선택안함') === filters.cpo)
+    .filter(
+      (p) => !filters.sales || (p.salesStatus ?? '계약진행필요') === filters.sales,
+    )
+    .filter((p) => !filters.survey || (p.surveyStatus ?? '') === filters.survey)
+    .filter(
+      (p) =>
+        !filters.construction ||
+        (p.constructionStatus ?? '') === filters.construction,
+    )
+
+  const sorted = [...filtered].sort((a, b) => {
+    const va = val(a, sortKey)
+    const vb = val(b, sortKey)
+    let cmp: number
+    if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb
+    else cmp = String(va).localeCompare(String(vb), 'ko')
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+  function toggleRow(id: string) {
+    setRowsSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const allChecked = sorted.length > 0 && sorted.every((p) => rowsSel.has(p.id))
+  function toggleAll() {
+    setRowsSel(allChecked ? new Set() : new Set(sorted.map((p) => p.id)))
+  }
+  function applyPreset(name: string) {
+    setPreset(name)
+    if (name === '기본 보기') {
+      setFilters({ cpo: '', sales: '', survey: '', construction: '' })
+      return
+    }
+    const found = presets.find((p) => p.name === name)
+    if (found) setFilters(found.filters)
+  }
+  function savePreset() {
+    const name = window.prompt('필터 프리셋 이름을 입력하세요')
+    if (!name) return
+    setPresets((prev) => [
+      ...prev.filter((p) => p.name !== name),
+      { name, filters },
+    ])
+    setPreset(name)
+  }
 
   if (selected) {
     return (
@@ -242,92 +353,321 @@ export default function ProjectsView({
     )
   }
 
-  if (projects.length === 0) {
-    return (
-      <div className="projects">
-        <p className="status status--info">
-          저장된 프로젝트가 없습니다. 데이터 분석 탭에서 단지 정보를 입력하고
-          <b> 현장 저장</b>을 누르면 여기에 표시됩니다.
-        </p>
-      </div>
-    )
-  }
+  const cols: { key: string; label: string }[] = [
+    { key: 'code', label: '프로젝트 코드' },
+    { key: 'cpo', label: 'CPO' },
+    { key: 'name', label: '충전소명' },
+    { key: 'address', label: '도로명 주소' },
+    { key: 'contract', label: '계약합계' },
+    { key: 'survey', label: '실사 상태' },
+    { key: 'sales', label: '영업 상태(본사기입)' },
+    { key: 'construction', label: '시공 상태(본사기입)' },
+    { key: 'env', label: '환경부접수일' },
+    { key: 'cend', label: '시공예정일(종료)' },
+    { key: 'safety', label: '안전점검일' },
+  ]
+  const sortMark = (key: string) =>
+    sortKey === key ? (sortDir === 'asc' ? ' ↓' : ' ↑') : ''
 
   return (
     <div className="projects">
-      <div className="projects__head">
-        <h2 className="projects__title">프로젝트 ({projects.length})</h2>
+      {/* 검색 */}
+      <div className="proj-panel">
         <input
           type="search"
-          className="projects__search"
-          placeholder="단지명 · 주소 검색"
+          className="proj-search"
+          placeholder="프로젝트 코드 · 충전소명 · 주소 검색"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="status status--info">
-          '{query}'에 해당하는 프로젝트가 없습니다.
+      {/* 필터 */}
+      <div className="proj-panel">
+        <div className="proj-filter-divider">필터</div>
+        <div className="proj-filter-bar">
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => setShowFilter((s) => !s)}
+          >
+            ⚙ 필터 설정
+          </button>
+          <div className="proj-filter-preset">
+            <label className="proj-preset-label">
+              필터 프리셋
+              <select
+                value={preset}
+                onChange={(e) => applyPreset(e.target.value)}
+              >
+                <option>기본 보기</option>
+                {presets.map((p) => (
+                  <option key={p.name}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="btn-outline" onClick={savePreset}>
+              🔖 필터 프리셋 저장
+            </button>
+          </div>
+        </div>
+
+        {showFilter && (
+          <div className="proj-filter-fields">
+            <label>
+              CPO
+              <select
+                value={filters.cpo}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, cpo: e.target.value }))
+                }
+              >
+                <option value="">전체</option>
+                {CPO_OPTIONS.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              영업 상태
+              <select
+                value={filters.sales}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, sales: e.target.value }))
+                }
+              >
+                <option value="">전체</option>
+                {SALES_STATUS.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              실사 상태
+              <select
+                value={filters.survey}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, survey: e.target.value }))
+                }
+              >
+                <option value="">전체</option>
+                {SURVEY_STATUS.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              시공 상태
+              <select
+                value={filters.construction}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, construction: e.target.value }))
+                }
+              >
+                <option value="">전체</option>
+                {CONSTRUCTION_STATUS.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => {
+                setFilters({ cpo: '', sales: '', survey: '', construction: '' })
+                setPreset('기본 보기')
+              }}
+            >
+              필터 초기화
+            </button>
+          </div>
+        )}
+
+        <p className="proj-hint">
+          필터 설정에서 항목을 선택하면 필터 입력칸이 나타납니다.
         </p>
-      ) : (
+        <p className="proj-hint">
+          검색어는 프로젝트 코드·충전소명·주소가 대상이며 입력 즉시 반영됩니다.
+        </p>
+      </div>
+
+      {/* 건수 + 정렬 안내 */}
+      <div className="proj-count">
+        <span>
+          총 <b>{sorted.length}</b>건 · 페이지 1/1 · 선택 <b>{rowsSel.size}</b>건
+        </span>
+        <span className="proj-count__hint">
+          헤더 텍스트를 클릭하시면 정렬할 수 있습니다.
+        </span>
+      </div>
+
+      {/* 목록 */}
+      <div className="proj-table-card">
         <div className="table-scroll">
-          <table className="data-table project-list">
+          <table className="data-table proj-table">
             <thead>
               <tr>
-                <th>단지명</th>
-                <th>주소</th>
-                <th>세대수</th>
-                <th>충전기</th>
-                <th>파일</th>
-                <th>등록 인원</th>
+                <th className="proj-check">
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={toggleAll}
+                    aria-label="전체 선택"
+                  />
+                </th>
+                {cols.map((c) => (
+                  <th
+                    key={c.key}
+                    className="proj-sortable"
+                    onClick={() => toggleSort(c.key)}
+                  >
+                    {c.label}
+                    {sortMark(c.key)}
+                  </th>
+                ))}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => {
-                const cnt = p.chargers.reduce((a, c) => a + c.count, 0)
-                const effFiles = p.files ?? p.settlementFiles ?? []
-                const fileCount = effFiles.length
-                const regFiles = effFiles.filter(
-                  (f) =>
-                    !detectSettlement(f.dataset) && detectRegistry(f.dataset),
-                )
-                const people = regFiles.length
-                  ? computeRegistry(regFiles.map((f) => f.dataset)).totalPeople
-                  : (p.registry?.totalPeople ?? 0)
-                return (
-                  <tr
-                    key={p.id}
-                    className="row--clickable"
-                    onClick={() => setSelectedId(p.id)}
-                  >
-                    <td className="col-name">{p.name}</td>
-                    <td className="col-name">{p.address || '—'}</td>
-                    <td>{p.households ? p.households.toLocaleString() : '—'}</td>
-                    <td>{cnt.toLocaleString()}기</td>
-                    <td>{fileCount}개</td>
-                    <td>{people > 0 ? `${people.toLocaleString()}명` : '—'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="remove-button"
-                        aria-label={`${p.name} 삭제`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDelete(p.id)
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
+              {sorted.map((p) => (
+                <tr key={p.id} className={rowsSel.has(p.id) ? 'row--sel' : ''}>
+                  <td className="proj-check">
+                    <input
+                      type="checkbox"
+                      checked={rowsSel.has(p.id)}
+                      onChange={() => toggleRow(p.id)}
+                      aria-label={`${p.name} 선택`}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="proj-code"
+                      onClick={() => setSelectedId(p.id)}
+                    >
+                      {projectCode(p)}
+                    </button>
+                  </td>
+                  <td>
+                    <select
+                      className="proj-inline"
+                      value={p.cpo ?? '선택안함'}
+                      onChange={(e) => onUpdate(p.id, { cpo: e.target.value })}
+                    >
+                      {CPO_OPTIONS.map((o) => (
+                        <option key={o}>{o}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="col-name">
+                    <button
+                      type="button"
+                      className="proj-link"
+                      onClick={() => setSelectedId(p.id)}
+                    >
+                      {p.name}
+                    </button>
+                  </td>
+                  <td className="col-name">{p.address || '—'}</td>
+                  <td className="proj-contract">
+                    {(p.contractTotal ?? chargerCount(p)).toLocaleString()}
+                  </td>
+                  <td>
+                    <select
+                      className="proj-inline"
+                      value={p.surveyStatus ?? ''}
+                      onChange={(e) =>
+                        onUpdate(p.id, { surveyStatus: e.target.value })
+                      }
+                    >
+                      <option value="">—</option>
+                      {SURVEY_STATUS.map((o) => (
+                        <option key={o}>{o}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      className="proj-inline"
+                      value={p.salesStatus ?? '계약진행필요'}
+                      onChange={(e) =>
+                        onUpdate(p.id, { salesStatus: e.target.value })
+                      }
+                    >
+                      {SALES_STATUS.map((o) => (
+                        <option key={o}>{o}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      className="proj-inline"
+                      value={p.constructionStatus ?? ''}
+                      onChange={(e) =>
+                        onUpdate(p.id, { constructionStatus: e.target.value })
+                      }
+                    >
+                      <option value="">—</option>
+                      {CONSTRUCTION_STATUS.map((o) => (
+                        <option key={o}>{o}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="date"
+                      className="proj-inline proj-date"
+                      value={p.envSubmitDate ?? ''}
+                      onChange={(e) =>
+                        onUpdate(p.id, { envSubmitDate: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="date"
+                      className="proj-inline proj-date"
+                      value={p.constructionEndDate ?? ''}
+                      onChange={(e) =>
+                        onUpdate(p.id, { constructionEndDate: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="date"
+                      className="proj-inline proj-date"
+                      value={p.safetyCheckDate ?? ''}
+                      onChange={(e) =>
+                        onUpdate(p.id, { safetyCheckDate: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="remove-button"
+                      aria-label={`${p.name} 삭제`}
+                      onClick={() => onDelete(p.id)}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={cols.length + 2} className="proj-empty">
+                    {projects.length === 0
+                      ? '저장된 프로젝트가 없습니다. 데이터 분석 탭에서 현장을 저장하세요.'
+                      : '조건에 해당하는 프로젝트가 없습니다.'}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-      )}
+      </div>
     </div>
   )
 }

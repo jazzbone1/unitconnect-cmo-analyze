@@ -23,6 +23,52 @@ export interface SavedSite {
   feas?: FeasibilityInputs
   /** 저장 시각 (ISO) */
   savedAt?: string
+
+  // ── 프로젝트 관리(파이프라인) 필드 ──
+  /** 프로젝트 코드 (예: BF-2608) */
+  code?: string
+  /** CPO */
+  cpo?: string
+  /** 계약 합계 (금액 또는 대수) */
+  contractTotal?: number
+  /** 실사 상태 */
+  surveyStatus?: string
+  /** 영업 상태 (본사기입) */
+  salesStatus?: string
+  /** 시공 상태 (본사기입) */
+  constructionStatus?: string
+  /** 환경부 접수일 */
+  envSubmitDate?: string
+  /** 시공 예정일(종료) */
+  constructionEndDate?: string
+  /** 안전점검일 */
+  safetyCheckDate?: string
+}
+
+/** 상태 선택지 */
+export const SALES_STATUS = [
+  '계약진행필요',
+  '영업중',
+  '계약완료',
+  '보류',
+  '해당없음',
+]
+export const SURVEY_STATUS = ['미실사', '실사예정', '실사완료']
+export const CONSTRUCTION_STATUS = ['미시공', '시공예정', '시공중', '시공완료']
+export const CPO_OPTIONS = [
+  '선택안함',
+  '유닛커넥트',
+  '기타',
+]
+
+/** 프로젝트 id로부터 안정적인 표시용 코드(BF-####)를 만든다. */
+export function projectCode(site: SavedSite): string {
+  if (site.code && site.code.trim()) return site.code
+  let h = 0
+  for (let i = 0; i < site.id.length; i++) {
+    h = (h * 31 + site.id.charCodeAt(i)) >>> 0
+  }
+  return `BF-${1000 + (h % 9000)}`
 }
 
 const STORAGE_KEY = 'unitconnect.sites.v1'
