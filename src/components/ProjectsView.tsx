@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { SavedSite } from '../lib/sites'
+import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement } from '../lib/settlement'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from '../lib/feasibility'
@@ -29,7 +30,10 @@ function ProjectDetail({
   onBack: () => void
   onUpdate: (id: string, patch: Partial<SavedSite>) => void
 }) {
-  const [subtab, setSubtab] = useState<'usage' | 'feasibility'>('usage')
+  const [subtab, setSubtab] = usePersistentState<'usage' | 'feasibility'>(
+    'projectSubtab',
+    'usage',
+  )
   const [feas, setFeas] = useState<FeasibilityInputs>(
     project.feas ?? DEFAULT_INPUTS(),
   )
@@ -211,7 +215,10 @@ export default function ProjectsView({
   onDelete,
   onUpdate,
 }: ProjectsViewProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(
+    'selectedProjectId',
+    null,
+  )
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
   if (selected) {

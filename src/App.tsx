@@ -8,6 +8,7 @@ import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoP
 import ProjectsView from './components/ProjectsView'
 import FeasibilityAnalysis from './components/FeasibilityAnalysis'
 import Logo from './components/Logo'
+import { usePersistentState } from './lib/persist'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
@@ -31,8 +32,11 @@ const AGG_OPTIONS: { value: AggKind; label: string }[] = [
 ]
 
 export default function App() {
-  const [tab, setTab] = useState<'analyze' | 'projects'>('analyze')
-  const [analyzeTab, setAnalyzeTab] = useState<'usage' | 'feasibility'>('usage')
+  const [tab, setTab] = usePersistentState<'analyze' | 'projects'>('tab', 'analyze')
+  const [analyzeTab, setAnalyzeTab] = usePersistentState<'usage' | 'feasibility'>(
+    'analyzeTab',
+    'usage',
+  )
   const [feas, setFeas] = useState<FeasibilityInputs>(() => DEFAULT_INPUTS())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [errors, setErrors] = useState<string[]>([])
