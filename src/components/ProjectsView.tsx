@@ -1,56 +1,102 @@
 import { useState } from 'react'
 import type { SavedSite } from '../lib/sites'
 import type { SettlementConfig } from '../lib/settlement'
+import { DEFAULT_INPUTS, type FeasibilityInputs } from '../lib/feasibility'
 import SettlementAnalysis from './SettlementAnalysis'
 import RegistryAnalysis from './RegistryAnalysis'
+import FeasibilityAnalysis from './FeasibilityAnalysis'
 
 interface ProjectsViewProps {
   projects: SavedSite[]
   onDelete: (id: string) => void
 }
 
-/** 프로젝트(저장된 현장) 목록 + 선택 시 저장된 분석자료 보기 */
+/** 프로젝트 상세: 이용량 분석 / 사업성 분석 내부 탭 */
+function ProjectDetail({
+  project,
+  onBack,
+}: {
+  project: SavedSite
+  onBack: () => void
+}) {
+  const [subtab, setSubtab] = useState<'usage' | 'feasibility'>('usage')
+  const [feas, setFeas] = useState<FeasibilityInputs>(
+    project.feas ?? DEFAULT_INPUTS(),
+  )
+  const config: SettlementConfig = {
+    hours: project.hours,
+    chargers: project.chargers,
+  }
+  const site = {
+    name: project.name,
+    address: project.address,
+    households: project.households,
+  }
+  const settlementFiles = project.settlementFiles ?? []
+  const hasUsage = settlementFiles.length > 0 || !!project.registry
+
+  return (
+    <div className="projects">
+      <button type="button" className="link-button back-link" onClick={onBack}>
+        ← 프로젝트 목록
+      </button>
+      <h2 className="projects__title">{project.name}</h2>
+
+      <div className="subtabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          className={`subtab${subtab === 'usage' ? ' subtab--active' : ''}`}
+          onClick={() => setSubtab('usage')}
+        >
+          이용량 분석
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`subtab${subtab === 'feasibility' ? ' subtab--active' : ''}`}
+          onClick={() => setSubtab('feasibility')}
+        >
+          사업성 분석
+        </button>
+      </div>
+
+      {subtab === 'feasibility' ? (
+        <FeasibilityAnalysis inputs={feas} setInputs={setFeas} config={config} />
+      ) : (
+        <>
+          {!hasUsage && (
+            <p className="status status--info">
+              이 현장에는 저장된 이용량 분석 데이터가 없습니다. 데이터 분석
+              탭에서 파일을 올린 뒤 이 현장을 저장하면 표시됩니다.
+            </p>
+          )}
+          {settlementFiles.length > 0 && (
+            <SettlementAnalysis
+              files={settlementFiles}
+              config={config}
+              site={site}
+            />
+          )}
+          {project.registry && <RegistryAnalysis result={project.registry} />}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** 프로젝트(저장된 현장) 목록 + 선택 시 상세 보기 */
 export default function ProjectsView({ projects, onDelete }: ProjectsViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
   if (selected) {
-    const config: SettlementConfig = {
-      hours: selected.hours,
-      chargers: selected.chargers,
-    }
-    const settlementFiles = selected.settlementFiles ?? []
     return (
-      <div className="projects">
-        <button
-          type="button"
-          className="link-button back-link"
-          onClick={() => setSelectedId(null)}
-        >
-          ← 프로젝트 목록
-        </button>
-
-        {settlementFiles.length === 0 && !selected.registry && (
-          <p className="status status--info">
-            이 현장에는 저장된 분석 데이터가 없습니다. 데이터 분석 탭에서 파일을
-            올린 뒤 이 현장을 저장하면 여기에 표시됩니다.
-          </p>
-        )}
-
-        {settlementFiles.length > 0 && (
-          <SettlementAnalysis
-            files={settlementFiles}
-            config={config}
-            site={{
-              name: selected.name,
-              address: selected.address,
-              households: selected.households,
-            }}
-          />
-        )}
-
-        {selected.registry && <RegistryAnalysis result={selected.registry} />}
-      </div>
+      <ProjectDetail
+        key={selected.id}
+        project={selected}
+        onBack={() => setSelectedId(null)}
+      />
     )
   }
 

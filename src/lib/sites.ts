@@ -1,5 +1,6 @@
 import type { ChargerType } from './settlement'
 import type { RegistryResult } from './registry'
+import type { FeasibilityInputs } from './feasibility'
 import type { FileEntry } from '../types'
 
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
@@ -14,6 +15,8 @@ export interface SavedSite {
   settlementFiles?: FileEntry[]
   /** 저장 당시의 이용자 명부 분석 결과(개인정보 제거됨) */
   registry?: RegistryResult | null
+  /** 사업성 분석(영업비 산정) 입력값 */
+  feas?: FeasibilityInputs
   /** 저장 시각 (ISO) */
   savedAt?: string
 }

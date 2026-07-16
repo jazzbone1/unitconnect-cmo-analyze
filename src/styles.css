@@ -196,6 +196,33 @@ body {
   font-size: 0.9rem;
 }
 
+/* Inner sub-tabs */
+.subtabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.25rem;
+}
+.subtab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.subtab:hover {
+  color: var(--text);
+}
+.subtab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* Feasibility */
 .verdict-row {
   display: flex;

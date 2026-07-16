@@ -42,9 +42,8 @@ function nextId(): string {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<'analyze' | 'projects' | 'feasibility'>(
-    'analyze',
-  )
+  const [tab, setTab] = useState<'analyze' | 'projects'>('analyze')
+  const [analyzeTab, setAnalyzeTab] = useState<'usage' | 'feasibility'>('usage')
   const [feas, setFeas] = useState<FeasibilityInputs>(() => DEFAULT_INPUTS())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [errors, setErrors] = useState<string[]>([])
@@ -70,6 +69,7 @@ export default function App() {
       chargers,
       settlementFiles,
       registry: registryResult,
+      feas,
       savedAt: new Date().toISOString(),
     }
     if (selectedSiteId) {
@@ -93,6 +93,7 @@ export default function App() {
       return { ...base, rate: saved?.rate ?? 0, count: saved?.count ?? 0 }
     })
     setConfig({ hours: s.hours || DEFAULT_CONFIG.hours, chargers })
+    setFeas(s.feas ?? DEFAULT_INPUTS())
     setSelectedSiteId(s.id)
   }
 
@@ -104,6 +105,7 @@ export default function App() {
   function newSite() {
     setSite(EMPTY_SITE)
     setConfig(cloneDefaultConfig())
+    setFeas(DEFAULT_INPUTS())
     setSelectedSiteId(null)
   }
 
@@ -186,13 +188,6 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`sidebar__tab${tab === 'feasibility' ? ' sidebar__tab--active' : ''}`}
-            onClick={() => setTab('feasibility')}
-          >
-            사업성 분석
-          </button>
-          <button
-            type="button"
             className={`sidebar__tab${tab === 'projects' ? ' sidebar__tab--active' : ''}`}
             onClick={() => setTab('projects')}
           >
@@ -209,109 +204,137 @@ export default function App() {
           <div className="app">
             <ProjectsView projects={sites} onDelete={deleteSite} />
           </div>
-        ) : tab === 'feasibility' ? (
-          <div className="app">
-            <header className="app__header app__header--left">
-              <h1>사업성 분석</h1>
-              <p className="app__subtitle">
-                충전기 대수·단가·이용률과 운영비·CAPEX를 입력하면 계약기간 전체
-                손익(P&amp;L)과 영업이익률로 <b>사업성(진행가능/불가)</b>을
-                판정합니다.
-              </p>
-            </header>
-            <main className="app__main">
-              <FeasibilityAnalysis
-                inputs={feas}
-                setInputs={setFeas}
-                config={config}
-              />
-            </main>
-          </div>
         ) : (
           <div className="app">
             <header className="app__header app__header--left">
               <h1>데이터 분석</h1>
               <p className="app__subtitle">
-                <b>단지 정보와 충전기 설정을 먼저 입력</b>한 뒤 아래에서 CSV·Excel
-                파일을 올리면, 파일명의 날짜로 자동 분류해 정산·이용률을
-                계산합니다. 데이터는 서버로 전송되지 않고 전부 브라우저 안에서만
-                처리됩니다.
+                <b>단지 정보와 충전기 설정을 먼저 입력</b>한 뒤 이용량 분석에서
+                파일을 올리거나, 사업성 분석에서 손익을 계산하세요. 데이터는
+                서버로 전송되지 않고 전부 브라우저 안에서만 처리됩니다.
               </p>
             </header>
 
             <main className="app__main">
               <SiteInfoPanel
-          site={site}
-          setSite={setSite}
-          config={config}
-          setConfig={setConfig}
-          onReset={() => setConfig(cloneDefaultConfig())}
-          sites={sites}
-          selectedId={selectedSiteId}
-          onSave={saveCurrentSite}
-          onLoad={loadSite}
-          onDelete={deleteSite}
-          onNew={newSite}
-        />
-
-        <Dropzone onFiles={handleFiles} disabled={loading} />
-
-        {loading && <p className="status status--loading">분석 중…</p>}
-        {errors.length > 0 && (
-          <div className="status status--error" role="alert">
-            <strong>일부 파일을 읽지 못했습니다:</strong>
-            <ul className="error-list">
-              {errors.map((msg, i) => (
-                <li key={i}>{msg}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {hasData && (
-          <>
-            <FileList files={files} onRemove={removeFile} onClear={clearAll} />
-
-            {settlementFiles.length > 0 && (
-              <SettlementAnalysis
-                files={settlementFiles}
-                config={config}
                 site={site}
+                setSite={setSite}
+                config={config}
+                setConfig={setConfig}
+                onReset={() => setConfig(cloneDefaultConfig())}
+                sites={sites}
+                selectedId={selectedSiteId}
+                onSave={saveCurrentSite}
+                onLoad={loadSite}
+                onDelete={deleteSite}
+                onNew={newSite}
               />
-            )}
 
-            {registryResult && <RegistryAnalysis result={registryResult} />}
-
-            {groups.length > 0 && (
-              <div className="toolbar">
-                <div className="overview-inline">
-                  <span>
-                    기타 데이터 <b>{groups.length}</b>개 그룹
-                  </span>
-                </div>
-                <div className="agg-toggle" role="group" aria-label="집계 방식">
-                  <span className="agg-toggle__label">비교 집계</span>
-                  {AGG_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      className={`agg-toggle__btn${
-                        aggKind === opt.value ? ' agg-toggle__btn--active' : ''
-                      }`}
-                      onClick={() => setAggKind(opt.value)}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="subtabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  className={`subtab${analyzeTab === 'usage' ? ' subtab--active' : ''}`}
+                  onClick={() => setAnalyzeTab('usage')}
+                >
+                  이용량 분석
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className={`subtab${analyzeTab === 'feasibility' ? ' subtab--active' : ''}`}
+                  onClick={() => setAnalyzeTab('feasibility')}
+                >
+                  사업성 분석
+                </button>
               </div>
-            )}
 
-            {groups.map((group) => (
-              <GroupSection key={group.category} group={group} aggKind={aggKind} />
-            ))}
-          </>
-        )}
+              {analyzeTab === 'feasibility' ? (
+                <FeasibilityAnalysis
+                  inputs={feas}
+                  setInputs={setFeas}
+                  config={config}
+                />
+              ) : (
+                <>
+                  <Dropzone onFiles={handleFiles} disabled={loading} />
+
+                  {loading && (
+                    <p className="status status--loading">분석 중…</p>
+                  )}
+                  {errors.length > 0 && (
+                    <div className="status status--error" role="alert">
+                      <strong>일부 파일을 읽지 못했습니다:</strong>
+                      <ul className="error-list">
+                        {errors.map((msg, i) => (
+                          <li key={i}>{msg}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {hasData && (
+                    <>
+                      <FileList
+                        files={files}
+                        onRemove={removeFile}
+                        onClear={clearAll}
+                      />
+
+                      {settlementFiles.length > 0 && (
+                        <SettlementAnalysis
+                          files={settlementFiles}
+                          config={config}
+                          site={site}
+                        />
+                      )}
+
+                      {registryResult && (
+                        <RegistryAnalysis result={registryResult} />
+                      )}
+
+                      {groups.length > 0 && (
+                        <div className="toolbar">
+                          <div className="overview-inline">
+                            <span>
+                              기타 데이터 <b>{groups.length}</b>개 그룹
+                            </span>
+                          </div>
+                          <div
+                            className="agg-toggle"
+                            role="group"
+                            aria-label="집계 방식"
+                          >
+                            <span className="agg-toggle__label">비교 집계</span>
+                            {AGG_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                className={`agg-toggle__btn${
+                                  aggKind === opt.value
+                                    ? ' agg-toggle__btn--active'
+                                    : ''
+                                }`}
+                                onClick={() => setAggKind(opt.value)}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {groups.map((group) => (
+                        <GroupSection
+                          key={group.category}
+                          group={group}
+                          aggKind={aggKind}
+                        />
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
             </main>
 
             <footer className="app__footer">
