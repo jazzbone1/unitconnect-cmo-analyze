@@ -1,21 +1,21 @@
 import { useCallback, useRef, useState } from 'react'
 
 interface DropzoneProps {
-  onFile: (file: File) => void
+  onFiles: (files: File[]) => void
   disabled?: boolean
 }
 
-/** 드래그 앤 드롭 + 클릭 업로드를 지원하는 파일 입력 영역. */
-export default function Dropzone({ onFile, disabled }: DropzoneProps) {
+/** 드래그 앤 드롭 + 클릭 업로드를 지원하는 파일 입력 영역. (다중 파일) */
+export default function Dropzone({ onFiles, disabled }: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
-      const file = files?.[0]
-      if (file) onFile(file)
+      if (!files || files.length === 0) return
+      onFiles(Array.from(files))
     },
-    [onFile],
+    [onFiles],
   )
 
   return (
@@ -48,6 +48,7 @@ export default function Dropzone({ onFile, disabled }: DropzoneProps) {
         ref={inputRef}
         type="file"
         accept=".csv,.txt,.xlsx,.xls"
+        multiple
         hidden
         onChange={(e) => {
           handleFiles(e.target.files)
@@ -59,9 +60,11 @@ export default function Dropzone({ onFile, disabled }: DropzoneProps) {
         ⬆
       </div>
       <p className="dropzone__title">
-        파일을 여기에 끌어다 놓거나 클릭해서 선택하세요
+        파일을 여기에 끌어다 놓거나 클릭해서 선택하세요 (여러 개 가능)
       </p>
-      <p className="dropzone__hint">CSV · Excel (.xlsx, .xls) 지원</p>
+      <p className="dropzone__hint">
+        CSV · Excel (.xlsx, .xls) 지원 · 파일명의 날짜로 자동 분류됩니다
+      </p>
     </div>
   )
 }

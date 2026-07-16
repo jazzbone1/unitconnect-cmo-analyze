@@ -39,3 +39,36 @@ export interface CategoricalSummary {
 }
 
 export type ColumnSummary = NumericSummary | CategoricalSummary
+
+/** 파일명에서 추출한 기간 정보 */
+export interface Period {
+  /** 표시용 라벨 (예: "2024-06", "2024", "24.06.01~25.07.03") */
+  label: string
+  /** 시간순 정렬 키 (YYYYMMDD 형태의 숫자, 시작일 기준) */
+  sortKey: number
+  type: 'month' | 'year' | 'range' | 'unknown'
+}
+
+/** 업로드되어 파싱·분류된 개별 파일 */
+export interface FileEntry {
+  id: string
+  dataset: Dataset
+  /** 파일명에서 기간을 제거한 분류 기준(카테고리) */
+  category: string
+  /** 파일명에서 추출한 기간. 인식 실패 시 null */
+  period: Period | null
+}
+
+/** 같은 카테고리로 묶인 파일 그룹 */
+export interface FileGroup {
+  category: string
+  /** 기간순으로 정렬된 파일들 */
+  files: FileEntry[]
+  /** 그룹 내 모든 파일 컬럼의 합집합 */
+  columns: string[]
+  /** 그룹 내 모든 행을 이어붙인 통합 데이터셋 */
+  combined: Dataset
+}
+
+/** 기간 비교 표에서 사용할 집계 방식 */
+export type AggKind = 'sum' | 'mean' | 'count'

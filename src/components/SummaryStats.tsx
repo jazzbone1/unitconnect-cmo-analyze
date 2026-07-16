@@ -87,7 +87,7 @@ function CategoricalTable({
   )
 }
 
-/** 컬럼별 요약 통계. 숫자형/범주형을 나누어 표시한다. */
+/** 컬럼별 요약 통계. 숫자형/범주형을 나누어 표시한다. (카드 없이 임베드용) */
 export default function SummaryStats({ summaries }: SummaryStatsProps) {
   const numeric = summaries.filter(
     (s): s is Extract<ColumnSummary, { type: 'numeric' }> => s.type === 'numeric',
@@ -98,27 +98,22 @@ export default function SummaryStats({ summaries }: SummaryStatsProps) {
   )
 
   return (
-    <section className="card">
-      <div className="card__header">
-        <h2>요약 통계</h2>
-        <span className="badge">
-          숫자형 {numeric.length} · 범주형 {categorical.length}
-        </span>
-      </div>
-
+    <div className="summary-stats">
       {numeric.length > 0 && (
-        <div className="subsection">
-          <h3 className="subsection__title">숫자형 컬럼</h3>
+        <div className="summary-block">
+          <h4 className="summary-block__title">숫자형 컬럼 ({numeric.length})</h4>
           <NumericTable rows={numeric} />
         </div>
       )}
 
       {categorical.length > 0 && (
-        <div className="subsection">
-          <h3 className="subsection__title">범주형 컬럼</h3>
+        <div className="summary-block">
+          <h4 className="summary-block__title">
+            범주형 컬럼 ({categorical.length})
+          </h4>
           <CategoricalTable rows={categorical} />
         </div>
       )}
-    </section>
+    </div>
   )
 }
