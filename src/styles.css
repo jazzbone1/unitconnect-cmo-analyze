@@ -264,6 +264,31 @@ body {
 .pnl-table td:last-child {
   font-variant-numeric: tabular-nums;
 }
+/* OPEX 기본/추가 표 정렬 */
+.opex-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.opex-col-cost {
+  width: 150px;
+}
+.opex-col-inc {
+  width: 64px;
+}
+.opex-col-del {
+  width: 44px;
+}
+.opex-inc-cell {
+  text-align: center;
+}
+.opex-label-input {
+  width: 100%;
+  text-align: left;
+}
+.opex-table .col-name {
+  white-space: normal;
+}
+
 .scenario-line {
   font-size: 0.95rem;
   margin: 0.25rem 0 0;

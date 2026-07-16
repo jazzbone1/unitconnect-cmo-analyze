@@ -279,7 +279,7 @@ export default function FeasibilityAnalysis({
         </div>
       </div>
 
-      <div className="subsection">
+      <div className="var-panel">
         <h3 className="subsection__title">
           대당 월 운영비 (OPEX){' '}
           <span className="count-tag">
@@ -291,12 +291,19 @@ export default function FeasibilityAnalysis({
           기본 운영비 <span className="count-tag">합계 {won(r.opexBasic)}</span>
         </h4>
         <div className="table-scroll">
-          <table className="data-table">
+          <table className="data-table opex-table">
+            <colgroup>
+              <col />
+              <col className="opex-col-cost" />
+              <col className="opex-col-inc" />
+              <col className="opex-col-del" />
+            </colgroup>
             <thead>
               <tr>
                 <th>항목</th>
                 <th>월 비용(원/대)</th>
                 <th>포함</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -317,7 +324,7 @@ export default function FeasibilityAnalysis({
                       }}
                     />
                   </td>
-                  <td>
+                  <td className="opex-inc-cell">
                     <input
                       type="checkbox"
                       checked={o.included}
@@ -329,6 +336,7 @@ export default function FeasibilityAnalysis({
                       }}
                     />
                   </td>
+                  <td />
                 </tr>
               ))}
             </tbody>
@@ -339,7 +347,13 @@ export default function FeasibilityAnalysis({
           추가 운영비 <span className="count-tag">합계 {won(r.opexExtra)}</span>
         </h4>
         <div className="table-scroll">
-          <table className="data-table">
+          <table className="data-table opex-table">
+            <colgroup>
+              <col />
+              <col className="opex-col-cost" />
+              <col className="opex-col-inc" />
+              <col className="opex-col-del" />
+            </colgroup>
             <thead>
               <tr>
                 <th>항목</th>
@@ -353,7 +367,7 @@ export default function FeasibilityAnalysis({
                 <tr key={o.id} className={o.included ? '' : 'row--off'}>
                   <td>
                     <input
-                      className="cell-input cell-input--text"
+                      className="cell-input opex-label-input"
                       type="text"
                       value={o.label}
                       placeholder="항목명"
@@ -379,7 +393,7 @@ export default function FeasibilityAnalysis({
                       }}
                     />
                   </td>
-                  <td>
+                  <td className="opex-inc-cell">
                     <input
                       type="checkbox"
                       checked={o.included}
