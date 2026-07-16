@@ -1017,12 +1017,99 @@ body {
   padding: 2rem !important;
 }
 
+.report-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.report-pdf-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .report-premise {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   margin: 0.5rem 0 0.5rem;
   font-size: 0.9rem;
+}
+
+/* PDF 인쇄: 보고서만 출력, 원본 컨설팅 문서 형태로 정리 */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  body {
+    background: #fff;
+  }
+  /* 보고서 외 모든 UI 숨김 */
+  .sidebar,
+  .subtabs,
+  .back-link,
+  .report-pdf-btn,
+  .report-block .link-button,
+  .link-button--danger {
+    display: none !important;
+  }
+  /* 편집 카드(단지 정보 폼)와 상단 안내문은 인쇄 제외 */
+  .report-root ~ *,
+  .projects > .card:first-of-type,
+  .report-root .app__subtitle {
+    display: none !important;
+  }
+  .report-root {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .report-root .card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 0 10mm !important;
+    break-inside: avoid;
+  }
+  .report-root h2 {
+    border-bottom: 2px solid #173b7a;
+    color: #173b7a;
+    padding-bottom: 4px;
+    margin-top: 8mm;
+    break-after: avoid;
+  }
+  .report-block {
+    break-inside: avoid;
+  }
+  /* 입력창을 값만 보이는 텍스트처럼 */
+  .report-root input,
+  .report-root select,
+  .report-root textarea {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    -webkit-appearance: none;
+    appearance: none;
+    color: #000 !important;
+    font: inherit;
+    width: auto !important;
+  }
+  .report-root .num-input {
+    display: inline;
+  }
+  .report-root .data-table {
+    font-size: 10px;
+  }
+  .report-root .data-table th {
+    background: #eef2fb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report-root .row--total td {
+    background: #eef2fb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 .report-textarea {
   width: 100%;

@@ -1,6 +1,7 @@
 import type { ChargerType } from './settlement'
 import type { RegistryResult } from './registry'
 import type { FeasibilityInputs } from './feasibility'
+import type { ReportModel } from './report'
 import type { FileEntry } from '../types'
 
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
@@ -21,6 +22,8 @@ export interface SavedSite {
   registry?: RegistryResult | null
   /** 사업성 분석(영업비 산정) 입력값 */
   feas?: FeasibilityInputs
+  /** 컨설팅 보고서 데이터 (현장별) */
+  report?: ReportModel
   /** 저장 시각 (ISO) */
   savedAt?: string
 

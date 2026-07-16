@@ -325,14 +325,23 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
   }
 
   return (
-    <div className="app app--wide">
-      <header className="app__header app__header--left">
-        <h1>CMO 컨설팅 보고서</h1>
-        <p className="app__subtitle">
-          문서 형식의 보고서입니다. <b>실효 전기원가 산출</b>과{' '}
-          <b>운영비 내역</b>의 금액을 수정하면 <b>현행 월간 손익</b>과{' '}
-          <b>요금 하한선 분석</b>에 자동 반영됩니다.
-        </p>
+    <div className="app app--wide report-root">
+      <header className="app__header app__header--left report-topbar">
+        <div>
+          <h1>CMO 컨설팅 보고서</h1>
+          <p className="app__subtitle">
+            문서 형식의 보고서입니다. <b>실효 전기원가 산출</b>과{' '}
+            <b>운영비 내역</b>의 금액을 수정하면 <b>현행 월간 손익</b>과{' '}
+            <b>요금 하한선 분석</b>에 자동 반영됩니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-primary report-pdf-btn"
+          onClick={() => window.print()}
+        >
+          🖨 PDF 출력
+        </button>
       </header>
 
       <main className="app__main">

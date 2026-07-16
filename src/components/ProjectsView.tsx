@@ -9,17 +9,79 @@ import {
 } from '../lib/sites'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
-import { detectSettlement } from '../lib/settlement'
+import { detectSettlement, computeAll } from '../lib/settlement'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
 import { parseUploadedFiles } from '../lib/ingest'
+import { defaultReport, type ReportModel } from '../lib/report'
 import type { FileEntry } from '../types'
 import SettlementAnalysis from './SettlementAnalysis'
 import RegistryAnalysis from './RegistryAnalysis'
 import FeasibilityAnalysis from './FeasibilityAnalysis'
+import ReportView from './ReportView'
 import SiteConfigForm, { type SiteInfo } from './SiteConfigForm'
 import Dropzone from './Dropzone'
 import FileList from './FileList'
+
+/** 프로젝트 데이터로 보고서 초기값(현장 정보) 자동 기입 */
+function seedReport(
+  project: SavedSite,
+  config: SettlementConfig,
+  files: FileEntry[],
+): ReportModel {
+  const d = defaultReport()
+  d.siteName = project.name
+  const total = config.chargers.reduce((a, c) => a + c.count, 0)
+  const active = config.chargers.filter((c) => c.count > 0)
+  const breakdown = active.map((c) => `${c.name} ${c.count}`).join(' + ')
+
+  d.overview = d.overview.map((row) => {
+    if (row.label === '세대수')
+      return {
+        ...row,
+        value: project.households ? `${project.households.toLocaleString()}세대` : '',
+      }
+    if (row.label === '충전기')
+      return {
+        ...row,
+        value: total ? `${total.toLocaleString()}대` : '',
+        note: breakdown,
+      }
+    return row
+  })
+
+  // 정산 월간 데이터가 있으면 유형별 실적·월별 추이 자동 기입
+  const metrics = files.length ? computeAll(files, config) : []
+  const months = metrics.filter((m) => m.periodType === 'month')
+  const usageByType = new Map<string, number>()
+  for (const m of months)
+    for (const t of m.types)
+      usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
+
+  if (active.length) {
+    d.perType = active.map((c) => {
+      const u = usageByType.get(c.id) ?? 0
+      return {
+        id: c.id,
+        type: c.name,
+        count: `${c.count}대`,
+        kwh: u ? `${Math.round(u).toLocaleString()} kWh` : '',
+        revenue: u && c.rate ? `${Math.round((u * c.rate) / 10000).toLocaleString()}만원` : '',
+        perUnit: u && c.count ? `${Math.round(u / c.count).toLocaleString()} kWh` : '',
+      }
+    })
+  }
+  if (months.length) {
+    d.monthly = months.map((m) => ({
+      id: m.id,
+      month: m.periodLabel,
+      kwh: Math.round(m.usageTotal).toLocaleString(),
+      revenue: Math.round(m.amountCalc).toLocaleString(),
+      note: '',
+    }))
+  }
+  return d
+}
 
 interface ProjectsViewProps {
   projects: SavedSite[]
@@ -37,12 +99,20 @@ function ProjectDetail({
   onBack: () => void
   onUpdate: (id: string, patch: Partial<SavedSite>) => void
 }) {
-  const [subtab, setSubtab] = usePersistentState<'usage' | 'feasibility'>(
-    'projectSubtab',
-    'usage',
-  )
+  const [subtab, setSubtab] = usePersistentState<
+    'usage' | 'feasibility' | 'report'
+  >('projectSubtab', 'usage')
   const [feas, setFeas] = useState<FeasibilityInputs>(
     project.feas ?? DEFAULT_INPUTS(),
+  )
+  const [report, setReport] = useState<ReportModel>(
+    () =>
+      project.report ??
+      seedReport(
+        project,
+        { hours: project.hours, chargers: project.chargers.map((c) => ({ ...c })) },
+        project.files ?? project.settlementFiles ?? [],
+      ),
   )
   const [site, setSite] = useState<SiteInfo>({
     name: project.name,
@@ -98,6 +168,7 @@ function ProjectDetail({
       chargers: config.chargers.map((c) => ({ ...c })),
       files,
       feas,
+      report,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
@@ -152,9 +223,19 @@ function ProjectDetail({
         >
           사업성 분석
         </button>
+        <button
+          type="button"
+          role="tab"
+          className={`subtab${subtab === 'report' ? ' subtab--active' : ''}`}
+          onClick={() => setSubtab('report')}
+        >
+          보고서
+        </button>
       </div>
 
-      {subtab === 'feasibility' ? (
+      {subtab === 'report' ? (
+        <ReportView model={report} setModel={setReport} />
+      ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis inputs={feas} setInputs={setFeas} config={config} />
       ) : (
         <>
