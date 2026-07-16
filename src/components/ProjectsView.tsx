@@ -85,6 +85,8 @@ function seedReport(
 
 interface ProjectsViewProps {
   projects: SavedSite[]
+  selectedId: string | null
+  onSelect: (id: string | null) => void
   onDelete: (id: string) => void
   onUpdate: (id: string, patch: Partial<SavedSite>) => void
 }
@@ -300,13 +302,12 @@ function ProjectDetail({
 /** 프로젝트(저장된 현장) 목록 + 선택 시 상세 보기 */
 export default function ProjectsView({
   projects,
+  selectedId,
+  onSelect,
   onDelete,
   onUpdate,
 }: ProjectsViewProps) {
-  const [selectedId, setSelectedId] = usePersistentState<string | null>(
-    'selectedProjectId',
-    null,
-  )
+  const setSelectedId = onSelect
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState<string>('code')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')

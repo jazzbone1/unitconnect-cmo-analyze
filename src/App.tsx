@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Dropzone from './components/Dropzone'
 import FileList from './components/FileList'
 import GroupSection from './components/GroupSection'
@@ -40,6 +40,40 @@ export default function App() {
     'analyzeTab',
     'usage',
   )
+  // 선택된 프로젝트(상세) — App 레벨로 올려 탭 전환/뒤로가기에서 제어
+  const [selectedProjectId, setSelectedProjectId] = usePersistentState<
+    string | null
+  >('selectedProjectId', null)
+
+  // 네비게이션 상태를 브라우저 히스토리에 미러링 (뒤로가기 지원)
+  const fromPop = useRef(false)
+  const navMounted = useRef(false)
+  useEffect(() => {
+    const nav = { tab, project: selectedProjectId }
+    if (!navMounted.current) {
+      navMounted.current = true
+      window.history.replaceState({ nav }, '')
+      return
+    }
+    if (fromPop.current) {
+      fromPop.current = false
+      return
+    }
+    window.history.pushState({ nav }, '')
+  }, [tab, selectedProjectId])
+
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const nav = (e.state && e.state.nav) || { tab: 'analyze', project: null }
+      fromPop.current = true
+      setTab(nav.tab)
+      setSelectedProjectId(nav.project)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [feas, setFeas] = useState<FeasibilityInputs>(() => DEFAULT_INPUTS())
   const [files, setFiles] = useState<FileEntry[]>([])
   const [errors, setErrors] = useState<string[]>([])
@@ -196,7 +230,11 @@ export default function App() {
           <button
             type="button"
             className={`sidebar__tab${tab === 'projects' ? ' sidebar__tab--active' : ''}`}
-            onClick={() => setTab('projects')}
+            onClick={() => {
+              // 프로젝트 탭 진입 시 항상 초기 화면(리스트)으로
+              setSelectedProjectId(null)
+              setTab('projects')
+            }}
           >
             프로젝트
             {sites.length > 0 && (
@@ -211,6 +249,8 @@ export default function App() {
           <div className="app">
             <ProjectsView
               projects={sites}
+              selectedId={selectedProjectId}
+              onSelect={setSelectedProjectId}
               onDelete={deleteSite}
               onUpdate={updateProject}
             />
