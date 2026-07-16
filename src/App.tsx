@@ -102,6 +102,10 @@ export default function App() {
     if (selectedSiteId === id) setSelectedSiteId(null)
   }
 
+  function updateProject(id: string, patch: Partial<SavedSite>) {
+    setSites((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+  }
+
   function newSite() {
     setSite(EMPTY_SITE)
     setConfig(cloneDefaultConfig())
@@ -202,7 +206,11 @@ export default function App() {
       <div className="content">
         {tab === 'projects' ? (
           <div className="app">
-            <ProjectsView projects={sites} onDelete={deleteSite} />
+            <ProjectsView
+              projects={sites}
+              onDelete={deleteSite}
+              onUpdate={updateProject}
+            />
           </div>
         ) : (
           <div className="app">

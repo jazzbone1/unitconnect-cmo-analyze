@@ -757,6 +757,16 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.saved-note {
+  color: #16a34a;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .saved-note {
+    color: #4ade80;
+  }
+}
 .row--selected td {
   background: var(--accent-soft);
 }

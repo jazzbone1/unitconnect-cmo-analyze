@@ -12,8 +12,13 @@ export interface OpexItem {
 export interface FeasibilityInputs {
   /** 계약년수 (1~5) */
   years: number
-  /** 충전단가 VAT 포함 (원/kWh) */
+  /** 전체(공통) 충전단가 VAT 포함 (원/kWh) */
   rateVat: number
+  // 종류별 충전단가 VAT 포함 (0이면 전체 단가 사용)
+  rateFast50: number
+  rateSlow7: number
+  rateSlow35: number
+  rateSlow3: number
   // 종류별 이용률
   utilFast50: number
   utilSlow7: number
@@ -75,6 +80,10 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
   return {
     years: 5,
     rateVat: 249,
+    rateFast50: 0,
+    rateSlow7: 0,
+    rateSlow35: 0,
+    rateSlow3: 0,
     utilFast50: 0.0098,
     utilSlow7: 0.07,
     utilSlow35: 0.14,
@@ -120,7 +129,6 @@ export interface FeasibilityResult {
 export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
   const total =
     inp.countFast50 + inp.countSlow7 + inp.countSlow35 + inp.countSlow3
-  const rateExVat = inp.rateVat / 1.1
   const consentRatio = total > 0 ? (inp.countSlow3 + inp.countSlow35) / total : 0
   const slow7Ratio = total > 0 ? inp.countSlow7 / total : 0
   const convFactor = consentRatio / 4 + slow7Ratio
@@ -128,11 +136,24 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     .filter((o) => o.included)
     .reduce((a, o) => a + o.monthly, 0)
 
-  const base =
-    inp.countFast50 * MAX_MONTHLY.fast50 * inp.utilFast50 +
-    inp.countSlow7 * MAX_MONTHLY.slow7 * inp.utilSlow7 +
-    inp.countSlow35 * MAX_MONTHLY.slow35 * inp.utilSlow35 +
-    inp.countSlow3 * MAX_MONTHLY.slow3 * inp.utilSlow3
+  // 종류별 월 기본 에너지(kWh)
+  const eFast = inp.countFast50 * MAX_MONTHLY.fast50 * inp.utilFast50
+  const e7 = inp.countSlow7 * MAX_MONTHLY.slow7 * inp.utilSlow7
+  const e35 = inp.countSlow35 * MAX_MONTHLY.slow35 * inp.utilSlow35
+  const e3 = inp.countSlow3 * MAX_MONTHLY.slow3 * inp.utilSlow3
+  const base = eFast + e7 + e35 + e3
+
+  // 종류별 요금(0이면 전체 단가). 에너지 가중 평균으로 실효 단가 산출.
+  const eff = (r: number) => (r > 0 ? r : inp.rateVat)
+  const avgVat =
+    base > 0
+      ? (eFast * eff(inp.rateFast50) +
+          e7 * eff(inp.rateSlow7) +
+          e35 * eff(inp.rateSlow35) +
+          e3 * eff(inp.rateSlow3)) /
+        base
+      : inp.rateVat
+  const rateExVat = avgVat / 1.1
 
   const yearUtil = [inp.yearUtil2, inp.yearUtil3, inp.yearUtil4, inp.yearUtil5]
   const yearlyW: number[] = []

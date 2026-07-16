@@ -14,7 +14,6 @@ interface FeasibilityAnalysisProps {
   config: SettlementConfig
 }
 
-/** 숫자 입력 필드 (라벨 + 단위) */
 function Field({
   label,
   unit,
@@ -52,30 +51,31 @@ export default function FeasibilityAnalysis({
   setInputs,
   config,
 }: FeasibilityAnalysisProps) {
-  const r = computeFeasibility(inputs)
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
 
-  // 단지 정보의 충전기 수량을 불러온다 (50kW→급속, 7/3.5/3kW→완속)
-  function pullFromSite() {
-    const cnt = (kw: number) =>
-      config.chargers.find((c) => c.kw === kw)?.count ?? 0
-    set({
-      countFast50: cnt(50),
-      countSlow7: cnt(7),
-      countSlow35: cnt(3.5),
-      countSlow3: cnt(3),
-    })
+  // 대수는 단지 정보의 충전기 수량과 자동 연동 (읽기 전용)
+  const countOf = (kw: number) =>
+    config.chargers.find((c) => c.kw === kw)?.count ?? 0
+  const eff: FeasibilityInputs = {
+    ...inputs,
+    countFast50: countOf(50),
+    countSlow7: countOf(7),
+    countSlow35: countOf(3.5),
+    countSlow3: countOf(3),
   }
+  const r = computeFeasibility(eff)
 
   const chargerRows: {
-    key: 'Fast50' | 'Slow7' | 'Slow35' | 'Slow3'
+    kw: number
     label: string
+    utilKey: keyof FeasibilityInputs
+    rateKey: keyof FeasibilityInputs
   }[] = [
-    { key: 'Fast50', label: '급속 50kW' },
-    { key: 'Slow7', label: '완속 7kW' },
-    { key: 'Slow35', label: '완속 3.5kW' },
-    { key: 'Slow3', label: '완속(콘센트) 3kW' },
+    { kw: 50, label: '급속 50kW', utilKey: 'utilFast50', rateKey: 'rateFast50' },
+    { kw: 7, label: '완속 7kW', utilKey: 'utilSlow7', rateKey: 'rateSlow7' },
+    { kw: 3.5, label: '완속 3.5kW', utilKey: 'utilSlow35', rateKey: 'rateSlow35' },
+    { kw: 3, label: '완속(콘센트) 3kW', utilKey: 'utilSlow3', rateKey: 'rateSlow3' },
   ]
 
   const pnl: { label: string; value: number; strong?: boolean; minus?: boolean }[] = [
@@ -96,7 +96,6 @@ export default function FeasibilityAnalysis({
         <span className="badge">계약 {inputs.years}년 기준</span>
       </div>
 
-      {/* 판정 결과 요약 */}
       <div className="verdict-row">
         <div
           className={`verdict-badge ${
@@ -125,7 +124,6 @@ export default function FeasibilityAnalysis({
         </div>
       </div>
 
-      {/* ① 변수 입력 */}
       <div className="var-panel">
         <h3 className="subsection__title">① 변수 입력</h3>
         <div className="var-row">
@@ -136,73 +134,70 @@ export default function FeasibilityAnalysis({
             onChange={(v) => set({ years: v, bizFeePerUnit: defaultBizFee(v) })}
           />
           <Field
-            label="충전단가(VAT 포함)"
-            unit="원/kWh"
+            label="충전단가 (전체)"
+            unit="원/kWh·VAT포함"
             value={inputs.rateVat}
             onChange={(v) => set({ rateVat: v })}
           />
         </div>
 
         <div className="subsection">
-          <div className="site-edit-head">
-            <h4 className="summary-block__title">
-              충전기 종류별 대수 · 이용률
-            </h4>
-            <button type="button" className="link-button" onClick={pullFromSite}>
-              단지 정보 대수 불러오기
-            </button>
-          </div>
+          <h4 className="summary-block__title">
+            충전기 종류별 (대수는 단지 정보에서 자동 연동)
+          </h4>
           <div className="table-scroll">
             <table className="data-table charger-table">
               <thead>
                 <tr>
                   <th>종류</th>
-                  <th>대수</th>
+                  <th>대수(자동)</th>
                   <th>이용률(%)</th>
+                  <th>종류별 요금(원/kWh)</th>
                 </tr>
               </thead>
               <tbody>
-                {chargerRows.map((row) => {
-                  const countKey = (`count` + row.key) as keyof FeasibilityInputs
-                  const utilKey = (`util` + row.key) as keyof FeasibilityInputs
-                  return (
-                    <tr key={row.key}>
-                      <td className="col-name">{row.label}</td>
-                      <td>
-                        <input
-                          className="cell-input"
-                          type="number"
-                          min={0}
-                          value={(inputs[countKey] as number) || ''}
-                          placeholder="0"
-                          onChange={(e) =>
-                            set({ [countKey]: Number(e.target.value) || 0 } as Partial<FeasibilityInputs>)
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="cell-input"
-                          type="number"
-                          step={0.1}
-                          value={+(((inputs[utilKey] as number) * 100).toFixed(4)) || ''}
-                          placeholder="0"
-                          onChange={(e) =>
-                            set({ [utilKey]: (Number(e.target.value) || 0) / 100 } as Partial<FeasibilityInputs>)
-                          }
-                        />
-                      </td>
-                    </tr>
-                  )
-                })}
+                {chargerRows.map((row) => (
+                  <tr key={row.kw}>
+                    <td className="col-name">{row.label}</td>
+                    <td>{countOf(row.kw).toLocaleString()}</td>
+                    <td>
+                      <input
+                        className="cell-input"
+                        type="number"
+                        step={0.1}
+                        value={+(((inputs[row.utilKey] as number) * 100).toFixed(4)) || ''}
+                        placeholder="0"
+                        onChange={(e) =>
+                          set({ [row.utilKey]: (Number(e.target.value) || 0) / 100 } as Partial<FeasibilityInputs>)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="cell-input"
+                        type="number"
+                        min={0}
+                        value={(inputs[row.rateKey] as number) || ''}
+                        placeholder={`전체 ${inputs.rateVat}`}
+                        onChange={(e) =>
+                          set({ [row.rateKey]: Number(e.target.value) || 0 } as Partial<FeasibilityInputs>)
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
                 <tr>
                   <td className="col-name">합계</td>
                   <td>{r.totalUnits.toLocaleString()}대</td>
-                  <td />
+                  <td colSpan={2} />
                 </tr>
               </tbody>
             </table>
           </div>
+          <p className="var-hint">
+            종류별 요금을 비우면 전체 충전단가({inputs.rateVat}원)를 사용합니다.
+            종류별로 입력하면 에너지 비중으로 가중해 매출에 반영됩니다.
+          </p>
         </div>
 
         <div className="subsection">
@@ -227,7 +222,6 @@ export default function FeasibilityAnalysis({
         </div>
       </div>
 
-      {/* 대당 월 운영비 (OPEX) */}
       <div className="subsection">
         <h3 className="subsection__title">
           대당 월 운영비 (OPEX){' '}
@@ -279,7 +273,6 @@ export default function FeasibilityAnalysis({
         </div>
       </div>
 
-      {/* ③ P&L */}
       <div className="subsection">
         <h3 className="subsection__title">
           사업 전체 손익 (P&amp;L · {inputs.years}년)
