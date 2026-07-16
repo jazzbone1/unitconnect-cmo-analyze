@@ -15,16 +15,19 @@ export interface FeasibilityInputs {
   /** 전체(공통) 충전단가 VAT 포함 (원/kWh) */
   rateVat: number
   // 종류별 충전단가 VAT 포함 (0이면 전체 단가 사용)
+  rateFast100: number
   rateFast50: number
   rateSlow7: number
   rateSlow35: number
   rateSlow3: number
   // 종류별 이용률
+  utilFast100: number
   utilFast50: number
   utilSlow7: number
   utilSlow35: number
   utilSlow3: number
   // 종류별 대수
+  countFast100: number
   countFast50: number
   countSlow7: number
   countSlow35: number
@@ -56,6 +59,7 @@ export const PG_RATE = 0.0235 // PG 수수료율
 
 // 종류별 월 최대 충전량(kWh) = 정격 × 720시간
 const MAX_MONTHLY = {
+  fast100: 100 * 720, // 72000
   fast50: 50 * 720, // 36000
   slow7: 7 * 720, // 5040
   slow35: 3.5 * 720, // 2520
@@ -98,6 +102,7 @@ export function standardRate(rateVat: number): number {
 
 /** 유닛커넥트 기준(변경금지) 표준값 */
 export const STD = {
+  utilFast100: 0.0098,
   utilFast50: 0.0098,
   utilSlow7: 0.07,
   utilSlow35: 0.14,
@@ -122,14 +127,17 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
   return {
     years: 5,
     rateVat: 249,
+    rateFast100: 0,
     rateFast50: 0,
     rateSlow7: 0,
     rateSlow35: 0,
     rateSlow3: 0,
+    utilFast100: 0.0098,
     utilFast50: 0.0098,
     utilSlow7: 0.07,
     utilSlow35: 0.14,
     utilSlow3: 49 / 300, // ≈0.16333…
+    countFast100: 0,
     countFast50: 0,
     countSlow7: 0,
     countSlow35: 0,
@@ -156,6 +164,8 @@ export interface FeasibilityResult {
   consentRatio: number
   slow7Ratio: number
   convFactor: number
+  /** 전체 이용률 (7kW 환산) */
+  overallUtil7kw: number
   opexPerUnit: number
   opexBasic: number
   opexExtra: number
@@ -189,8 +199,10 @@ export interface FeasibilityResult {
 }
 
 export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
+  const c100 = inp.countFast100 ?? 0
   const total =
-    inp.countFast50 + inp.countSlow7 + inp.countSlow35 + inp.countSlow3
+    c100 + inp.countFast50 + inp.countSlow7 + inp.countSlow35 + inp.countSlow3
+  // 콘센트(3·3.5kW)만 대분 환산, 급속·초급속(50·100kW)은 0 대분
   const consentRatio = total > 0 ? (inp.countSlow3 + inp.countSlow35) / total : 0
   const slow7Ratio = total > 0 ? inp.countSlow7 / total : 0
   const convFactor = consentRatio / 4 + slow7Ratio
@@ -201,17 +213,30 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
   const opexPerUnit = opexBasic + opexExtra
 
   // 종류별 월 기본 에너지(kWh)
+  const e100 = c100 * MAX_MONTHLY.fast100 * (inp.utilFast100 ?? 0)
   const eFast = inp.countFast50 * MAX_MONTHLY.fast50 * inp.utilFast50
   const e7 = inp.countSlow7 * MAX_MONTHLY.slow7 * inp.utilSlow7
   const e35 = inp.countSlow35 * MAX_MONTHLY.slow35 * inp.utilSlow35
   const e3 = inp.countSlow3 * MAX_MONTHLY.slow3 * inp.utilSlow3
-  const base = eFast + e7 + e35 + e3
+  const base = e100 + eFast + e7 + e35 + e3
+
+  // 전체 이용률 (7kW 환산) = Σ(대수×이용률×정격/7) / 총대수
+  const overallUtil7kw =
+    total > 0
+      ? (c100 * (inp.utilFast100 ?? 0) * (100 / 7) +
+          inp.countFast50 * inp.utilFast50 * (50 / 7) +
+          inp.countSlow7 * inp.utilSlow7 +
+          inp.countSlow35 * inp.utilSlow35 * (3.5 / 7) +
+          inp.countSlow3 * inp.utilSlow3 * (3 / 7)) /
+        total
+      : 0
 
   // 종류별 요금(0이면 전체 단가). 에너지 가중 평균으로 실효 단가 산출.
   const eff = (r: number) => (r > 0 ? r : inp.rateVat)
   const avgVat =
     base > 0
-      ? (eFast * eff(inp.rateFast50) +
+      ? (e100 * eff(inp.rateFast100 ?? 0) +
+          eFast * eff(inp.rateFast50) +
           e7 * eff(inp.rateSlow7) +
           e35 * eff(inp.rateSlow35) +
           e3 * eff(inp.rateSlow3)) /
@@ -288,6 +313,7 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     consentRatio,
     slow7Ratio,
     convFactor,
+    overallUtil7kw,
     opexPerUnit,
     opexBasic,
     opexExtra,

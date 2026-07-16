@@ -70,6 +70,7 @@ export default function FeasibilityAnalysis({
     config.chargers.find((c) => c.kw === kw)?.count ?? 0
   const eff: FeasibilityInputs = {
     ...inputs,
+    countFast100: countOf(100),
     countFast50: countOf(50),
     countSlow7: countOf(7),
     countSlow35: countOf(3.5),
@@ -83,6 +84,7 @@ export default function FeasibilityAnalysis({
     utilKey: keyof FeasibilityInputs
     rateKey: keyof FeasibilityInputs
   }[] = [
+    { kw: 100, label: '초급속 100kW', utilKey: 'utilFast100', rateKey: 'rateFast100' },
     { kw: 50, label: '급속 50kW', utilKey: 'utilFast50', rateKey: 'rateFast50' },
     { kw: 7, label: '완속 7kW', utilKey: 'utilSlow7', rateKey: 'rateSlow7' },
     { kw: 3.5, label: '완속 3.5kW', utilKey: 'utilSlow35', rateKey: 'rateSlow35' },
@@ -183,7 +185,7 @@ export default function FeasibilityAnalysis({
             label="계약년수"
             unit="년(1~5)"
             value={inputs.years}
-            onChange={(v) => set({ years: v, bizFeePerUnit: defaultBizFee(v) })}
+            onChange={(v) => set({ years: v })}
           />
           <Field
             label="충전단가 (전체)"
@@ -253,7 +255,9 @@ export default function FeasibilityAnalysis({
           </div>
           <p className="var-hint">
             종류별 요금을 비우면 전체 충전단가({inputs.rateVat}원)를 사용합니다.
-            종류별로 입력하면 에너지 비중으로 가중해 매출에 반영됩니다.
+            종류별로 입력하면 에너지 비중으로 가중해 매출에 반영됩니다. · 전체
+            이용률(7kW 환산) <b>{(r.overallUtil7kw * 100).toFixed(2)}%</b>{' '}
+            (정격별 100/7·50/7·3.5/7·3/7 환산 반영)
           </p>
         </div>
 
