@@ -13,6 +13,12 @@ interface SettlementAnalysisProps {
   files: FileEntry[]
 }
 
+interface SiteInfo {
+  name: string
+  address: string
+  households: number
+}
+
 // 기간 유형별 표시 순서/라벨
 const PERIOD_SECTIONS: { type: Period['type']; label: string }[] = [
   { type: 'month', label: '월간' },
@@ -28,14 +34,20 @@ function cloneDefault(): SettlementConfig {
   }
 }
 
-/** 충전기 종류 설정 편집기 — 5종 고정, 요금·수량만 입력 */
-function ChargerEditor({
+/** 단지 정보 + 충전기 종류별 수량·요금 입력 패널 */
+function SiteInfoPanel({
+  site,
+  setSite,
   config,
   setConfig,
 }: {
+  site: SiteInfo
+  setSite: (s: SiteInfo) => void
   config: SettlementConfig
   setConfig: (c: SettlementConfig) => void
 }) {
+  const totalCount = config.chargers.reduce((acc, c) => acc + c.count, 0)
+
   function updateCharger(id: string, patch: Partial<ChargerType>) {
     setConfig({
       ...config,
@@ -47,93 +59,129 @@ function ChargerEditor({
 
   return (
     <div className="var-panel">
-      <div className="var-group">
-        <h3 className="subsection__title">충전기 종류별 요금·수량</h3>
-        <div className="table-scroll">
-          <table className="data-table charger-table">
-            <thead>
-              <tr>
-                <th>충전기 종류</th>
-                <th>요금(원/kWh)</th>
-                <th>수량(기)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {config.chargers.map((c) => (
-                <tr key={c.id}>
-                  <td className="col-name">{c.name}</td>
-                  <td>
-                    <input
-                      className="cell-input"
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={c.rate || ''}
-                      onChange={(e) =>
-                        updateCharger(c.id, { rate: Number(e.target.value) || 0 })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="cell-input"
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={c.count || ''}
-                      onChange={(e) =>
-                        updateCharger(c.id, { count: Number(e.target.value) || 0 })
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <h3 className="subsection__title">단지 정보</h3>
+      <div className="site-grid">
+        <label className="var-field">
+          <span className="var-field__label">단지명</span>
+          <input
+            className="var-field__input"
+            type="text"
+            value={site.name}
+            placeholder="예: 흑석자이아파트"
+            onChange={(e) => setSite({ ...site, name: e.target.value })}
+          />
+        </label>
+        <label className="var-field">
+          <span className="var-field__label">주소</span>
+          <input
+            className="var-field__input"
+            type="text"
+            value={site.address}
+            placeholder="예: 서울시 동작구 …"
+            onChange={(e) => setSite({ ...site, address: e.target.value })}
+          />
+        </label>
+        <label className="var-field">
+          <span className="var-field__label">세대수</span>
+          <input
+            className="var-field__input"
+            type="number"
+            min={0}
+            value={site.households || ''}
+            placeholder="0"
+            onChange={(e) =>
+              setSite({ ...site, households: Number(e.target.value) || 0 })
+            }
+          />
+        </label>
+        <div className="var-field">
+          <span className="var-field__label">충전기 수량 (자동합계)</span>
+          <div className="var-field__auto">{totalCount.toLocaleString()}기</div>
         </div>
-        <div className="var-actions">
-          <label className="hours-field">
-            월 가동시간(시간)
-            <input
-              className="cell-input"
-              type="number"
-              min={1}
-              value={config.hours}
-              onChange={(e) =>
-                setConfig({ ...config, hours: Number(e.target.value) || 0 })
-              }
-            />
-          </label>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => setConfig(cloneDefault())}
-          >
-            요금·수량 모두 지우기
-          </button>
-        </div>
-        <p className="var-hint">
-          요금은 현장마다 다릅니다. 사용하는 종류의 요금·수량만 입력하고, 없는
-          종류는 0으로 두세요. (정격 kW는 종류명으로 고정)
-        </p>
       </div>
+
+      <h3 className="subsection__title">충전기 종류별 수량·요금</h3>
+      <div className="table-scroll">
+        <table className="data-table charger-table">
+          <thead>
+            <tr>
+              <th>충전기 종류</th>
+              <th>수량(기)</th>
+              <th>요금(원/kWh)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {config.chargers.map((c) => (
+              <tr key={c.id}>
+                <td className="col-name">{c.name}</td>
+                <td>
+                  <input
+                    className="cell-input"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={c.count || ''}
+                    onChange={(e) =>
+                      updateCharger(c.id, { count: Number(e.target.value) || 0 })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    className="cell-input"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={c.rate || ''}
+                    onChange={(e) =>
+                      updateCharger(c.id, { rate: Number(e.target.value) || 0 })
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="var-actions">
+        <label className="hours-field">
+          월 가동시간(시간)
+          <input
+            className="cell-input"
+            type="number"
+            min={1}
+            value={config.hours}
+            onChange={(e) =>
+              setConfig({ ...config, hours: Number(e.target.value) || 0 })
+            }
+          />
+        </label>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setConfig(cloneDefault())}
+        >
+          수량·요금 모두 지우기
+        </button>
+      </div>
+      <p className="var-hint">
+        여기 입력한 단지 정보와 충전기 수량·요금이 아래 분석에 자동 적용됩니다.
+        요금·수량은 현장마다 다르니 사용하는 종류만 입력하세요.
+      </p>
     </div>
   )
 }
 
-/** 한 기간 유형(월간/연간/전체)에 대한 비교표 */
+/** 한 기간 유형(월간/연간/전체)에 대한 비교표 (읽기 전용) */
 function ComparisonSection({
   label,
   rows,
   chargers,
-  onMonths,
-  onUsage,
 }: {
   label: string
   rows: SettlementMetrics[]
   chargers: ChargerType[]
-  onMonths: (id: string, months: number) => void
-  onUsage: (fileId: string, chargerId: string, usage: number) => void
 }) {
   return (
     <div className="subsection">
@@ -171,45 +219,15 @@ function ComparisonSection({
                 <tr key={m.id}>
                   <td className="col-name" title={m.fileName}>
                     {m.periodLabel}
-                    {!m.splittable && (
-                      <span className="warn-mark" title="종류별 사용량 분리 불가">
-                        *
-                      </span>
-                    )}
                   </td>
-                  <td>
-                    <input
-                      className="cell-input cell-input--sm"
-                      type="number"
-                      min={1}
-                      value={m.months}
-                      onChange={(e) =>
-                        onMonths(m.id, Number(e.target.value) || 1)
-                      }
-                    />
-                  </td>
+                  <td>{m.months}</td>
                   <td>{m.users.toLocaleString()}</td>
                   <td>{formatNumber(m.usageTotal)}</td>
                   {chargers.map((c) => (
                     <td key={`u-${c.id}`}>
-                      {m.splitMode === 'auto' ? (
-                        formatNumber(typeById.get(c.id)?.usage ?? 0)
-                      ) : (
-                        <input
-                          className="cell-input cell-input--usage"
-                          type="number"
-                          min={0}
-                          placeholder="직접 입력"
-                          value={
-                            m.splitMode === 'manual'
-                              ? (typeById.get(c.id)?.usage ?? 0)
-                              : ''
-                          }
-                          onChange={(e) =>
-                            onUsage(m.id, c.id, Number(e.target.value) || 0)
-                          }
-                        />
-                      )}
+                      {m.splitMode === 'none'
+                        ? '—'
+                        : formatNumber(typeById.get(c.id)?.usage ?? 0)}
                     </td>
                   ))}
                   <td>{formatNumber(Math.round(m.amountCalc))}</td>
@@ -245,60 +263,50 @@ function ComparisonSection({
 }
 
 /**
- * 충전기 정산 전용 분석. 종류별 요금·수량을 입력하면 사용자별 사용량을
- * 요금으로 역산해 종류별로 분리하고, 월간/연간/전체 기간으로 나누어 비교한다.
+ * 충전기 정산 전용 분석. 단지 정보 패널에 입력한 충전기 수량·요금이
+ * 분석에 자동 적용되며, 결과 표는 읽기 전용이다.
  */
 export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
   const [config, setConfig] = useState<SettlementConfig>(cloneDefault)
-  // 파일별 분석 개월수 오버라이드 (전체 기간 등 기간 미정 파일에 사용)
-  const [monthsById, setMonthsById] = useState<Record<string, number>>({})
-  // 파일별·종류별 사용량 직접 입력 (파일에 종류별 컬럼이 없을 때)
-  const [manualUsage, setManualUsage] = useState<
-    Record<string, Record<string, number>>
-  >({})
+  const [site, setSite] = useState<SiteInfo>({
+    name: '',
+    address: '',
+    households: 0,
+  })
 
-  const metrics = useMemo(
-    () => computeAll(files, config, monthsById, manualUsage),
-    [files, config, monthsById, manualUsage],
-  )
+  const metrics = useMemo(() => computeAll(files, config), [files, config])
 
-  function setMonths(id: string, months: number) {
-    setMonthsById((prev) => ({ ...prev, [id]: months }))
-  }
-  function setUsage(fileId: string, chargerId: string, usage: number) {
-    setManualUsage((prev) => ({
-      ...prev,
-      [fileId]: { ...(prev[fileId] ?? {}), [chargerId]: usage },
-    }))
-  }
-
-  // 비교표에는 수량이 지정된(현장에 존재하는) 종류만 컬럼으로 표시
   const visibleChargers = useMemo(
     () => config.chargers.filter((c) => c.count > 0),
     [config],
   )
-  const anyUnsplittable = metrics.some((m) => !m.splittable)
+  const anyNone = metrics.some((m) => m.splitMode === 'none')
 
   return (
     <section className="card settlement">
       <div className="card__header">
         <div>
-          <h2>충전기 정산 분석</h2>
+          <h2>충전기 정산 분석{site.name ? ` · ${site.name}` : ''}</h2>
           <p className="group-range">
-            종류별 요금·수량을 바꾸면 사용금액·종류별 사용량·이용률이 즉시 다시
-            계산됩니다.
+            {site.address ? `${site.address} · ` : ''}
+            {site.households > 0 ? `${site.households.toLocaleString()}세대 · ` : ''}
+            {metrics.length}개 파일
           </p>
         </div>
-        <span className="badge">{metrics.length}개 파일</span>
       </div>
 
-      <ChargerEditor config={config} setConfig={setConfig} />
+      <SiteInfoPanel
+        site={site}
+        setSite={setSite}
+        config={config}
+        setConfig={setConfig}
+      />
 
-      {anyUnsplittable && (
+      {anyNone && (
         <p className="status status--info">
-          종류가 3개 이상이거나 요금이 같아 자동 분리가 안 되는 파일은, 표의{' '}
-          <b>종류별 사용량 칸에 값을 직접 입력</b>하면 종류별 이용률이
-          계산됩니다. (요금이 다른 2종류는 자동 역산됩니다.)
+          요금이 지정된 종류가 3개 이상이거나 요금이 같은 파일은 종류별
+          사용량·이용률을 자동으로 나눌 수 없어 —로 표시됩니다. (요금이 다른
+          2종류는 자동 계산)
         </p>
       )}
 
@@ -311,18 +319,16 @@ export default function SettlementAnalysis({ files }: SettlementAnalysisProps) {
             label={label}
             rows={rows}
             chargers={visibleChargers}
-            onMonths={setMonths}
-            onUsage={setUsage}
           />
         )
       })}
 
       <p className="table-note">
-        <b>이용률 = 사용량 ÷ (충전기 총용량 × 분석 개월수)</b>입니다. 월간=1개월,
-        연간·범위 파일은 파일명 기간으로 개월수를 자동 계산하며, 전체 기간처럼
-        기간이 정해지지 않은 파일은 <b>분석 개월수</b> 칸에서 직접 입력하세요.
-        종류별 분리: 요금 지정 1종은 전량 배정, 요금이 다른 2종은 요금 역산.
-        개인정보(사용자명·건물명·동·호)는 표시하지 않습니다.
+        <b>이용률 = 사용량 ÷ (충전기 총용량 × 분석 개월수)</b>. 분석 개월수는
+        파일명 기간으로 자동 계산됩니다(월간=1, 연간=12, 전체 기간은
+        <code> 전체_202401~202506</code> 형태로 자동 산정). 종류별 분리: 요금이
+        다른 2종은 요금 역산. 개인정보(사용자명·건물명·동·호)는 표시하지
+        않습니다.
       </p>
     </section>
   )
