@@ -659,6 +659,19 @@ body {
   font-size: 0.68rem;
   color: var(--text-muted);
 }
+.var-field__std {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.1rem 0.4rem;
+  align-self: flex-start;
+}
+.std-cell {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
+}
 /* Charger config editor */
 .charger-table td {
   padding: 0.3rem 0.4rem;

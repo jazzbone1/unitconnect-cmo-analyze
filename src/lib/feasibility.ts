@@ -76,6 +76,42 @@ export function defaultBizFee(years: number): number {
   return y * 100000
 }
 
+/** 「1. 영업이익 기준」 테이블 (계약기간별 영업비·영업이익률 목표) */
+export const PROFIT_STANDARD = [
+  { years: 1, bizFee: 100000, marginHigh: 0.1136, marginLow: 0.0775 },
+  { years: 2, bizFee: 200000, marginHigh: 0.1526, marginLow: 0.1181 },
+  { years: 3, bizFee: 300000, marginHigh: 0.1712, marginLow: 0.1376 },
+  { years: 4, bizFee: 400000, marginHigh: 0.1841, marginLow: 0.1509 },
+  { years: 5, bizFee: 500000, marginHigh: 0.1941, marginLow: 0.1613 },
+]
+
+/** 충전단가 유닛커넥트 기준: 244원 이상이면 249, 미만이면 239 */
+export function standardRate(rateVat: number): number {
+  return rateVat >= 244 ? 249 : 239
+}
+
+/** 유닛커넥트 기준(변경금지) 표준값 */
+export const STD = {
+  utilFast50: 0.0098,
+  utilSlow7: 0.07,
+  utilSlow35: 0.14,
+  utilSlow3: 49 / 300,
+  yearUtil2: 0.08,
+  yearUtil3: 0.09,
+  yearUtil4: 0.1,
+  yearUtil5: 0.11,
+  mojaBunri: 50000,
+  miniPc: 800000,
+}
+
+/** 계약년수·단가 기준 영업이익률 목표 */
+export function standardTargetMargin(years: number, rateVat: number): number {
+  const idx = Math.max(1, Math.min(5, Math.round(years))) - 1
+  return rateVat >= 244
+    ? PROFIT_STANDARD[idx].marginHigh
+    : PROFIT_STANDARD[idx].marginLow
+}
+
 export function DEFAULT_INPUTS(): FeasibilityInputs {
   return {
     years: 5,

@@ -2,6 +2,9 @@ import type { SettlementConfig } from '../lib/settlement'
 import {
   computeFeasibility,
   defaultBizFee,
+  standardRate,
+  STD,
+  PROFIT_STANDARD,
   ELEC_COST,
   PG_RATE,
   type FeasibilityInputs,
@@ -20,12 +23,15 @@ function Field({
   value,
   onChange,
   step,
+  standard,
 }: {
   label: string
   unit?: string
   value: number
   onChange: (v: number) => void
   step?: number
+  /** 유닛커넥트 기준(변경금지) 표시값 */
+  standard?: string
 }) {
   return (
     <label className="var-field">
@@ -40,6 +46,9 @@ function Field({
         value={Number.isFinite(value) ? value : ''}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
       />
+      {standard !== undefined && (
+        <span className="var-field__std">UC 기준 {standard}</span>
+      )}
     </label>
   )
 }
@@ -124,8 +133,49 @@ export default function FeasibilityAnalysis({
         </div>
       </div>
 
+      {/* 1. 영업이익 기준 (계약년수·단가에 따라 기준 변동) */}
+      <div className="subsection">
+        <h3 className="subsection__title">1. 영업이익 기준 (유닛커넥트 기준표)</h3>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>계약기간</th>
+                <th>영업비 1대분(원/대)</th>
+                <th>영업이익률 목표<br />(≥244원 · 249원)</th>
+                <th>영업이익률 목표<br />(&lt;244원 · 239원)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PROFIT_STANDARD.map((row) => {
+                const isYear = row.years === Math.max(1, Math.min(5, Math.round(inputs.years)))
+                const highActive = isYear && inputs.rateVat >= 244
+                const lowActive = isYear && inputs.rateVat < 244
+                return (
+                  <tr key={row.years} className={isYear ? 'row--selected' : ''}>
+                    <td className="col-name">{row.years}년</td>
+                    <td>{formatNumber(row.bizFee)}</td>
+                    <td className={highActive ? 'cell--up' : ''}>
+                      {(row.marginHigh * 100).toFixed(2)}%
+                    </td>
+                    <td className={lowActive ? 'cell--up' : ''}>
+                      {(row.marginLow * 100).toFixed(2)}%
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="table-note">
+          계약년수·충전단가에 따라 영업비 1대분 단가와 영업이익률 목표가 위
+          기준표에서 자동 결정됩니다. (현재: {Math.max(1, Math.min(5, Math.round(inputs.years)))}년 ·{' '}
+          {inputs.rateVat >= 244 ? '249원 기준' : '239원 기준'})
+        </p>
+      </div>
+
       <div className="var-panel">
-        <h3 className="subsection__title">① 변수 입력</h3>
+        <h3 className="subsection__title">① 변수 입력 (좌: 직접 기입 / 우: UC 기준)</h3>
         <div className="var-row">
           <Field
             label="계약년수"
@@ -138,6 +188,7 @@ export default function FeasibilityAnalysis({
             unit="원/kWh·VAT포함"
             value={inputs.rateVat}
             onChange={(v) => set({ rateVat: v })}
+            standard={`${standardRate(inputs.rateVat)}원`}
           />
         </div>
 
@@ -152,6 +203,7 @@ export default function FeasibilityAnalysis({
                   <th>종류</th>
                   <th>대수(자동)</th>
                   <th>이용률(%)</th>
+                  <th>UC 기준 이용률</th>
                   <th>종류별 요금(원/kWh)</th>
                 </tr>
               </thead>
@@ -172,6 +224,9 @@ export default function FeasibilityAnalysis({
                         }
                       />
                     </td>
+                    <td className="std-cell">
+                      {((STD[row.utilKey as keyof typeof STD] as number) * 100).toFixed(2)}%
+                    </td>
                     <td>
                       <input
                         className="cell-input"
@@ -189,7 +244,7 @@ export default function FeasibilityAnalysis({
                 <tr>
                   <td className="col-name">합계</td>
                   <td>{r.totalUnits.toLocaleString()}대</td>
-                  <td colSpan={2} />
+                  <td colSpan={3} />
                 </tr>
               </tbody>
             </table>
@@ -205,19 +260,19 @@ export default function FeasibilityAnalysis({
             연차별 이용률 (7kW 환산, 성장 예상)
           </h4>
           <div className="var-row">
-            <Field label="2년차" unit="%" step={0.1} value={+(inputs.yearUtil2 * 100).toFixed(4)} onChange={(v) => set({ yearUtil2: v / 100 })} />
-            <Field label="3년차" unit="%" step={0.1} value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} />
-            <Field label="4년차" unit="%" step={0.1} value={+(inputs.yearUtil4 * 100).toFixed(4)} onChange={(v) => set({ yearUtil4: v / 100 })} />
-            <Field label="5년차" unit="%" step={0.1} value={+(inputs.yearUtil5 * 100).toFixed(4)} onChange={(v) => set({ yearUtil5: v / 100 })} />
+            <Field label="2년차" unit="%" step={0.1} value={+(inputs.yearUtil2 * 100).toFixed(4)} onChange={(v) => set({ yearUtil2: v / 100 })} standard={`${(STD.yearUtil2 * 100).toFixed(0)}%`} />
+            <Field label="3년차" unit="%" step={0.1} value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} standard={`${(STD.yearUtil3 * 100).toFixed(0)}%`} />
+            <Field label="4년차" unit="%" step={0.1} value={+(inputs.yearUtil4 * 100).toFixed(4)} onChange={(v) => set({ yearUtil4: v / 100 })} standard={`${(STD.yearUtil4 * 100).toFixed(0)}%`} />
+            <Field label="5년차" unit="%" step={0.1} value={+(inputs.yearUtil5 * 100).toFixed(4)} onChange={(v) => set({ yearUtil5: v / 100 })} standard={`${(STD.yearUtil5 * 100).toFixed(0)}%`} />
           </div>
         </div>
 
         <div className="subsection">
           <h4 className="summary-block__title">영업비 · CAPEX</h4>
           <div className="var-row">
-            <Field label="영업비 1대분 단가" unit="원/대" value={inputs.bizFeePerUnit} onChange={(v) => set({ bizFeePerUnit: v })} />
-            <Field label="모자분리" unit="원/대" value={inputs.mojaBunri} onChange={(v) => set({ mojaBunri: v })} />
-            <Field label="미니PC" unit="원/단지" value={inputs.miniPc} onChange={(v) => set({ miniPc: v })} />
+            <Field label="영업비 1대분 단가" unit="원/대" value={inputs.bizFeePerUnit} onChange={(v) => set({ bizFeePerUnit: v })} standard={`${formatNumber(defaultBizFee(inputs.years))}원`} />
+            <Field label="모자분리" unit="원/대" value={inputs.mojaBunri} onChange={(v) => set({ mojaBunri: v })} standard={`${formatNumber(STD.mojaBunri)}원`} />
+            <Field label="미니PC" unit="원/단지" value={inputs.miniPc} onChange={(v) => set({ miniPc: v })} standard={`${formatNumber(STD.miniPc)}원`} />
           </div>
         </div>
       </div>
