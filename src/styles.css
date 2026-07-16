@@ -264,22 +264,31 @@ body {
 .pnl-table td:last-child {
   font-variant-numeric: tabular-nums;
 }
-/* OPEX 기본/추가 표 정렬 */
+/* OPEX 기본/추가 표 정렬 (왼쪽 정렬) */
 .opex-table {
   table-layout: fixed;
   width: 100%;
 }
+.opex-table th,
+.opex-table td {
+  text-align: left;
+}
 .opex-col-cost {
-  width: 150px;
+  width: 130px;
 }
 .opex-col-inc {
-  width: 64px;
+  width: 56px;
 }
 .opex-col-del {
-  width: 44px;
+  width: 40px;
 }
 .opex-inc-cell {
-  text-align: center;
+  text-align: left;
+}
+/* OPEX 표의 입력창은 칸을 가득 채워 길게 */
+.opex-table .cell-input {
+  width: 100%;
+  text-align: left;
 }
 .opex-label-input {
   width: 100%;
