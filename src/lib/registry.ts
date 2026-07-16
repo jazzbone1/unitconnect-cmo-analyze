@@ -22,11 +22,77 @@ export function detectRegistry(dataset: Dataset): boolean {
 // 테스트/서비스 계정을 나타내는 값 패턴
 const TEST_PATTERN = /test|costel|코스텔/i
 
-// 분석 표시에서 숨길 컬럼 판별 (동·호·스마트키(카드)·전화)
+// 분석 표시에서 숨길 컬럼 판별
+// (동·호·스마트키(카드)·전화·사용자명·건물명·차량번호·이메일)
 function isHiddenCol(column: string): boolean {
   const n = norm(column)
   if (n === '동' || n === '호') return true
-  return n.includes('스마트') || n.includes('전화')
+  if (n.includes('스마트') || n.includes('전화')) return true
+  if (n.includes('사용자') || n.includes('건물')) return true
+  if (n.includes('차량번호')) return true
+  if (n.includes('email') || n.includes('이메일') || n.includes('메일')) return true
+  return false
+}
+
+/** 자유 입력된 차종 문자열을 대표 명칭으로 통합한다. (best-effort) */
+export function canonicalVehicle(raw: unknown): string {
+  if (raw == null) return '(미상)'
+  const orig = String(raw).trim()
+  if (orig === '') return '(미상)'
+  let n = orig.toLowerCase().replace(/\s+/g, '')
+  // 표기 통일
+  n = n
+    .replace(/tesla|태슬라/g, '테슬라')
+    .replace(/모텔/g, '모델')
+    .replace(/model/g, '모델')
+    .replace(/benz|mercedes/g, '벤츠')
+    .replace(/porsche|포르셰|포르세/g, '포르쉐')
+
+  const rules: [RegExp, string][] = [
+    // 테슬라 모델
+    [/^(테슬라모델y|모델y|테슬라y)$/, '테슬라 모델Y'],
+    [/^(테슬라모델3|모델3|테슬라3)$/, '테슬라 모델3'],
+    [/^(테슬라모델x|모델x)$/, '테슬라 모델X'],
+    [/^(테슬라모델s|모델s)$/, '테슬라 모델S'],
+    [/테슬라/, '테슬라'],
+    // 현대·기아·제네시스
+    [/아이오닉9/, '아이오닉9'],
+    [/아이오닉6/, '아이오닉6'],
+    [/아이오닉5/, '아이오닉5'],
+    [/아이오닉/, '아이오닉'],
+    [/ev9/, 'EV9'],
+    [/ev6/, 'EV6'],
+    [/ev4/, 'EV4'],
+    [/ev3/, 'EV3'],
+    [/캐스퍼|케스퍼/, '캐스퍼'],
+    [/코나/, '코나'],
+    [/gv60/, 'GV60'],
+    [/gv70/, 'GV70'],
+    [/쏘울/, '쏘울'],
+    // BMW
+    [/bmw|bmx|ix[0-9]|^x[0-9]|^i[0-9]$|530e|740e/, 'BMW'],
+    // 벤츠
+    [/벤츠|eq[abe]|glc|gle|e클래스|^e[0-9]|e300/, '벤츠'],
+    // 포르쉐
+    [/포르쉐|타이칸/, '포르쉐'],
+    // 기타 브랜드
+    [/byd/, 'BYD'],
+    [/폴스타|폴스/, '폴스타'],
+    [/볼보|^c40$|^xc[0-9]/, '볼보'],
+    [/아우디|q4etron|q4/, '아우디'],
+    [/렉서스|nx450/, '렉서스'],
+    [/토레스/, '토레스'],
+    [/미니|mini/, '미니'],
+    [/푸조|e208/, '푸조'],
+    [/레인지로버|레인지/, '레인지로버'],
+    [/봉고/, '봉고'],
+    [/세보|쉐보레/, '쉐보레'],
+    [/id4|id\.4/, '폭스바겐 ID.4'],
+  ]
+  for (const [re, name] of rules) {
+    if (re.test(n)) return name
+  }
+  return orig
 }
 
 export interface VehicleTypeCount {
@@ -119,12 +185,11 @@ export function computeRegistry(datasets: Dataset[]): RegistryResult {
     cleaned.push(row)
   }
 
-  // 차종별 대수
+  // 차종별 대수 (자유 입력 명칭을 대표 명칭으로 통합)
   const typeMap = new Map<string, number>()
   if (typeCol) {
     for (const row of cleaned) {
-      const v = row[typeCol]
-      const t = v == null || String(v).trim() === '' ? '(미상)' : String(v).trim()
+      const t = canonicalVehicle(row[typeCol])
       typeMap.set(t, (typeMap.get(t) ?? 0) + 1)
     }
   }
@@ -132,10 +197,15 @@ export function computeRegistry(datasets: Dataset[]): RegistryResult {
     .map(([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count)
 
-  const displayColumns = allColumns.filter((c) => !isHiddenCol(c))
+  // 표시 컬럼 = 개인정보 제외 + 통합차종 컬럼 추가
+  const baseColumns = allColumns.filter((c) => !isHiddenCol(c))
+  const displayColumns = typeCol
+    ? [...baseColumns, '통합차종']
+    : baseColumns
   const rows = cleaned.map((r) => {
     const o: Record<string, CellValue> = {}
-    for (const c of displayColumns) o[c] = r[c] ?? null
+    for (const c of baseColumns) o[c] = r[c] ?? null
+    if (typeCol) o['통합차종'] = canonicalVehicle(r[typeCol])
     return o
   })
 

@@ -75,7 +75,7 @@ export default function RegistryAnalysis({ files }: RegistryAnalysisProps) {
       {/* 차종별 대수 */}
       <div className="subsection">
         <h3 className="subsection__title">
-          차종별 대수{' '}
+          차종별 대수 (명칭 자동 통합){' '}
           <span className="count-tag">{result.byVehicleType.length}종</span>
         </h3>
         <div className="table-scroll">
@@ -135,13 +135,13 @@ export default function RegistryAnalysis({ files }: RegistryAnalysisProps) {
             </tbody>
           </table>
         </div>
-        {result.rows.length > previewRows.length && (
-          <p className="table-note">
-            전체 {result.rows.length.toLocaleString()}명 중 상위{' '}
-            {previewRows.length}명만 표시합니다. 동·호·스마트카드·전화 정보는
-            표시하지 않습니다.
-          </p>
-        )}
+        <p className="table-note">
+          {result.rows.length > previewRows.length &&
+            `전체 ${result.rows.length.toLocaleString()}명 중 상위 ${previewRows.length}명만 표시합니다. `}
+          개인정보(사용자명·건물명·동·호·차량번호·스마트카드·전화·이메일)는 표시하지
+          않습니다. 통합차종은 자유 입력된 차종명을 자동으로 대표 명칭으로 묶은
+          결과입니다.
+        </p>
       </div>
     </section>
   )
