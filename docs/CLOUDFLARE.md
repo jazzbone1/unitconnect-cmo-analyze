@@ -1,83 +1,59 @@
-# Cloudflare 공용 저장소 연결 (Railway 호스팅 + Cloudflare Worker + R2)
+# 공용 저장소 연결 (Railway 서버 + Cloudflare R2)
 
-현재 구성:
-- **프론트엔드**: Railway (`https://...up.railway.app`)
-- **저장**: 기본은 브라우저 localStorage
-
-아래처럼 **Cloudflare Worker + R2** 를 붙이면, 사이트에 접속하는 모든 사람이
-**하나의 공용 저장소**에서 같은 현장·분석 데이터를 보고 저장하게 됩니다.
+Cloudflare **Workers 없이**, Railway 서버가 **R2에 직접** 저장/조회합니다.
+(사이트 접속자 모두가 같은 현장 데이터를 봅니다.)
 
 ```
-[Railway 앱] --(fetch /api/projects)--> [Cloudflare Worker] --> [R2 버킷]
+[브라우저] → [Railway 앱 서버 /api/projects] → [R2 버킷 wecha-cmo-analysis]
 ```
 
-## 개인정보
+- R2 접근키는 **서버(Railway)에만** 두므로 브라우저에 노출되지 않습니다.
+- 명부는 업로드 시 개인정보(이름·전화 등)가 제거된 뒤 저장됩니다.
 
-- 명부(사용자 정보)는 업로드 시점에 개인정보가 제거된 뒤 저장됩니다
-  (이름·건물·동·호·전화·스마트카드·이메일 제거, 차량번호·차종만 유지).
-- 따라서 R2에는 **이름·연락처가 저장되지 않습니다.**
+## 1. R2 API 토큰 만들기 (Cloudflare)
 
----
+1. Cloudflare 대시보드 → **R2 Object Storage**
+2. 오른쪽 **Manage R2 API Tokens**(또는 API → Create API token)
+3. **Create API token**
+   - Permissions: **Object Read & Write**
+   - 대상 버킷: `wecha-cmo-analysis` (또는 전체)
+4. 생성 후 표시되는 값 복사(한 번만 보임):
+   - **Access Key ID**
+   - **Secret Access Key**
+5. **Account ID** 도 확인: R2 개요 화면의 S3 endpoint
+   `https://<여기가_ACCOUNT_ID>.r2.cloudflarestorage.com` 에서 앞부분,
+   또는 대시보드 우측의 Account ID.
 
-## A. 대시보드(브라우저)만으로 설정 — 터미널 불필요
+## 2. Railway 환경변수 설정
 
-### 1. R2 버킷 만들기
-1. Cloudflare 대시보드 → **R2 Object Storage** → (처음이면 R2 사용 활성화)
-2. **Create bucket** → 이름 `wecha-cmo-analysis` → 생성
-
-### 2. Worker 만들기
-1. **Workers & Pages → Create → Create Worker** → 이름 `unitconnect-cmo-store` → Deploy
-2. **Edit code** → 기존 내용 지우고 `worker/worker-dashboard.js` 내용을 붙여넣기 → **Deploy**
-
-### 3. Worker에 R2 버킷 연결 (가장 중요)
-1. Worker → **Settings → Bindings → Add → R2 bucket**
-2. **Variable name** 에 정확히 `BUCKET` 입력
-3. Bucket 은 1번에서 만든 `wecha-cmo-analysis` 선택 → 저장/Deploy
-
-### 4. Worker 주소 복사
-예: `https://unitconnect-cmo-store.<계정>.workers.dev`
-
-### 5. Railway 앱 연결
-Railway → 서비스 → **Variables**:
+Railway → 서비스 → **Variables** 에 아래 추가:
 
 | 변수 | 값 |
 |------|-----|
+| `R2_ACCOUNT_ID` | Cloudflare 계정 ID |
+| `R2_ACCESS_KEY_ID` | R2 토큰의 Access Key ID |
+| `R2_SECRET_ACCESS_KEY` | R2 토큰의 Secret Access Key |
+| `R2_BUCKET` | `wecha-cmo-analysis` |
 | `VITE_REMOTE_STORE` | `1` |
-| `VITE_API_BASE` | `https://unitconnect-cmo-store.<계정>.workers.dev` |
 
-저장 → Railway 자동 재빌드(1~2분).
+저장하면 Railway가 **자동 재빌드/재배포** 합니다.
+(`VITE_API_BASE` 는 설정하지 않습니다 — 같은 도메인의 `/api` 를 씁니다.)
 
-### 6. 확인
-다른 브라우저/폰에서 접속 → 한쪽에서 현장 저장 → 다른 쪽 새로고침 시 동일하게
-보이면 성공.
+## 3. 확인
 
----
-
-## B. 터미널(wrangler)로 설정 — 익숙한 경우
-
-```bash
-cd worker
-npm install
-npx wrangler login
-npx wrangler r2 bucket create wecha-cmo-analysis   # wrangler.toml의 bucket_name과 동일
-npx wrangler deploy
-```
-이후 Railway Variables 설정은 A-5 와 동일.
-
----
-
-## (선택) 아무나 못 쓰게 막기 — 공유 키
-
-- Worker: Settings → Variables 에 `AUTH_KEY = 정한값` 추가(또는 wrangler.toml `[vars]`)
-- Railway: `VITE_APP_KEY = 정한값`(동일) 추가 후 재빌드
-
-> 프론트엔드에 넣는 키라 브라우저에서 볼 수는 있어 완전한 보안은 아니지만,
-> 무작위 접근·봇은 막아줍니다.
+- 서로 다른 브라우저/폰에서 사이트 접속 → 한쪽에서 **현장 저장** →
+  다른 쪽 **새로고침** → 똑같이 보이면 성공.
+- 안 되면 Railway → **Deployments → View logs** 에서
+  `R2 ON` 이 찍혔는지, `/api/projects` 에서 502/503 이 나는지 확인.
 
 ## 동작 방식 (참고)
 
-- Worker API: `GET /api/projects`(목록), `PUT /api/projects`(전체 저장)
-- 저장 단위: 프로젝트 배열 전체를 R2 객체 하나(`projects.json`)에 저장
-- 앱의 저장소 전환 지점: `src/lib/store.ts` (환경변수로 local ↔ remote)
-- 파일이 아주 많아지면 "현장별 개별 저장 + 원본 파일 R2 개별 보관" 구조로
-  확장하는 것을 권장.
+- 서버: `server.mjs` (Express) — 정적 사이트 서빙 + `/api/projects`(GET/PUT)
+- 저장: 프로젝트 배열 전체를 R2 객체 하나(`projects.json`)에 저장
+- 저장소 전환 지점: `src/lib/store.ts` (환경변수로 local ↔ remote)
+- R2 환경변수가 없으면 `/api` 는 비활성 → 앱은 localStorage로 동작(안전)
+
+## (참고) Cloudflare Worker 방식
+
+`worker/` 폴더에는 Worker+R2 방식도 준비돼 있습니다. 다만 계정에서 Workers가
+막히는 경우가 있어, 기본은 위의 **Railway 서버 + R2** 방식을 권장합니다.
