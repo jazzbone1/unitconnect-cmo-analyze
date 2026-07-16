@@ -7,6 +7,7 @@ import { parseFile } from './lib/parse'
 import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
 import { detectSettlement } from './lib/settlement'
+import { stripPii } from './lib/privacy'
 import type { AggKind, FileEntry } from './types'
 
 const AGG_OPTIONS: { value: AggKind; label: string }[] = [
@@ -44,10 +45,12 @@ export default function App() {
     const parsed: FileEntry[] = []
     for (const file of incoming) {
       try {
-        const dataset = await parseFile(file)
-        if (dataset.columns.length === 0 || dataset.rows.length === 0) {
+        const raw = await parseFile(file)
+        if (raw.columns.length === 0 || raw.rows.length === 0) {
           throw new Error('헤더 또는 데이터 행이 없습니다.')
         }
+        // 개인정보(사용자명·건물명·동·호 등) 컬럼은 분석·표시에서 제외
+        const dataset = stripPii(raw)
         const { category, period } = parseFileName(file.name)
         parsed.push({ id: nextId(), dataset, category, period })
       } catch (e) {

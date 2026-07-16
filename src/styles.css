@@ -445,6 +445,55 @@ body {
   font-size: 0.68rem;
   color: var(--text-muted);
 }
+/* Charger config editor */
+.charger-table td {
+  padding: 0.3rem 0.4rem;
+}
+.cell-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  width: 88px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cell-input--text {
+  width: 110px;
+  text-align: left;
+}
+.cell-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.var-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+.hours-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.count-tag {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.warn-mark {
+  color: var(--warn);
+  font-weight: 700;
+  margin-left: 0.15rem;
+}
+
 .cell--up {
   color: #15803d;
   font-weight: 600;
