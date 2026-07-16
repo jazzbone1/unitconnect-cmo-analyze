@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Dropzone from './components/Dropzone'
 import FileList from './components/FileList'
 import GroupSection from './components/GroupSection'
@@ -11,6 +11,12 @@ import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
 import { detectRegistry } from './lib/registry'
 import { stripPii } from './lib/privacy'
+import {
+  loadSites,
+  saveSites,
+  newSiteId,
+  type SavedSite,
+} from './lib/sites'
 import type { AggKind, FileEntry } from './types'
 
 function cloneDefaultConfig(): SettlementConfig {
@@ -40,6 +46,56 @@ export default function App() {
   // 파일 업로드 전에도 먼저 기입할 수 있는 단지 정보·충전기 설정
   const [site, setSite] = useState<SiteInfo>(EMPTY_SITE)
   const [config, setConfig] = useState<SettlementConfig>(cloneDefaultConfig)
+  // 저장된 현장 목록 (localStorage 유지)
+  const [sites, setSites] = useState<SavedSite[]>(() => loadSites())
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
+
+  useEffect(() => {
+    saveSites(sites)
+  }, [sites])
+
+  function saveCurrentSite() {
+    if (site.name.trim() === '') return
+    const chargers = config.chargers.map((c) => ({ ...c }))
+    if (selectedSiteId) {
+      setSites((prev) =>
+        prev.map((s) =>
+          s.id === selectedSiteId
+            ? { ...s, ...site, hours: config.hours, chargers }
+            : s,
+        ),
+      )
+    } else {
+      const id = newSiteId()
+      setSites((prev) => [
+        ...prev,
+        { id, ...site, hours: config.hours, chargers },
+      ])
+      setSelectedSiteId(id)
+    }
+  }
+
+  function loadSite(s: SavedSite) {
+    setSite({ name: s.name, address: s.address, households: s.households })
+    // 저장된 요금·수량을 현재 5종 구조에 맞춰 반영
+    const chargers = DEFAULT_CONFIG.chargers.map((base) => {
+      const saved = s.chargers.find((c) => c.id === base.id)
+      return { ...base, rate: saved?.rate ?? 0, count: saved?.count ?? 0 }
+    })
+    setConfig({ hours: s.hours || DEFAULT_CONFIG.hours, chargers })
+    setSelectedSiteId(s.id)
+  }
+
+  function deleteSite(id: string) {
+    setSites((prev) => prev.filter((s) => s.id !== id))
+    if (selectedSiteId === id) setSelectedSiteId(null)
+  }
+
+  function newSite() {
+    setSite(EMPTY_SITE)
+    setConfig(cloneDefaultConfig())
+    setSelectedSiteId(null)
+  }
 
   const settlementFiles = useMemo(
     () => files.filter((f) => detectSettlement(f.dataset)),
@@ -118,6 +174,12 @@ export default function App() {
           config={config}
           setConfig={setConfig}
           onReset={() => setConfig(cloneDefaultConfig())}
+          sites={sites}
+          selectedId={selectedSiteId}
+          onSave={saveCurrentSite}
+          onLoad={loadSite}
+          onDelete={deleteSite}
+          onNew={newSite}
         />
 
         <Dropzone onFiles={handleFiles} disabled={loading} />

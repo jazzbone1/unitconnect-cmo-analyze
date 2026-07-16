@@ -520,6 +520,43 @@ body {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
+.site-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.site-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 1rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.row--selected td {
+  background: var(--accent-soft);
+}
+.row-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: flex-end;
+}
 .warn-mark {
   color: var(--warn);
   font-weight: 700;
