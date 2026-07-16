@@ -13,9 +13,11 @@ export interface SavedSite {
   parking?: number
   hours: number
   chargers: ChargerType[]
-  /** 저장 당시의 정산 파일(개인정보 제거된 수치 데이터) */
+  /** 프로젝트에 저장된 전체 업로드 파일 (이용량·명부 등) */
+  files?: FileEntry[]
+  /** (구버전 호환) 저장 당시의 정산 파일 */
   settlementFiles?: FileEntry[]
-  /** 저장 당시의 이용자 명부 분석 결과(개인정보 제거됨) */
+  /** (구버전 호환) 저장 당시의 이용자 명부 분석 결과 */
   registry?: RegistryResult | null
   /** 사업성 분석(영업비 산정) 입력값 */
   feas?: FeasibilityInputs

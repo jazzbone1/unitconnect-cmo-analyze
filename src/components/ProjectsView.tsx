@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { SavedSite } from '../lib/sites'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
+import { detectSettlement } from '../lib/settlement'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from '../lib/feasibility'
+import { detectRegistry, computeRegistry } from '../lib/registry'
+import { parseUploadedFiles } from '../lib/ingest'
+import type { FileEntry } from '../types'
 import SettlementAnalysis from './SettlementAnalysis'
 import RegistryAnalysis from './RegistryAnalysis'
 import FeasibilityAnalysis from './FeasibilityAnalysis'
 import SiteConfigForm, { type SiteInfo } from './SiteConfigForm'
+import Dropzone from './Dropzone'
+import FileList from './FileList'
 
 interface ProjectsViewProps {
   projects: SavedSite[]
@@ -13,7 +19,7 @@ interface ProjectsViewProps {
   onUpdate: (id: string, patch: Partial<SavedSite>) => void
 }
 
-/** 프로젝트 상세: 변수 편집 + 이용량/사업성 내부 탭 */
+/** 프로젝트 상세: 변수·파일 편집 + 이용량/사업성 내부 탭 */
 function ProjectDetail({
   project,
   onBack,
@@ -37,10 +43,39 @@ function ProjectDetail({
     hours: project.hours,
     chargers: project.chargers.map((c) => ({ ...c })),
   })
+  const [files, setFiles] = useState<FileEntry[]>(
+    project.files ?? project.settlementFiles ?? [],
+  )
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
 
-  const settlementFiles = project.settlementFiles ?? []
-  const hasUsage = settlementFiles.length > 0 || !!project.registry
+  const settlementFiles = useMemo(
+    () => files.filter((f) => detectSettlement(f.dataset)),
+    [files],
+  )
+  const registryFiles = useMemo(
+    () =>
+      files.filter(
+        (f) => !detectSettlement(f.dataset) && detectRegistry(f.dataset),
+      ),
+    [files],
+  )
+  const registryResult = useMemo(() => {
+    if (registryFiles.length > 0)
+      return computeRegistry(registryFiles.map((f) => f.dataset))
+    // 구버전 프로젝트(파일 미저장)는 저장된 결과를 표시
+    return project.files === undefined ? (project.registry ?? null) : null
+  }, [registryFiles, project])
+
+  async function handleAdd(incoming: File[]) {
+    setLoading(true)
+    setErrors([])
+    const { parsed, errors: errs } = await parseUploadedFiles(incoming)
+    setFiles((prev) => [...prev, ...parsed])
+    setErrors(errs)
+    setLoading(false)
+  }
 
   function saveChanges() {
     onUpdate(project.id, {
@@ -50,6 +85,7 @@ function ProjectDetail({
       parking: site.parking,
       hours: config.hours,
       chargers: config.chargers.map((c) => ({ ...c })),
+      files,
       feas,
     })
     setSaved(true)
@@ -71,7 +107,7 @@ function ProjectDetail({
 
       <section className="card">
         <div className="card__header">
-          <h2>{site.name || '(이름 없음)'} · 변수 수정</h2>
+          <h2>{site.name || '(이름 없음)'} · 편집</h2>
           <div className="site-edit-actions">
             {saved && <span className="saved-note">저장됨 ✓</span>}
             <button type="button" className="btn-primary" onClick={saveChanges}>
@@ -111,12 +147,43 @@ function ProjectDetail({
         <FeasibilityAnalysis inputs={feas} setInputs={setFeas} config={config} />
       ) : (
         <>
-          {!hasUsage && (
-            <p className="status status--info">
-              이 현장에는 저장된 이용량 분석 데이터가 없습니다. 데이터 분석
-              탭에서 파일을 올린 뒤 이 현장을 저장하면 표시됩니다.
-            </p>
+          <div className="dropzone-row">
+            <Dropzone
+              onFiles={handleAdd}
+              disabled={loading}
+              icon="📊"
+              title="이용량 데이터 (정산)"
+              hint="정산 CSV·Excel 추가"
+            />
+            <Dropzone
+              onFiles={handleAdd}
+              disabled={loading}
+              icon="🚗"
+              title="사용자 정보 (차량 등록)"
+              hint="차량 등록 명부 CSV·Excel 추가"
+            />
+          </div>
+
+          {loading && <p className="status status--loading">분석 중…</p>}
+          {errors.length > 0 && (
+            <div className="status status--error" role="alert">
+              <strong>일부 파일을 읽지 못했습니다:</strong>
+              <ul className="error-list">
+                {errors.map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
+            </div>
           )}
+
+          {files.length > 0 && (
+            <FileList
+              files={files}
+              onRemove={(id) => setFiles((p) => p.filter((f) => f.id !== id))}
+              onClear={() => setFiles([])}
+            />
+          )}
+
           {settlementFiles.length > 0 && (
             <SettlementAnalysis
               files={settlementFiles}
@@ -124,7 +191,14 @@ function ProjectDetail({
               site={site}
             />
           )}
-          {project.registry && <RegistryAnalysis result={project.registry} />}
+          {registryResult && <RegistryAnalysis result={registryResult} />}
+
+          {files.length === 0 && !registryResult && (
+            <p className="status status--info">
+              위 업로드 칸에서 정산·명부 파일을 추가하면 분석이 표시됩니다.
+              변경 후 <b>변경 저장</b>을 누르면 프로젝트에 반영됩니다.
+            </p>
+          )}
         </>
       )}
     </div>
@@ -168,8 +242,14 @@ export default function ProjectsView({
       <div className="project-grid">
         {projects.map((p) => {
           const cnt = p.chargers.reduce((a, c) => a + c.count, 0)
-          const fileCount = p.settlementFiles?.length ?? 0
-          const people = p.registry?.totalPeople ?? 0
+          const effFiles = p.files ?? p.settlementFiles ?? []
+          const fileCount = effFiles.length
+          const regFiles = effFiles.filter(
+            (f) => !detectSettlement(f.dataset) && detectRegistry(f.dataset),
+          )
+          const people = regFiles.length
+            ? computeRegistry(regFiles.map((f) => f.dataset)).totalPeople
+            : (p.registry?.totalPeople ?? 0)
           return (
             <button
               key={p.id}
@@ -206,7 +286,7 @@ export default function ProjectsView({
                 <span>충전기 {cnt}기</span>
               </div>
               <div className="project-card__meta">
-                <span>정산 파일 {fileCount}개</span>
+                <span>파일 {fileCount}개</span>
                 <span>{people > 0 ? `등록 ${people.toLocaleString()}명` : '명부 없음'}</span>
               </div>
             </button>

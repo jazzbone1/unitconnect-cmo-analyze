@@ -8,12 +8,10 @@ import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoP
 import ProjectsView from './components/ProjectsView'
 import FeasibilityAnalysis from './components/FeasibilityAnalysis'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
-import { parseFile } from './lib/parse'
-import { parseFileName } from './lib/parseName'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
 import { detectRegistry, computeRegistry } from './lib/registry'
-import { stripPii } from './lib/privacy'
+import { parseUploadedFiles } from './lib/ingest'
 import {
   loadSites,
   saveSites,
@@ -34,12 +32,6 @@ const AGG_OPTIONS: { value: AggKind; label: string }[] = [
   { value: 'mean', label: '평균' },
   { value: 'count', label: '개수' },
 ]
-
-let idCounter = 0
-function nextId(): string {
-  idCounter += 1
-  return `f${idCounter}`
-}
 
 export default function App() {
   const [tab, setTab] = useState<'analyze' | 'projects'>('analyze')
@@ -67,8 +59,7 @@ export default function App() {
     const analysisData = {
       hours: config.hours,
       chargers,
-      settlementFiles,
-      registry: registryResult,
+      files,
       feas,
       savedAt: new Date().toISOString(),
     }
@@ -148,25 +139,7 @@ export default function App() {
   async function handleFiles(incoming: File[]) {
     setLoading(true)
     setErrors([])
-    const newErrors: string[] = []
-    const parsed: FileEntry[] = []
-    for (const file of incoming) {
-      try {
-        const raw = await parseFile(file)
-        if (raw.columns.length === 0 || raw.rows.length === 0) {
-          throw new Error('헤더 또는 데이터 행이 없습니다.')
-        }
-        // 이용자 명부는 test/costel 판별에 이름·건물명이 필요하므로 원본 유지
-        // (표시는 RegistryAnalysis가 개인정보를 숨김). 그 외는 개인정보 제거.
-        const dataset = detectRegistry(raw) ? raw : stripPii(raw)
-        const { category, period } = parseFileName(file.name)
-        parsed.push({ id: nextId(), dataset, category, period })
-      } catch (e) {
-        newErrors.push(
-          `${file.name}: ${e instanceof Error ? e.message : '처리 실패'}`,
-        )
-      }
-    }
+    const { parsed, errors: newErrors } = await parseUploadedFiles(incoming)
     setFiles((prev) => [...prev, ...parsed])
     setErrors(newErrors)
     setLoading(false)
