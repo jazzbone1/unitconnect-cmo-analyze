@@ -1,0 +1,16 @@
+# Cloudflare Worker (공용 저장소 API)
+# 배포: worker/ 폴더에서  npx wrangler deploy
+name = "unitconnect-cmo-store"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# 프로젝트(현장) 저장용 KV.
+# `npx wrangler kv namespace create PROJECTS` 실행 후 나온 id를 넣으세요.
+[[kv_namespaces]]
+binding = "PROJECTS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# (선택) 공유 키로 접근 제한하려면 주석 해제 후 값 지정.
+# 앱(Railway) 빌드 변수 VITE_APP_KEY 와 같은 값이어야 합니다.
+# [vars]
+# AUTH_KEY = "change-me"
