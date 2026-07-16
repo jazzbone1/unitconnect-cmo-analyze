@@ -102,7 +102,7 @@ export function standardRate(rateVat: number): number {
 
 /** 유닛커넥트 기준(변경금지) 표준값 */
 export const STD = {
-  utilFast100: 0.0098,
+  utilFast100: 0.0049, // 7% × 7/100 (7kW 환산) = 50kW(0.98%)의 절반
   utilFast50: 0.0098,
   utilSlow7: 0.07,
   utilSlow35: 0.14,
@@ -132,7 +132,7 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
     rateSlow7: 0,
     rateSlow35: 0,
     rateSlow3: 0,
-    utilFast100: 0.0098,
+    utilFast100: 0.0049, // 7% × 7/100 (7kW 환산) = 50kW(0.98%)의 절반
     utilFast50: 0.0098,
     utilSlow7: 0.07,
     utilSlow35: 0.14,

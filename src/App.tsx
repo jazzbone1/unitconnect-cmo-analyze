@@ -8,6 +8,8 @@ import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoP
 import ProjectsView from './components/ProjectsView'
 import FeasibilityAnalysis from './components/FeasibilityAnalysis'
 import Logo from './components/Logo'
+import ReportView from './components/ReportView'
+import { defaultReport, type ReportModel } from './lib/report'
 import { usePersistentState } from './lib/persist'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { groupFiles } from './lib/group'
@@ -32,7 +34,14 @@ const AGG_OPTIONS: { value: AggKind; label: string }[] = [
 ]
 
 export default function App() {
-  const [tab, setTab] = usePersistentState<'analyze' | 'projects'>('tab', 'analyze')
+  const [tab, setTab] = usePersistentState<'analyze' | 'projects' | 'report'>(
+    'tab',
+    'analyze',
+  )
+  const [report, setReport] = usePersistentState<ReportModel>(
+    'report',
+    defaultReport(),
+  )
   const [analyzeTab, setAnalyzeTab] = usePersistentState<'usage' | 'feasibility'>(
     'analyzeTab',
     'usage',
@@ -200,11 +209,20 @@ export default function App() {
               <span className="sidebar__count">{sites.length}</span>
             )}
           </button>
+          <button
+            type="button"
+            className={`sidebar__tab${tab === 'report' ? ' sidebar__tab--active' : ''}`}
+            onClick={() => setTab('report')}
+          >
+            보고서
+          </button>
         </nav>
       </aside>
 
       <div className="content">
-        {tab === 'projects' ? (
+        {tab === 'report' ? (
+          <ReportView model={report} setModel={setReport} />
+        ) : tab === 'projects' ? (
           <div className="app">
             <ProjectsView
               projects={sites}

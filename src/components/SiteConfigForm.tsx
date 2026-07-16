@@ -159,7 +159,7 @@ export default function SiteConfigForm({
               <th>충전기 종류</th>
               <th>수량(기)</th>
               <th>요금(원/kWh)</th>
-              <th>모자분리</th>
+              <th>모자분리 여부</th>
             </tr>
           </thead>
           <tbody>
@@ -191,7 +191,10 @@ export default function SiteConfigForm({
                   />
                 </td>
                 <td className="sep-cell">
-                  <label className="sep-check" title="모자분리(모자분리계량) 적용 여부">
+                  <label
+                    className="sep-check"
+                    title="체크 시 모자분리 적용(EV 전용 계량기 분리)"
+                  >
                     <input
                       type="checkbox"
                       checked={!!c.separated}
@@ -199,7 +202,7 @@ export default function SiteConfigForm({
                         updateCharger(c.id, { separated: e.target.checked })
                       }
                     />
-                    <span>{c.separated ? '적용' : '미적용'}</span>
+                    <span>{c.separated ? '모자분리' : '미적용'}</span>
                   </label>
                 </td>
               </tr>

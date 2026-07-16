@@ -731,6 +731,79 @@ body {
   line-height: 1.15;
 }
 
+/* 보고서 */
+.report-cover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+.report-cover__brand {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+.report-cover__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.report-cover__meta label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.report-block {
+  margin-top: 1.5rem;
+}
+.report-block__title {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+.report-block__subtitle {
+  font-size: 0.9rem;
+  margin: 1rem 0 0.4rem;
+  color: var(--text);
+}
+.report-block__sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 0.6rem;
+}
+.report-table td {
+  vertical-align: middle;
+}
+.report-table .row--sub td {
+  background: var(--surface-2);
+}
+.report-table .row--total td {
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+.cell--strong {
+  font-weight: 700;
+}
+.cell--muted {
+  color: var(--text-muted);
+  text-align: left;
+}
+.num-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+.num-suffix {
+  color: var(--text-muted);
+  font-size: 0.8em;
+}
+.link-button--danger {
+  color: var(--danger, #dc2626);
+}
+
 /* 차종 통합 표: 클릭 펼치기 */
 .row--clickable {
   cursor: pointer;
