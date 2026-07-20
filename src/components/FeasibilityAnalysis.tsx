@@ -194,6 +194,13 @@ export default function FeasibilityAnalysis({
             onChange={(v) => set({ rateVat: v })}
             standard={`${standardRate(inputs.rateVat)}원`}
           />
+          <Field
+            label="전기원가"
+            unit="원/kWh·VAT제외"
+            value={inputs.elecCostUnit ?? ELEC_COST}
+            onChange={(v) => set({ elecCostUnit: v })}
+            standard={`${ELEC_COST}원`}
+          />
         </div>
 
         <div className="subsection">
@@ -467,7 +474,8 @@ export default function FeasibilityAnalysis({
           </table>
         </div>
         <p className="table-note">
-          전기원가 {ELEC_COST}원/kWh · PG 수수료율 {(PG_RATE * 100).toFixed(2)}% ·
+          전기원가 {inputs.elecCostUnit ?? ELEC_COST}원/kWh · PG 수수료율{' '}
+          {(PG_RATE * 100).toFixed(2)}% ·
           누적 충전량(ΣW) {formatNumber(Math.round(r.sumW))} kWh · 영업비
           환산계수 {r.convFactor.toFixed(4)}. 사업성 판정: 영업이익률 ≥ 목표이면
           진행가능.

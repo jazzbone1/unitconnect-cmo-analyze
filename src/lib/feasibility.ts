@@ -37,6 +37,8 @@ export interface FeasibilityInputs {
   yearUtil3: number
   yearUtil4: number
   yearUtil5: number
+  /** 전기원가 (VAT 제외) 원/kWh — 기본 147, 수정 가능 */
+  elecCostUnit?: number
   /** 영업비 1대분 단가 (원/대) */
   bizFeePerUnit: number
   /** 영업비 차감/대 (충전단가 하락 검토용) */
@@ -146,6 +148,7 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
     yearUtil3: 0.09,
     yearUtil4: 0.1,
     yearUtil5: 0.11,
+    elecCostUnit: ELEC_COST,
     bizFeePerUnit: 500000,
     bizFeeDiscount: 0,
     profitGiveupRate: 0.01,
@@ -261,7 +264,11 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
 
   const revenue = 12 * rateExVat * sumW
   const pgFee = -revenue * PG_RATE
-  const elecCost = -12 * ELEC_COST * sumW
+  const elecUnit =
+    inp.elecCostUnit != null && Number.isFinite(inp.elecCostUnit)
+      ? inp.elecCostUnit
+      : ELEC_COST
+  const elecCost = -12 * elecUnit * sumW
   const grossProfit = revenue + pgFee + elecCost
   const opsCost = -total * opexPerUnit * 3 * 4 * Math.min(inp.years, 5)
   const bizCost = -total * inp.bizFeePerUnit * convFactor
