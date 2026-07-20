@@ -17,6 +17,8 @@ export interface ElecCostInput {
   taxMultiplier: number
   /** 현행 부과 요금 (원/kWh) — 손익·하한선 비교용 */
   currentRate: number
+  /** 실효 전기원가(Lv1) 직접 입력값. 지정 시 계산값 대신 이 값을 사용 */
+  lv1Override?: number | null
 }
 
 export interface OpexRow {
@@ -86,16 +88,23 @@ export interface ElecCostResult {
   baseCharge: number
   /** 소계 (A)+(B) */
   subtotal: number
-  /** ★ 실효 전기원가 Lv1 (원/kWh) */
+  /** ★ 실효 전기원가 Lv1 (원/kWh) — 직접입력 있으면 그 값 */
   lv1: number
+  /** 계산으로 산출된 Lv1 (직접입력 참고용) */
+  computedLv1: number
+  /** 직접입력값 사용 여부 */
+  overridden: boolean
 }
 
 export function computeElecCost(i: ElecCostInput): ElecCostResult {
   const baseCharge =
     i.monthlyKwh > 0 ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh : 0
   const subtotal = i.powerRate + baseCharge
-  const lv1 = (subtotal + i.climateFee) * i.taxMultiplier
-  return { baseCharge, subtotal, lv1 }
+  const computedLv1 = (subtotal + i.climateFee) * i.taxMultiplier
+  const overridden =
+    i.lv1Override != null && Number.isFinite(i.lv1Override)
+  const lv1 = overridden ? (i.lv1Override as number) : computedLv1
+  return { baseCharge, subtotal, lv1, computedLv1, overridden }
 }
 
 /** 운영비 월 합계(원) */

@@ -199,8 +199,42 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </tr>
               <tr className="row--total">
                 <td className="col-name">★ 실효 전기원가 (Lv1)</td>
-                <td className="cell--strong">{won1(r.lv1)}/kWh</td>
-                <td></td>
+                <td className="cell--strong">
+                  <span className="num-input">
+                    <input
+                      className="cell-input"
+                      type="number"
+                      style={{ width: 90 }}
+                      placeholder={r.computedLv1.toFixed(1)}
+                      value={g.lv1Override ?? ''}
+                      onChange={(e) =>
+                        updGroup(which, {
+                          lv1Override:
+                            e.target.value === ''
+                              ? null
+                              : Number(e.target.value),
+                        })
+                      }
+                    />
+                    <span className="num-suffix">원/kWh</span>
+                  </span>
+                </td>
+                <td className="cell--muted">
+                  {r.overridden ? (
+                    <>
+                      직접입력 (계산값 {r.computedLv1.toFixed(1)}원){' '}
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => updGroup(which, { lv1Override: null })}
+                      >
+                        자동계산으로
+                      </button>
+                    </>
+                  ) : (
+                    '비우면 자동 계산값 사용'
+                  )}
+                </td>
               </tr>
             </tbody>
           </table>
