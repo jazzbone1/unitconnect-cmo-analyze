@@ -32,11 +32,13 @@ export interface FeasibilityInputs {
   countSlow7: number
   countSlow35: number
   countSlow3: number
-  // 연차별 이용률 (7kW 환산) — 2~5년차
+  // 연차별 이용률 (7kW 환산) — 2~7년차
   yearUtil2: number
   yearUtil3: number
   yearUtil4: number
   yearUtil5: number
+  yearUtil6?: number
+  yearUtil7?: number
   /** 전기원가 (VAT 제외) 원/kWh — 기본 147, 수정 가능 */
   elecCostUnit?: number
   /** 영업비 1대분 단가 (원/대) */
@@ -68,9 +70,12 @@ const MAX_MONTHLY = {
   slow3: 3 * 720, // 2160
 }
 
-// 영업이익률 목표 테이블 (계약년수 1~5)
-const TARGET_MARGIN_HIGH = [0.1136, 0.1526, 0.1712, 0.1841, 0.1941] // 단가 ≥ 244
-const TARGET_MARGIN_LOW = [0.0775, 0.1181, 0.1376, 0.1509, 0.1613] // 단가 < 244
+// 영업이익률 목표 테이블 (계약년수 1~7)
+// 6·7년차는 잠정적으로 5년차 값을 사용(추후 공식 기준값 수령 시 교체)
+const TARGET_MARGIN_HIGH = [0.1136, 0.1526, 0.1712, 0.1841, 0.1941, 0.1941, 0.1941] // 단가 ≥ 244
+const TARGET_MARGIN_LOW = [0.0775, 0.1181, 0.1376, 0.1509, 0.1613, 0.1613, 0.1613] // 단가 < 244
+/** 지원하는 최대 계약년수 */
+export const MAX_YEARS = 7
 
 // 기본 대당 월 운영비 항목 (유닛커넥트 기준)
 export const DEFAULT_OPEX: OpexItem[] = [
@@ -84,7 +89,7 @@ export const DEFAULT_OPEX: OpexItem[] = [
 
 /** 계약년수에 따른 영업비 1대분 기본 단가 (100,000 × 년수) */
 export function defaultBizFee(years: number): number {
-  const y = Math.max(1, Math.min(5, Math.round(years)))
+  const y = Math.max(1, Math.min(MAX_YEARS, Math.round(years)))
   return y * 100000
 }
 
@@ -95,6 +100,9 @@ export const PROFIT_STANDARD = [
   { years: 3, bizFee: 300000, marginHigh: 0.1712, marginLow: 0.1376 },
   { years: 4, bizFee: 400000, marginHigh: 0.1841, marginLow: 0.1509 },
   { years: 5, bizFee: 500000, marginHigh: 0.1941, marginLow: 0.1613 },
+  // 6·7년차: 잠정적으로 5년차 목표 영업이익률 사용
+  { years: 6, bizFee: 600000, marginHigh: 0.1941, marginLow: 0.1613 },
+  { years: 7, bizFee: 700000, marginHigh: 0.1941, marginLow: 0.1613 },
 ]
 
 /** 충전단가 유닛커넥트 기준: 244원 이상이면 249, 미만이면 239 */
@@ -113,13 +121,15 @@ export const STD = {
   yearUtil3: 0.09,
   yearUtil4: 0.1,
   yearUtil5: 0.11,
+  yearUtil6: 0.12,
+  yearUtil7: 0.13,
   mojaBunri: 50000,
   miniPc: 800000,
 }
 
 /** 계약년수·단가 기준 영업이익률 목표 */
 export function standardTargetMargin(years: number, rateVat: number): number {
-  const idx = Math.max(1, Math.min(5, Math.round(years))) - 1
+  const idx = Math.max(1, Math.min(MAX_YEARS, Math.round(years))) - 1
   return rateVat >= 244
     ? PROFIT_STANDARD[idx].marginHigh
     : PROFIT_STANDARD[idx].marginLow
@@ -148,6 +158,8 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
     yearUtil3: 0.09,
     yearUtil4: 0.1,
     yearUtil5: 0.11,
+    yearUtil6: 0.12,
+    yearUtil7: 0.13,
     elecCostUnit: ELEC_COST,
     bizFeePerUnit: 500000,
     bizFeeDiscount: 0,
@@ -173,7 +185,7 @@ export interface FeasibilityResult {
   opexBasic: number
   opexExtra: number
   baseMonthlyW: number
-  yearlyW: number[] // 1~5년차
+  yearlyW: number[] // 1~7년차
   sumW: number
   revenue: number
   pgFee: number
@@ -247,15 +259,22 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
       : inp.rateVat
   const rateExVat = avgVat / 1.1
 
-  const yearUtil = [inp.yearUtil2, inp.yearUtil3, inp.yearUtil4, inp.yearUtil5]
+  const yearUtil = [
+    inp.yearUtil2,
+    inp.yearUtil3,
+    inp.yearUtil4,
+    inp.yearUtil5,
+    inp.yearUtil6 ?? 0.12,
+    inp.yearUtil7 ?? 0.13,
+  ]
   const yearlyW: number[] = []
-  for (let y = 1; y <= 5; y++) {
+  for (let y = 1; y <= MAX_YEARS; y++) {
     if (y > inp.years) {
       yearlyW.push(0)
     } else if (y === 1) {
       yearlyW.push(base)
     } else {
-      // 2~5년차: 7kW 환산 이용률 성장분 반영
+      // 2~7년차: 7kW 환산 이용률 성장분 반영
       const yu = yearUtil[y - 2]
       yearlyW.push(base + MAX_MONTHLY.slow7 * (yu - inp.utilSlow7) * total)
     }
@@ -270,13 +289,13 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
       : ELEC_COST
   const elecCost = -12 * elecUnit * sumW
   const grossProfit = revenue + pgFee + elecCost
-  const opsCost = -total * opexPerUnit * 3 * 4 * Math.min(inp.years, 5)
+  const opsCost = -total * opexPerUnit * 3 * 4 * Math.min(inp.years, MAX_YEARS)
   const bizCost = -total * inp.bizFeePerUnit * convFactor
   const capex = -(total * inp.mojaBunri + inp.miniPc)
   const operatingProfit = grossProfit + opsCost + bizCost + capex
   const margin = revenue !== 0 ? operatingProfit / revenue : 0
 
-  const yIdx = Math.max(1, Math.min(5, Math.round(inp.years))) - 1
+  const yIdx = Math.max(1, Math.min(MAX_YEARS, Math.round(inp.years))) - 1
   const targetMargin =
     inp.rateVat >= 244 ? TARGET_MARGIN_HIGH[yIdx] : TARGET_MARGIN_LOW[yIdx]
 

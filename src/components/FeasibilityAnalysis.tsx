@@ -7,6 +7,7 @@ import {
   PROFIT_STANDARD,
   ELEC_COST,
   PG_RATE,
+  MAX_YEARS,
   type FeasibilityInputs,
 } from '../lib/feasibility'
 import { formatNumber } from '../lib/stats'
@@ -152,7 +153,7 @@ export default function FeasibilityAnalysis({
             </thead>
             <tbody>
               {PROFIT_STANDARD.map((row) => {
-                const isYear = row.years === Math.max(1, Math.min(5, Math.round(inputs.years)))
+                const isYear = row.years === Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))
                 const highActive = isYear && inputs.rateVat >= 244
                 const lowActive = isYear && inputs.rateVat < 244
                 return (
@@ -173,7 +174,7 @@ export default function FeasibilityAnalysis({
         </div>
         <p className="table-note">
           계약년수·충전단가에 따라 영업비 1대분 단가와 영업이익률 목표가 위
-          기준표에서 자동 결정됩니다. (현재: {Math.max(1, Math.min(5, Math.round(inputs.years)))}년 ·{' '}
+          기준표에서 자동 결정됩니다. (현재: {Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))}년 ·{' '}
           {inputs.rateVat >= 244 ? '249원 기준' : '239원 기준'})
         </p>
       </div>
@@ -183,7 +184,7 @@ export default function FeasibilityAnalysis({
         <div className="var-row">
           <Field
             label="계약년수"
-            unit="년(1~5)"
+            unit="년(1~7)"
             value={inputs.years}
             onChange={(v) => set({ years: v })}
           />
@@ -277,6 +278,8 @@ export default function FeasibilityAnalysis({
             <Field label="3년차" unit="%" step={0.1} value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} standard={`${(STD.yearUtil3 * 100).toFixed(0)}%`} />
             <Field label="4년차" unit="%" step={0.1} value={+(inputs.yearUtil4 * 100).toFixed(4)} onChange={(v) => set({ yearUtil4: v / 100 })} standard={`${(STD.yearUtil4 * 100).toFixed(0)}%`} />
             <Field label="5년차" unit="%" step={0.1} value={+(inputs.yearUtil5 * 100).toFixed(4)} onChange={(v) => set({ yearUtil5: v / 100 })} standard={`${(STD.yearUtil5 * 100).toFixed(0)}%`} />
+            <Field label="6년차" unit="%" step={0.1} value={+(((inputs.yearUtil6 ?? 0.12) * 100).toFixed(4))} onChange={(v) => set({ yearUtil6: v / 100 })} standard={`${((STD.yearUtil6 ?? 0.12) * 100).toFixed(0)}%`} />
+            <Field label="7년차" unit="%" step={0.1} value={+(((inputs.yearUtil7 ?? 0.13) * 100).toFixed(4))} onChange={(v) => set({ yearUtil7: v / 100 })} standard={`${((STD.yearUtil7 ?? 0.13) * 100).toFixed(0)}%`} />
           </div>
         </div>
 
