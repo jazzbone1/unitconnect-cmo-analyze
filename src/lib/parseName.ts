@@ -54,6 +54,38 @@ interface Rule {
 
 // 순서 중요: 더 구체적인 패턴을 먼저 시도한다.
 const RULES: Rule[] = [
+  // 0) 점/하이픈 구분 날짜 범위: 24.06.01~2026.06.30, 2025-06-01~2026-06-30
+  //    (연도 2자리/4자리 혼용 허용)
+  {
+    re: /(\d{2,4})[.\-/](\d{1,2})[.\-/](\d{1,2})\s*[~∼〜–—]\s*(\d{2,4})[.\-/](\d{1,2})[.\-/](\d{1,2})/,
+    build: (m) => {
+      const s = { year: expandYear(m[1]), month: Number(m[2]), day: Number(m[3]) }
+      const e = { year: expandYear(m[4]), month: Number(m[5]), day: Number(m[6]) }
+      const fmt = (d: { year: number; month: number; day: number }) =>
+        `${String(d.year).slice(2)}.${pad2(d.month)}.${pad2(d.day)}`
+      const months = e.year * 12 + e.month - (s.year * 12 + s.month) + 1
+      return {
+        label: `${fmt(s)}~${fmt(e)}`,
+        sortKey: ymd(s.year, s.month, s.day),
+        type: 'year',
+        months: Math.max(1, months),
+      }
+    },
+  },
+  // 0-1) 점/하이픈 구분 연.월 + '월': 25.07월, 2026.01월, 25-07월
+  {
+    re: /(\d{2}|\d{4})[.\-_/](0?[1-9]|1[0-2])\s*월/,
+    build: (m) => {
+      const year = expandYear(m[1])
+      const month = Number(m[2])
+      return {
+        label: `${year}-${pad2(month)}`,
+        sortKey: ymd(year, month, 1),
+        type: 'month',
+        months: 1,
+      }
+    },
+  },
   // 1) 기간 범위: 240601~250703, 20240601 - 20250703 등
   {
     re: /(\d{8}|\d{6})\s*[~∼〜\-–—]\s*(\d{8}|\d{6})/,
