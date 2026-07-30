@@ -225,7 +225,9 @@ export function computeFile(
   const splittable = splitMode !== 'none'
 
   const types: TypeMetric[] = chargers.map((t) => {
-    const usage = usageByType.get(t.id) ?? 0
+    const raw = usageByType.get(t.id) ?? 0
+    // 요금 역산 시 부동소수점 오차로 생기는 극소값(≈0)은 0으로 정리
+    const usage = Math.abs(raw) < 1e-6 ? 0 : raw
     const capacity = t.kw * t.count * config.hours * months
     return {
       id: t.id,

@@ -142,8 +142,8 @@ export function formatNumber(n: number): string {
   if (!Number.isFinite(n)) return '—'
   if (Number.isInteger(n)) return n.toLocaleString('en-US')
   const abs = Math.abs(n)
-  if (abs !== 0 && (abs < 0.001 || abs >= 1e9)) {
-    return n.toExponential(2)
-  }
+  // 부동소수점 오차로 생기는 극소값(예: 6e-13)은 0으로 표시(과학표기 방지)
+  if (abs < 0.001) return '0'
+  if (abs >= 1e12) return n.toExponential(2)
   return n.toLocaleString('en-US', { maximumFractionDigits: 3 })
 }
