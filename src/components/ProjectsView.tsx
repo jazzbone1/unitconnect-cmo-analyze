@@ -7,11 +7,15 @@ import { DEFAULT_INPUTS, type FeasibilityInputs } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
 import { parseUploadedFiles } from '../lib/ingest'
 import { defaultReport, type ReportModel } from '../lib/report'
+import { computeTariff, defaultTariff, type TariffInputs } from '../lib/tariff'
+import { defaultStandby, type StandbyInputs } from '../lib/standby'
 import type { FileEntry } from '../types'
 import SettlementAnalysis from './SettlementAnalysis'
 import RegistryAnalysis from './RegistryAnalysis'
 import FeasibilityAnalysis from './FeasibilityAnalysis'
 import ReportView from './ReportView'
+import TariffAnalysis from './TariffAnalysis'
+import StandbyAnalysis from './StandbyAnalysis'
 import SiteConfigForm, { type SiteInfo } from './SiteConfigForm'
 import Dropzone from './Dropzone'
 import FileList from './FileList'
@@ -95,7 +99,7 @@ function ProjectDetail({
   onUpdate: (id: string, patch: Partial<SavedSite>) => void
 }) {
   const [subtab, setSubtab] = usePersistentState<
-    'usage' | 'feasibility' | 'report'
+    'usage' | 'feasibility' | 'report' | 'tariff' | 'standby'
   >('projectSubtab', 'usage')
   const [feas, setFeas] = useState<FeasibilityInputs>(
     project.feas ?? DEFAULT_INPUTS(),
@@ -108,6 +112,27 @@ function ProjectDetail({
         { hours: project.hours, chargers: project.chargers.map((c) => ({ ...c })) },
         project.files ?? project.settlementFiles ?? [],
       ),
+  )
+  const [tariff, setTariff] = useState<TariffInputs>(() => {
+    if (project.tariff) return project.tariff
+    // 계약전력·월충전량을 충전기 설정/정산 데이터로 자동 기입
+    const t = defaultTariff()
+    t.contractKw = project.chargers.reduce((a, c) => a + c.kw * c.count, 0)
+    const files = project.files ?? project.settlementFiles ?? []
+    const months = files.length
+      ? computeAll(files, {
+          hours: project.hours,
+          chargers: project.chargers.map((c) => ({ ...c })),
+        }).filter((m) => m.periodType === 'month')
+      : []
+    if (months.length)
+      t.monthlyKwh = Math.round(
+        months.reduce((a, m) => a + m.usageTotal, 0) / months.length,
+      )
+    return t
+  })
+  const [standby, setStandby] = useState<StandbyInputs>(
+    () => project.standby ?? defaultStandby(),
   )
   const [site, setSite] = useState<SiteInfo>({
     name: project.name,
@@ -164,6 +189,8 @@ function ProjectDetail({
       files,
       feas,
       report,
+      tariff,
+      standby,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
@@ -221,6 +248,22 @@ function ProjectDetail({
         <button
           type="button"
           role="tab"
+          className={`subtab${subtab === 'tariff' ? ' subtab--active' : ''}`}
+          onClick={() => setSubtab('tariff')}
+        >
+          요금 구조
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`subtab${subtab === 'standby' ? ' subtab--active' : ''}`}
+          onClick={() => setSubtab('standby')}
+        >
+          대기전력
+        </button>
+        <button
+          type="button"
+          role="tab"
           className={`subtab${subtab === 'report' ? ' subtab--active' : ''}`}
           onClick={() => setSubtab('report')}
         >
@@ -230,6 +273,15 @@ function ProjectDetail({
 
       {subtab === 'report' ? (
         <ReportView model={report} setModel={setReport} />
+      ) : subtab === 'tariff' ? (
+        <TariffAnalysis inputs={tariff} setInputs={setTariff} />
+      ) : subtab === 'standby' ? (
+        <StandbyAnalysis
+          chargers={config.chargers}
+          inputs={standby}
+          setInputs={setStandby}
+          effCost={computeTariff(tariff).selected.effCost}
+        />
       ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis inputs={feas} setInputs={setFeas} config={config} />
       ) : (

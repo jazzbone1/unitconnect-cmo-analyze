@@ -939,6 +939,13 @@ body {
   text-align: left;
   white-space: nowrap;
 }
+.var-field__input.ok {
+  color: #16a34a;
+}
+.var-field__input.warn {
+  color: #dc2626;
+}
+
 /* 업로드 파일 목록 접기/펼치기 */
 .filelist-toggle {
   display: inline-flex;

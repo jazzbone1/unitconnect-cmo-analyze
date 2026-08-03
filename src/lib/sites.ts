@@ -2,6 +2,8 @@ import type { ChargerType } from './settlement'
 import type { RegistryResult } from './registry'
 import type { FeasibilityInputs } from './feasibility'
 import type { ReportModel } from './report'
+import type { TariffInputs } from './tariff'
+import type { StandbyInputs } from './standby'
 import type { FileEntry } from '../types'
 
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
@@ -24,6 +26,10 @@ export interface SavedSite {
   feas?: FeasibilityInputs
   /** 컨설팅 보고서 데이터 (현장별) */
   report?: ReportModel
+  /** 요금 구조 분석 입력값 */
+  tariff?: TariffInputs
+  /** 대기전력 분석 입력값 */
+  standby?: StandbyInputs
   /** 저장 시각 (ISO) */
   savedAt?: string
 
