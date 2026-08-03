@@ -69,6 +69,10 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const verdict =
     ratio > 1.15 ? '과대' : ratio < 0.85 ? '과소' : '적정'
   const baseSaving = Math.max(0, r.contractKw - properKw) * sel.baseUnit
+  // 전체 설비용량 기준 계약전력 비율(수용률)
+  const installedKwMain = inputs.installedKw ?? inputs.contractKw
+  const currentRatio = installedKwMain > 0 ? r.contractKw / installedKwMain : 0
+  const properRatio = installedKwMain > 0 ? properKw / installedKwMain : 0
 
   // 계절별 가중단가 (선택 요금제 기준)
   const selPlan = TARIFF_PLANS[r.selectedIdx]
@@ -128,8 +132,8 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                 <li>
                   부하율 <b className={lf < 0.1 ? 'cell--down' : ''}>{(lf * 100).toFixed(1)}%</b>
                 </li>
-                <li>현재 계약전력 <b>{formatNumber(r.contractKw)} kW</b></li>
-                <li>적정 계약전력 <b>{formatNumber(properKw)} kW</b></li>
+                <li>현재 계약전력 <b>{formatNumber(r.contractKw)} kW ({(currentRatio * 100).toFixed(0)}%)</b></li>
+                <li>적정 계약전력 <b>{formatNumber(properKw)} kW ({(properRatio * 100).toFixed(0)}%)</b></li>
                 <li>
                   판정{' '}
                   <b className={verdict === '적정' ? 'cell--up' : 'cell--down'}>
@@ -262,12 +266,16 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               onChange={(v) => set({ targetLoadFactor: v })}
             />
             <label className="var-field">
-              <span className="var-field__label">현재 계약전력</span>
-              <span className="var-field__input">{formatNumber(r.contractKw)} kW</span>
+              <span className="var-field__label">현재 계약전력(비율)</span>
+              <span className="var-field__input">
+                {formatNumber(r.contractKw)} kW ({(currentRatio * 100).toFixed(0)}%)
+              </span>
             </label>
             <label className="var-field">
-              <span className="var-field__label">적정 계약전력</span>
-              <span className="var-field__input cell--strong">{formatNumber(properKw)} kW</span>
+              <span className="var-field__label">적정 계약전력(비율)</span>
+              <span className="var-field__input cell--strong">
+                {formatNumber(properKw)} kW ({(properRatio * 100).toFixed(0)}%)
+              </span>
             </label>
             <label className="var-field">
               <span className="var-field__label">판정</span>
@@ -276,6 +284,12 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               </span>
             </label>
           </div>
+          <p className="var-hint">
+            계약전력 비율(수용률)은 <b>전체 설비용량({formatNumber(installedKwMain)}kW) 기준</b>입니다.
+            적정 계약전력 비율 ≈ <b>{(properRatio * 100).toFixed(0)}%</b> → 상단
+            「계약전력 비율(수용률)」에 <b>{properRatio.toFixed(2)}</b> 정도를 넣으면
+            적정 계약전력에 맞습니다.
+          </p>
         </div>
         <p className="table-note">
           <b>부하율 = 월 충전량 ÷ (계약전력 × 720h)</b> = 평균부하 ÷ 최대부하.
