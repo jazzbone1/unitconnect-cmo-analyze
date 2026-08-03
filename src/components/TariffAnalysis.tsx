@@ -44,6 +44,11 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const set = (patch: Partial<TariffInputs>) => setInputs({ ...inputs, ...patch })
   const r = computeTariff(inputs)
   const touSum = inputs.touLight + inputs.touMid + inputs.touPeak
+  // 선택된 요금제 실효원가 산정 단계값
+  const sel = r.selected
+  const subtotalAB = sel.weighted + sel.baseKwh
+  const preTax = subtotalAB + inputs.climate + inputs.fuel
+  const taxMult = 1 + inputs.vatRate + inputs.fundRate
 
   return (
     <section className="card settlement">
@@ -188,9 +193,80 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
         </p>
       </div>
 
+      {/* 실효원가 산정 상세 */}
+      <div className="subsection">
+        <h3 className="subsection__title">
+          ③ 실효 전기원가 산정 상세 (선택: {sel.name})
+        </h3>
+        <div className="table-scroll">
+          <table className="data-table report-table">
+            <thead>
+              <tr>
+                <th>산출 단계</th>
+                <th>금액</th>
+                <th>근거</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="col-name">(A) 전력량요금 (가중단가)</td>
+                <td>{formatNumber(sel.weighted)} 원/kWh</td>
+                <td className="cell--muted">
+                  경 {inputs.touLight} · 중 {inputs.touMid} · 최 {inputs.touPeak}{' '}
+                  × 계절가중(봄가을5·여름3·겨울4)
+                </td>
+              </tr>
+              <tr>
+                <td className="col-name">(B) kWh당 기본요금 환산</td>
+                <td>{formatNumber(sel.baseKwh)} 원/kWh</td>
+                <td className="cell--muted">
+                  계약전력 {formatNumber(r.contractKw)}kW × {formatNumber(sel.baseUnit)}
+                  원 ÷ {formatNumber(inputs.monthlyKwh)}kWh
+                </td>
+              </tr>
+              <tr className="row--sub">
+                <td className="col-name">소계 (A)+(B)</td>
+                <td>{formatNumber(subtotalAB)} 원/kWh</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td className="col-name">+ 기후환경요금</td>
+                <td>+{formatNumber(inputs.climate)} 원/kWh</td>
+                <td className="cell--muted">고시값</td>
+              </tr>
+              <tr>
+                <td className="col-name">+ 연료비조정액</td>
+                <td>+{formatNumber(inputs.fuel)} 원/kWh</td>
+                <td className="cell--muted">분기별 조정 (상한 ±5)</td>
+              </tr>
+              <tr className="row--sub">
+                <td className="col-name">소계 (부가세·기금 전)</td>
+                <td>{formatNumber(preTax)} 원/kWh</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td className="col-name">× 부가세·기금</td>
+                <td>× {taxMult.toFixed(3)}</td>
+                <td className="cell--muted">
+                  부가세 {(inputs.vatRate * 100).toFixed(0)}% + 기금{' '}
+                  {(inputs.fundRate * 100).toFixed(1)}%
+                </td>
+              </tr>
+              <tr className="row--total">
+                <td className="col-name">★ 실효 전기원가 (Lv1)</td>
+                <td className="cell--strong">{formatNumber(sel.effCost)} 원/kWh</td>
+                <td className="cell--muted">
+                  운영손익분기 {formatNumber(sel.breakeven)} 원/kWh (+운영비)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* 요금 구조 요약 */}
       <div className="subsection">
-        <h3 className="subsection__title">③ 요금 구조 (선택: {r.selected.name})</h3>
+        <h3 className="subsection__title">④ 요금 구조 (선택: {r.selected.name})</h3>
         <div className="overview">
           <div className="stat">
             <span className="stat__value">{formatNumber(r.selected.effCost)}</span>
