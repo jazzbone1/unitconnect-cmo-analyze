@@ -565,16 +565,56 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                 </tbody>
               </table>
             </div>
-            <p className="table-note">
-              <b>계약전력 가이드</b> (참고): 부하율 {(br.loadFactor * 100).toFixed(1)}% ·
-              고지서 계약전력 {formatNumber(bill.contractKw)}kW · 실측 부하율 18% 기준
-              적정 계약전력 ≈ <b>{formatNumber(br.properContractKw)}kW</b>.{' '}
-              {bill.contractKw > br.properContractKw * 1.15
-                ? '→ 계약전력이 추정 피크 대비 여유가 큼(기본요금 절감 여지). 단, 아래 초과 리스크 유의.'
-                : bill.contractKw < br.properContractKw * 0.85
-                  ? '→ 계약전력이 추정 피크보다 낮음. 계약초과(위약) 위험 점검 필요.'
-                  : '→ 계약전력이 추정 피크에 부합.'}
-            </p>
+            <div className="bill-guide">
+              <div className="bill-guide__title">📐 계약전력 가이드 (참고)</div>
+              <div className="overview">
+                <div className="stat">
+                  <span className={`stat__value ${br.loadFactor < 0.1 ? 'cell--down' : ''}`}>
+                    {(br.loadFactor * 100).toFixed(1)}%
+                  </span>
+                  <span className="stat__label">현재 부하율</span>
+                </div>
+                <div className="stat">
+                  <span className="stat__value">{formatNumber(bill.contractKw)} kW</span>
+                  <span className="stat__label">고지서 계약전력</span>
+                </div>
+                <div className="stat">
+                  <span className="stat__value cell--strong">
+                    {formatNumber(br.properContractKw)} kW
+                  </span>
+                  <span className="stat__label">적정 계약전력(부하율 18%)</span>
+                </div>
+                <div className="stat">
+                  <span
+                    className={`stat__value ${
+                      bill.contractKw > br.properContractKw * 1.15
+                        ? 'cell--down'
+                        : bill.contractKw < br.properContractKw * 0.85
+                          ? 'cell--down'
+                          : 'cell--up'
+                    }`}
+                  >
+                    {bill.contractKw > br.properContractKw * 1.15
+                      ? '여유 큼'
+                      : bill.contractKw < br.properContractKw * 0.85
+                        ? '부족'
+                        : '적정'}
+                  </span>
+                  <span className="stat__label">판정</span>
+                </div>
+              </div>
+              <p className="table-note">
+                실측 부하율 18% 기준 적정 계약전력 ≈{' '}
+                <b>{formatNumber(br.properContractKw)}kW</b>.{' '}
+                {bill.contractKw > br.properContractKw * 1.15
+                  ? '계약전력이 추정 피크 대비 여유가 큼 → 기본요금 절감 여지(단, 계약전력 초과 리스크 유의).'
+                  : bill.contractKw < br.properContractKw * 0.85
+                    ? '계약전력이 추정 피크보다 낮음 → 계약초과(위약금·기본요금 상승) 위험 점검 필요.'
+                    : '계약전력이 추정 피크에 부합합니다.'}{' '}
+                이 가이드는 <b>이 고지서(계약) 부분에만</b> 해당하며 다른 분석에
+                반영되지 않습니다.
+              </p>
+            </div>
           </>
         ) : (
           <p className="table-note">사용량을 입력하면 실효원가와 계약전력 가이드가 표시됩니다.</p>

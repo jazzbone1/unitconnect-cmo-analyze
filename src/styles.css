@@ -955,6 +955,18 @@ body {
   background: var(--accent-soft);
   color: var(--accent);
 }
+.bill-guide {
+  margin-top: 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+}
+.bill-guide__title {
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+  color: var(--accent);
+}
 .var-field__input.ok {
   color: #16a34a;
 }
