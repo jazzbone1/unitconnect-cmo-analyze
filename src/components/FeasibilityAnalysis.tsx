@@ -215,6 +215,7 @@ export default function FeasibilityAnalysis({
                   <th>종류</th>
                   <th>대수(자동)</th>
                   <th>이용률(%)</th>
+                  <th>7kW 환산</th>
                   <th>UC 기준 이용률</th>
                   <th>종류별 요금(원/kWh)</th>
                 </tr>
@@ -236,6 +237,9 @@ export default function FeasibilityAnalysis({
                         }
                       />
                     </td>
+                    <td className="std-cell" title="이용률 × (정격 ÷ 7)">
+                      {((inputs[row.utilKey] as number) * (row.kw / 7) * 100).toFixed(2)}%
+                    </td>
                     <td className="std-cell">
                       {((STD[row.utilKey as keyof typeof STD] as number) * 100).toFixed(2)}%
                     </td>
@@ -256,7 +260,7 @@ export default function FeasibilityAnalysis({
                 <tr>
                   <td className="col-name">합계</td>
                   <td>{r.totalUnits.toLocaleString()}대</td>
-                  <td colSpan={3} />
+                  <td colSpan={4} />
                 </tr>
               </tbody>
             </table>
@@ -281,6 +285,15 @@ export default function FeasibilityAnalysis({
             <Field label="6년차" unit="%" step={0.1} value={+(((inputs.yearUtil6 ?? 0.12) * 100).toFixed(4))} onChange={(v) => set({ yearUtil6: v / 100 })} standard={`${((STD.yearUtil6 ?? 0.12) * 100).toFixed(0)}%`} />
             <Field label="7년차" unit="%" step={0.1} value={+(((inputs.yearUtil7 ?? 0.13) * 100).toFixed(4))} onChange={(v) => set({ yearUtil7: v / 100 })} standard={`${((STD.yearUtil7 ?? 0.13) * 100).toFixed(0)}%`} />
           </div>
+          <p className="var-hint">
+            연차 값은 <b>7kW 환산 이용률</b>입니다(=7kW 충전기 1대의 이용률).{' '}
+            <b>성장 기준(1년차) = 완속 7kW 이용률{' '}
+            {(inputs.utilSlow7 * 100).toFixed(1)}%</b>. 연차 이용률에서 이 값을 뺀{' '}
+            <b>증가분(%p)</b>이 <b>모든 충전기에 대당 균등하게 7kW 환산으로</b>{' '}
+            반영됩니다(대당 증가 에너지 = 5,040kWh × 증가%p). 예: 2년차{' '}
+            {(inputs.yearUtil2 * 100).toFixed(1)}% → 증가분{' '}
+            {((inputs.yearUtil2 - inputs.utilSlow7) * 100).toFixed(1)}%p.
+          </p>
         </div>
 
         <div className="subsection">
