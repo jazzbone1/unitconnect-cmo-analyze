@@ -242,11 +242,23 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               {formatNumber(inputs.installedKw ?? inputs.contractKw)} kW
             </span>
           </label>
-          <NumField label="계약전력 비율(수용률)" step={0.05} value={inputs.contractRatio ?? 1} onChange={(v) => set({ contractRatio: v })} />
-          <label className="var-field">
-            <span className="var-field__label">계약전력(자동)</span>
-            <span className="var-field__input">{formatNumber(r.contractKw)} kW</span>
-          </label>
+          <NumField
+            label="계약전력 비율(수용률)"
+            step={0.05}
+            value={+(inputs.contractRatio ?? 1).toFixed(4)}
+            onChange={(v) => set({ contractRatio: v })}
+          />
+          <NumField
+            label="계약전력(직접입력)"
+            unit="kW"
+            value={+r.contractKw.toFixed(1)}
+            onChange={(v) =>
+              set({
+                contractRatio:
+                  installedKwMain > 0 ? v / installedKwMain : inputs.contractRatio ?? 1,
+              })
+            }
+          />
           <NumField label="월 총 충전량" unit="kWh/월" value={inputs.monthlyKwh} onChange={(v) => set({ monthlyKwh: v })} />
         </div>
         <div className="var-row">
