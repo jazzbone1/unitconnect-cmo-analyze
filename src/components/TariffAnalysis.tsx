@@ -86,16 +86,17 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const peakCapKw = installedKwMain * demandF
   const properCapKw = peakCapKw * (1 + margin)
   const properCapRatio = installedKwMain > 0 ? properCapKw / installedKwMain : 0
+  // 고지서 실측 입력 (독립 계산)
+  const bill = inputs.bill ?? defaultBill()
+  const br = computeBill(bill)
   // ③ 고지서 실측(부하율·수용률) 기반 전체 설비 예측
-  const b = inputs.bill
   const measuredDemand =
-    b && (b.installedKw ?? 0) > 0 && b.contractKw > 0
-      ? b.contractKw / (b.installedKw as number)
+    (bill.installedKw ?? 0) > 0 && bill.contractKw > 0
+      ? bill.contractKw / (bill.installedKw as number)
       : null
+  // 실측 부하율 = 요금적용전력(기본요금÷단가) 기준 (br에서 계산)
   const measuredLoad =
-    b && b.contractKw > 0 && b.usageKwh > 0
-      ? b.usageKwh / (b.contractKw * HOURS_PER_MONTH)
-      : null
+    bill.usageKwh > 0 && br.appliedKw > 0 ? br.loadFactor : null
   // 실측 부하율을 전체 월충전량에 적용 → 추정 최대수요전력 (부하율 반영)
   const predictedPeakByLoad =
     measuredLoad != null && measuredLoad > 0 && inputs.monthlyKwh > 0
@@ -127,9 +128,6 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const summerR = seasonRate('summer')
   const winterR = seasonRate('winter')
 
-  // 고지서 실측 입력 (독립 계산, 자동반영 안 함)
-  const bill = inputs.bill ?? defaultBill()
-  const br = computeBill(bill)
   const setBill = (patch: Partial<BillInputs>) =>
     set({ bill: { ...bill, ...patch } })
   const billLoaded = bill.usageKwh > 0
@@ -187,7 +185,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               <ul className="guide-rail__list">
                 <li>실효원가 <b>{formatNumber(br.effInclVat)} 원</b></li>
                 <li>부하율 <b>{(br.loadFactor * 100).toFixed(1)}%</b></li>
-                <li>적정 계약전력 <b>{formatNumber(br.properContractKw)} kW</b></li>
+                <li>요금적용전력 <b>{formatNumber(br.appliedKw)} kW</b></li>
                 {br.demandFactor != null && (
                   <li>
                     수용률 <b>{(br.demandFactor * 100).toFixed(0)}%</b> · 초과{' '}
@@ -693,6 +691,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
             <NumField label="원단위절사" unit="원" value={bill.round} onChange={(v) => setBill({ round: v })} />
             <NumField label="사용량" unit="kWh" value={bill.usageKwh} onChange={(v) => setBill({ usageKwh: v })} />
             <NumField label="계약전력(고지서)" unit="kW" value={bill.contractKw} onChange={(v) => setBill({ contractKw: v })} />
+            <NumField label="기본요금 단가" unit="원/kW" value={bill.baseUnit ?? 2580} onChange={(v) => setBill({ baseUnit: v })} />
             <NumField label="설비용량(이 계약)" unit="kW·선택" value={bill.installedKw ?? 0} onChange={(v) => setBill({ installedKw: v })} />
           </div>
         </div>
@@ -754,9 +753,9 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                 </div>
                 <div className="stat">
                   <span className="stat__value cell--strong">
-                    {formatNumber(br.properContractKw)} kW
+                    {formatNumber(br.appliedKw)} kW
                   </span>
-                  <span className="stat__label">적정 계약전력(부하율 18%)</span>
+                  <span className="stat__label">요금적용전력(기본요금÷단가)</span>
                 </div>
                 <div className="stat">
                   <span
@@ -774,7 +773,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                         ? '부족'
                         : '적정'}
                   </span>
-                  <span className="stat__label">판정(사용량 기준)</span>
+                  <span className="stat__label">판정(요금적용전력 기준)</span>
                 </div>
                 {br.demandFactor != null && (
                   <>
@@ -802,13 +801,15 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                 )}
               </div>
               <p className="table-note">
-                실측 부하율 18% 기준 적정 계약전력 ≈{' '}
-                <b>{formatNumber(br.properContractKw)}kW</b>.{' '}
-                {bill.contractKw > br.properContractKw * 1.15
-                  ? '계약전력이 추정 피크 대비 여유가 큼 → 기본요금 절감 여지(단, 계약전력 초과 리스크 유의).'
-                  : bill.contractKw < br.properContractKw * 0.85
-                    ? '계약전력이 추정 피크보다 낮음 → 계약초과(위약금·기본요금 상승) 위험 점검 필요.'
-                    : '계약전력이 추정 피크에 부합합니다.'}{' '}
+                <b>요금적용전력 = 기본요금 {formatNumber(bill.basic)}원 ÷ 기본단가{' '}
+                {formatNumber(bill.baseUnit ?? 2580)}원 = {formatNumber(br.appliedKw)}kW</b>{' '}
+                (기본요금이 실제 부과된 전력). 부하율 = 사용량 ÷ (요금적용전력 × 720)
+                = <b>{(br.loadFactor * 100).toFixed(1)}%</b>.{' '}
+                {bill.contractKw > br.appliedKw * 1.15
+                  ? '계약전력이 요금적용전력보다 큼 → 계약전력 여유(초과 위험 낮음).'
+                  : bill.contractKw < br.appliedKw * 0.85
+                    ? '계약전력이 요금적용전력보다 낮음 → 계약초과(위약금) 위험 점검 필요.'
+                    : '계약전력이 요금적용전력에 부합합니다.'}{' '}
                 {br.demandFactor != null && (
                   <>
                     설비용량 {formatNumber(bill.installedKw ?? 0)}kW 대비 수용률{' '}

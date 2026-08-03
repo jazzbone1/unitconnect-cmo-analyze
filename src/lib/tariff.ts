@@ -260,6 +260,8 @@ export interface BillInputs {
   contractKw: number // 계약전력 (고지서 표기, kW)
   /** 이 계약에 해당하는 충전기 설비용량 (kW) — 선택 입력 */
   installedKw?: number
+  /** 기본요금 단가 (원/kW) — 요금적용전력 역산용, 기본 2580 */
+  baseUnit?: number
 }
 
 export interface BillResult {
@@ -267,8 +269,10 @@ export interface BillResult {
   total: number // 당월요금계 (전부 포함)
   effExclVat: number // 실효원가 (VAT·기금 제외) 원/kWh
   effInclVat: number // 실효원가 (전부 포함) 원/kWh
-  loadFactor: number // 부하율
-  properContractKw: number // 참고 적정 계약전력 (기준 부하율 18%)
+  loadFactor: number // 부하율 (요금적용전력 기준)
+  /** 요금적용전력(최대수요전력) = 기본요금 ÷ 기본단가 */
+  appliedKw: number
+  properContractKw: number // 적정 계약전력 기준(=요금적용전력)
   /** 수용률 = 계약전력 ÷ 설비용량 (설비용량 입력 시) */
   demandFactor: number | null
   /** 계약초과 리스크: 없음/낮음/있음/미상 */
@@ -287,19 +291,25 @@ export function computeBill(b: BillInputs): BillResult {
   const total = supply + b.vat + b.fund + b.round
   const q = b.usageKwh
   const per = (x: number) => (q > 0 ? x / q : 0)
-  const properContractKw = q > 0 ? q / (0.18 * HOURS_PER_MONTH) : 0
+  // 요금적용전력(최대수요전력) = 기본요금 ÷ 기본단가
+  const baseUnit = b.baseUnit && b.baseUnit > 0 ? b.baseUnit : 2580
+  const appliedKw = b.basic > 0 ? b.basic / baseUnit : 0
+  // 부하율은 요금적용전력 기준(없으면 계약전력 기준)
+  const lfDenomKw = appliedKw > 0 ? appliedKw : b.contractKw
+  const lf = lfDenomKw > 0 && q > 0 ? q / (lfDenomKw * HOURS_PER_MONTH) : 0
+  const properContractKw = appliedKw
   const installed = b.installedKw ?? 0
   const demandFactor =
     installed > 0 && b.contractKw > 0 ? b.contractKw / installed : null
 
   // 계약초과 리스크: 이론 최대 피크 ≤ 설비용량
   //  - 계약전력 ≥ 설비용량 → 초과 불가(없음)
-  //  - 계약전력 ≥ 추정 피크(사용량 기반) → 낮음
+  //  - 계약전력 ≥ 요금적용전력(최대수요전력) → 낮음
   //  - 그 외 → 있음
   let overRisk: BillResult['overRisk'] = '미상'
   if (installed > 0 && b.contractKw > 0) {
     if (b.contractKw >= installed) overRisk = '없음'
-    else if (b.contractKw >= properContractKw) overRisk = '낮음'
+    else if (b.contractKw >= appliedKw) overRisk = '낮음'
     else overRisk = '있음'
   }
 
@@ -308,7 +318,8 @@ export function computeBill(b: BillInputs): BillResult {
     total,
     effExclVat: per(supply),
     effInclVat: per(total),
-    loadFactor: loadFactor(b.contractKw, q),
+    loadFactor: lf,
+    appliedKw,
     properContractKw,
     demandFactor,
     overRisk,
@@ -334,5 +345,6 @@ export function defaultBill(): BillInputs {
     round: 0,
     usageKwh: 0,
     contractKw: 0,
+    baseUnit: 2580,
   }
 }
