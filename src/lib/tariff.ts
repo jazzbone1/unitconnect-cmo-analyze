@@ -221,7 +221,7 @@ export function defaultTariff(): TariffInputs {
     currentRate: 249,
     opexPerKwh: 0,
     manualPlan: null,
-    targetLoadFactor: 0.2,
+    targetLoadFactor: 0.18, // EV 아파트 충전 실측 대역(15~20%) 기준값
   }
 }
 

@@ -176,8 +176,8 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               </span>
             </label>
             <NumField
-              label="목표 부하율"
-              unit="(예 0.20)"
+              label="기준 부하율(EV 실측)"
+              unit="0.15~0.20"
               step={0.01}
               value={targetLF}
               onChange={(v) => set({ targetLoadFactor: v })}
@@ -199,19 +199,35 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
           </div>
         </div>
         <p className="table-note">
-          <b>부하율 = 월 충전량 ÷ (계약전력 × 720h)</b>. 기본요금은 계약전력에
-          비례하는 고정비라, 부하율이 낮으면 kWh당 기본요금이 커집니다.{' '}
-          <b>적정 계약전력 = 월 충전량 ÷ (목표 부하율 × 720)</b> = {formatNumber(inputs.monthlyKwh)} ÷
-          ({targetLF} × 720) = <b>{formatNumber(properKw)} kW</b>.{' '}
-          {verdict === '과대' && (
+          <b>부하율 = 월 충전량 ÷ (계약전력 × 720h)</b> = 평균부하 ÷ 최대부하.
+          부하율은 <b>사용 패턴이 정하는 결과값</b>이지 임의로 높이는 목표가
+          아닙니다. 적정 계약전력은 <b>실제 최대수요전력</b>에 맞춰야 하며, 이를
+          추정할 때 EV 아파트 충전 <b>실측 부하율(대략 15~20%)</b>를 씁니다.{' '}
+          <b>적정 계약전력 = 월 충전량 ÷ (기준 부하율 × 720)</b> ={' '}
+          {formatNumber(inputs.monthlyKwh)} ÷ ({targetLF} × 720) ={' '}
+          <b>{formatNumber(properKw)} kW</b>.
+          {targetLF > 0.4 && (
             <>
-              현재 계약전력이 적정보다 <b>{formatNumber(r.contractKw - properKw)} kW 큼</b> →
-              기본요금 <b>월 약 {formatNumber(Math.round(baseSaving))}원</b> 낭비.
-              계약전력을 적정 수준으로 낮추면 실효원가가 내려갑니다.
+              {' '}
+              <span className="warn">
+                ⚠ 기준 부하율 {(targetLF * 100).toFixed(0)}%는 EV 충전에서
+                비현실적으로 높습니다(부하가 24시간 평탄하다는 가정). 실측
+                15~20%를 권장합니다.
+              </span>
             </>
           )}
-          {verdict === '적정' && '현재 계약전력이 목표 부하율에 부합합니다.'}
-          {verdict === '과소' && '계약전력이 목표 대비 낮음 → 초과수요(계약초과) 위험. 실측 피크 확인 필요.'}
+          {verdict === '과대' && (
+            <>
+              {' '}
+              → 현재 계약전력이 적정보다{' '}
+              <b>{formatNumber(r.contractKw - properKw)} kW 큼</b>. 기본요금 월 약{' '}
+              <b>{formatNumber(Math.round(baseSaving))}원</b> 절감 여지(계약전력을
+              실측 최대수요전력으로 낮출 경우).
+            </>
+          )}
+          {verdict === '적정' && ' → 현재 계약전력이 추정 최대수요전력에 부합합니다.'}
+          {verdict === '과소' &&
+            ' → 계약전력이 추정 피크보다 낮음. 계약초과(위약) 위험이 있으니 실측 피크를 확인하세요.'}
         </p>
       </div>
 
