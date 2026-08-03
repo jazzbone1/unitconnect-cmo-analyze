@@ -341,6 +341,53 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.target-box--calc {
+  border-style: dashed;
+  background: var(--surface);
+  margin-top: 0.75rem;
+}
+.target-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+.target-input > span:first-child {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.target-input__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.target-input__field input {
+  width: 6.5rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.target-input__field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.target-input__field em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.hint--tight {
+  margin: 0.25rem 0 0;
+}
+
 .scenario-line {
   font-size: 0.95rem;
   margin: 0.25rem 0 0;

@@ -200,6 +200,8 @@ export interface FeasibilityResult {
   verdict: '진행가능' | '진행불가' | '-'
   /** 영업이익률=목표 달성 충전단가 (VAT포함), 달성불가 시 null */
   targetRate: number | null
+  /** 고정비 합계(전기·운영·영업·capex, 부호 양수) — 임의 목표이익률 역산용 */
+  fixedCosts: number
   // ③ 영업비 차감 → 충전단가 인하
   savings: number // 영업비 절감액 (총)
   priceCutMargin: number | null // 영업이익률 유지 기준 인하폭
@@ -369,6 +371,7 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     targetMargin,
     verdict,
     targetRate,
+    fixedCosts,
     savings,
     priceCutMargin,
     rateAfterMargin,

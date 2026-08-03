@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { SettlementConfig } from '../lib/settlement'
 import {
   computeFeasibility,
@@ -78,6 +79,18 @@ export default function FeasibilityAnalysis({
     countSlow3: countOf(3),
   }
   const r = computeFeasibility(eff)
+
+  // 목표 영업이익률 직접입력 → 목표달성 충전단가 자동계산
+  // 최초값은 UC 기준 목표이익률(r.targetMargin, %)로 시작
+  const [customMarginPct, setCustomMarginPct] = useState<string>('')
+  const customMargin =
+    customMarginPct.trim() === ''
+      ? r.targetMargin
+      : (parseFloat(customMarginPct) || 0) / 100
+  const customTargetRate = (() => {
+    const denom = 12 * r.sumW * (1 - PG_RATE - customMargin)
+    return denom <= 0 ? null : (r.fixedCosts / denom) * 1.1
+  })()
 
   const chargerRows: {
     kw: number
@@ -593,6 +606,39 @@ export default function FeasibilityAnalysis({
                 : `${formatNumber(Math.round(r.targetRate))} 원/kWh`}
             </b>
           </div>
+        </div>
+
+        {/* 영업이익률 직접입력 → 목표달성 충전단가 자동계산 */}
+        <div className="target-box target-box--calc">
+          <div className="target-row">
+            <label className="target-input">
+              <span>영업이익률 직접입력</span>
+              <span className="target-input__field">
+                <input
+                  type="number"
+                  step="0.1"
+                  inputMode="decimal"
+                  value={customMarginPct}
+                  placeholder={(r.targetMargin * 100).toFixed(2)}
+                  onChange={(e) => setCustomMarginPct(e.target.value)}
+                />
+                <em>%</em>
+              </span>
+            </label>
+          </div>
+          <div className="target-row">
+            <span>목표 달성 충전 단가</span>
+            <b>
+              {customTargetRate == null
+                ? '달성불가'
+                : `${formatNumber(Math.round(customTargetRate))} 원/kWh`}
+            </b>
+          </div>
+          <p className="hint hint--tight">
+            입력 없으면 UC 기준 목표이익률(
+            {(r.targetMargin * 100).toFixed(2)}%)로 계산됩니다. 단가 = 고정비 ÷
+            {'{'}12·연사용량·(1−PG−목표이익률){'}'} × 1.1(VAT).
+          </p>
         </div>
       </div>
 
