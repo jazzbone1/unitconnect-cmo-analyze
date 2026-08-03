@@ -86,6 +86,19 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const peakCapKw = installedKwMain * demandF
   const properCapKw = peakCapKw * (1 + margin)
   const properCapRatio = installedKwMain > 0 ? properCapKw / installedKwMain : 0
+  // ③ 고지서 실측(부하율·수용률) 기반 전체 설비 예측
+  const b = inputs.bill
+  const measuredDemand =
+    b && (b.installedKw ?? 0) > 0 && b.contractKw > 0
+      ? b.contractKw / (b.installedKw as number)
+      : null
+  const measuredLoad =
+    b && b.contractKw > 0 && b.usageKwh > 0
+      ? b.usageKwh / (b.contractKw * HOURS_PER_MONTH)
+      : null
+  // 전체 설비에 실측 수용률 적용 → 예측 계약전력
+  const predictedKw =
+    measuredDemand != null ? installedKwMain * measuredDemand : null
 
   // 계절별 가중단가 (선택 요금제 기준)
   const selPlan = TARIFF_PLANS[r.selectedIdx]
@@ -335,15 +348,35 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                 <td className="cell--strong">{formatNumber(properCapKw)} kW</td>
                 <td>{(properCapRatio * 100).toFixed(0)}%</td>
               </tr>
+              {predictedKw != null && measuredDemand != null && (
+                <tr>
+                  <td className="col-name">
+                    ③ 고지서 실측 기반 (수용률 {(measuredDemand * 100).toFixed(0)}%
+                    {measuredLoad != null && `, 부하율 ${(measuredLoad * 100).toFixed(1)}%`})
+                  </td>
+                  <td>{formatNumber(predictedKw)} kW</td>
+                  <td className="cell--strong">{formatNumber(predictedKw)} kW</td>
+                  <td>{(measuredDemand * 100).toFixed(0)}%</td>
+                </tr>
+              )}
               <tr className="row--total">
-                <td className="col-name">권장(보수적 = 큰 값)</td>
+                <td className="col-name">
+                  권장 {predictedKw != null ? '(③ 실측 우선)' : '(보수적 = 큰 값)'}
+                </td>
                 <td>—</td>
                 <td className="cell--strong">
-                  {formatNumber(Math.max(properKw, properCapKw))} kW
+                  {formatNumber(
+                    predictedKw != null
+                      ? predictedKw
+                      : Math.max(properKw, properCapKw),
+                  )}{' '}
+                  kW
                 </td>
                 <td>
                   {(
-                    (Math.max(properKw, properCapKw) /
+                    ((predictedKw != null
+                      ? predictedKw
+                      : Math.max(properKw, properCapKw)) /
                       (installedKwMain || 1)) *
                     100
                   ).toFixed(0)}
@@ -359,7 +392,19 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
           설비용량({formatNumber(installedKwMain)}kW) × 예상 동시충전율 × (1+마진)
           — <b>잠재 최대(동시충전)</b> 기준. 계약전력은{' '}
           <b>보수적으로 둘 중 큰 값 이상</b>으로 두어야 초과 위험이 없습니다.
-          부하율은 계약전력 기준이며 임의 목표가 아닙니다.
+          {predictedKw != null ? (
+            <>
+              {' '}
+              <b>③ 고지서 실측 기반</b> = 전체 설비용량({formatNumber(installedKwMain)}kW)
+              × <b>실측 수용률 {(measuredDemand! * 100).toFixed(0)}%</b>(고지서
+              계약전력÷설비) = <b>{formatNumber(predictedKw)}kW</b>. 실측값이 있으면
+              가정치(①②)보다 <b>이 값을 우선</b> 권장합니다. 예측 전체 부하율은
+              실측과 동일한 <b>{(measuredLoad ?? 0) * 100 > 0 ? (measuredLoad! * 100).toFixed(1) : '—'}%</b>로
+              봅니다(동일 사용 패턴 가정).
+            </>
+          ) : (
+            ' ③ 고지서 실측 기반은 아래 ⑦ 고지서 패널에 계약전력·설비용량·사용량을 입력하면 자동 표시됩니다.'
+          )}
           {verdict === '과대' && (
             <>
               {' '}
