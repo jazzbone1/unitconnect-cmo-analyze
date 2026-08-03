@@ -69,14 +69,6 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
       : 0
   // 적정 계약전력 = 추정 피크 + 안전 마진
   const properKw = peakKw * (1 + margin)
-  // 판정: 추정 피크 미만이면 과소(초과위험), 적정±10% 벗어나 크면 과대
-  const verdict =
-    peakKw > 0 && r.contractKw < peakKw
-      ? '과소'
-      : properKw > 0 && r.contractKw > properKw * 1.1
-        ? '과대'
-        : '적정'
-  const baseSaving = Math.max(0, r.contractKw - properKw) * sel.baseUnit
   // 전체 설비용량 기준 계약전력 비율(수용률)
   const installedKwMain = inputs.installedKw ?? inputs.contractKw
   const currentRatio = installedKwMain > 0 ? r.contractKw / installedKwMain : 0
@@ -112,6 +104,23 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   // (참고) 수용률 기반 = 전체 설비 × 실측 수용률
   const capByDemand =
     measuredDemand != null ? installedKwMain * measuredDemand : null
+
+  // 권장 적정 계약전력: ③ 실측 우선, 없으면 ①②중 보수적(큰 값)
+  const recommendKw =
+    predictedContractKw != null
+      ? predictedContractKw
+      : Math.max(properKw, properCapKw)
+  const recommendBasis =
+    predictedContractKw != null ? '③ 실측' : '①② 보수적'
+  const recommendPeak = recommendKw / (1 + margin)
+  // 판정: 권장 피크 미만 → 과소(초과위험), 권장×1.1 초과 → 과대
+  const verdict =
+    recommendPeak > 0 && r.contractKw < recommendPeak
+      ? '과소'
+      : recommendKw > 0 && r.contractKw > recommendKw * 1.1
+        ? '과대'
+        : '적정'
+  const baseSaving = Math.max(0, r.contractKw - recommendKw) * sel.baseUnit
 
   // 계절별 가중단가 (선택 요금제 기준)
   const selPlan = TARIFF_PLANS[r.selectedIdx]
@@ -334,7 +343,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               </span>
             </label>
             <label className="var-field">
-              <span className="var-field__label">판정(실사용 기준)</span>
+              <span className="var-field__label">판정({recommendBasis} 기준)</span>
               <span className={`var-field__input ${verdict === '적정' ? 'ok' : 'warn'}`}>
                 계약전력 {verdict}
               </span>
@@ -436,16 +445,22 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
           ) : (
             ' ③ 고지서 실측 기반은 아래 ⑦ 고지서 패널에 계약전력·사용량을 입력하면 자동 표시됩니다.'
           )}
+          {' '}
+          <b>판정 기준</b>: 현재 계약전력({formatNumber(r.contractKw)}kW)을{' '}
+          <b>권장 적정 계약전력({formatNumber(recommendKw)}kW · {recommendBasis})</b>과
+          비교합니다. 권장 피크({formatNumber(recommendPeak)}kW) 미만이면 과소,
+          권장의 110%({formatNumber(recommendKw * 1.1)}kW) 초과면 과대입니다.
           {verdict === '과대' && (
             <>
               {' '}
-              현재 계약전력이 ① 적정보다{' '}
-              <b>{formatNumber(r.contractKw - properKw)} kW 큼</b> → 기본요금 월 약{' '}
+              현재 계약전력이 권장보다{' '}
+              <b>{formatNumber(r.contractKw - recommendKw)} kW 큼</b> → 기본요금 월 약{' '}
               <b>{formatNumber(Math.round(baseSaving))}원</b> 절감 여지.
             </>
           )}
           {verdict === '과소' &&
-            ' 현재 계약전력이 추정 피크보다 낮음 → 계약초과(위약) 위험 점검 필요.'}
+            ' 현재 계약전력이 권장 피크보다 낮음 → 계약초과(위약) 위험 점검 필요.'}
+          {verdict === '적정' && ' 현재 계약전력이 권장 범위에 부합합니다.'}
         </p>
       </div>
 
