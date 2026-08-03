@@ -99,6 +99,8 @@ export interface TariffInputs {
   manualPlan?: number | null
   /** 적정 계약전력 판정 기준 목표 부하율 (예: 0.20 = 20%) */
   targetLoadFactor?: number
+  /** 계약전력 안전 마진 (예: 0.15 = 추정 피크 +15%) */
+  contractMargin?: number
   /** 고지서 실측 입력 (참고용, 다른 계산에 자동반영 안 함) */
   bill?: BillInputs
 }
@@ -224,6 +226,7 @@ export function defaultTariff(): TariffInputs {
     opexPerKwh: 0,
     manualPlan: null,
     targetLoadFactor: 0.18, // EV 아파트 충전 실측 대역(15~20%) 기준값
+    contractMargin: 0.15, // 추정 최대수요전력 + 15% 여유
   }
 }
 

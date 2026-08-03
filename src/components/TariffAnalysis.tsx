@@ -61,13 +61,21 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   // 부하율 및 적정 계약전력 판정
   const lf = loadFactor(r.contractKw, inputs.monthlyKwh)
   const targetLF = inputs.targetLoadFactor ?? 0.2
-  const properKw =
+  const margin = inputs.contractMargin ?? 0.15
+  // 추정 최대수요전력 (부하율 기반)
+  const peakKw =
     targetLF > 0 && inputs.monthlyKwh > 0
       ? inputs.monthlyKwh / (targetLF * HOURS_PER_MONTH)
       : 0
-  const ratio = properKw > 0 ? r.contractKw / properKw : 0
+  // 적정 계약전력 = 추정 피크 + 안전 마진
+  const properKw = peakKw * (1 + margin)
+  // 판정: 추정 피크 미만이면 과소(초과위험), 적정±10% 벗어나 크면 과대
   const verdict =
-    ratio > 1.15 ? '과대' : ratio < 0.85 ? '과소' : '적정'
+    peakKw > 0 && r.contractKw < peakKw
+      ? '과소'
+      : properKw > 0 && r.contractKw > properKw * 1.1
+        ? '과대'
+        : '적정'
   const baseSaving = Math.max(0, r.contractKw - properKw) * sel.baseUnit
   // 전체 설비용량 기준 계약전력 비율(수용률)
   const installedKwMain = inputs.installedKw ?? inputs.contractKw
@@ -265,6 +273,13 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               value={targetLF}
               onChange={(v) => set({ targetLoadFactor: v })}
             />
+            <NumField
+              label="안전 마진"
+              unit="0.10~0.20"
+              step={0.05}
+              value={margin}
+              onChange={(v) => set({ contractMargin: v })}
+            />
             <label className="var-field">
               <span className="var-field__label">현재 계약전력(비율)</span>
               <span className="var-field__input">
@@ -272,7 +287,13 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               </span>
             </label>
             <label className="var-field">
-              <span className="var-field__label">적정 계약전력(비율)</span>
+              <span className="var-field__label">추정 최대수요전력</span>
+              <span className="var-field__input">{formatNumber(peakKw)} kW</span>
+            </label>
+            <label className="var-field">
+              <span className="var-field__label">
+                적정 계약전력(피크+{(margin * 100).toFixed(0)}%)
+              </span>
               <span className="var-field__input cell--strong">
                 {formatNumber(properKw)} kW ({(properRatio * 100).toFixed(0)}%)
               </span>
@@ -285,10 +306,13 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
             </label>
           </div>
           <p className="var-hint">
-            계약전력 비율(수용률)은 <b>전체 설비용량({formatNumber(installedKwMain)}kW) 기준</b>입니다.
-            적정 계약전력 비율 ≈ <b>{(properRatio * 100).toFixed(0)}%</b> → 상단
-            「계약전력 비율(수용률)」에 <b>{properRatio.toFixed(2)}</b> 정도를 넣으면
-            적정 계약전력에 맞습니다.
+            <b>적정 계약전력 = 추정 최대수요전력 × (1 + 안전 마진)</b> ={' '}
+            {formatNumber(peakKw)} × {(1 + margin).toFixed(2)} ={' '}
+            <b>{formatNumber(properKw)}kW</b>. 계약전력이 추정 피크
+            <b> 미만이면 과소(초과 위험)</b>, 적정보다 크게 넘으면 과대입니다.
+            계약전력 비율(수용률)은 전체 설비용량({formatNumber(installedKwMain)}kW)
+            기준이며, 적정 비율 ≈ <b>{(properRatio * 100).toFixed(0)}%</b>(=
+            {properRatio.toFixed(2)}).
           </p>
         </div>
         <p className="table-note">
