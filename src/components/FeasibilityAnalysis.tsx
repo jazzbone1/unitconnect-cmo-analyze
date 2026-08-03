@@ -286,13 +286,29 @@ export default function FeasibilityAnalysis({
             <Field label="7년차" unit="%" step={0.1} value={+(((inputs.yearUtil7 ?? 0.13) * 100).toFixed(4))} onChange={(v) => set({ yearUtil7: v / 100 })} standard={`${((STD.yearUtil7 ?? 0.13) * 100).toFixed(0)}%`} />
           </div>
           <p className="var-hint">
-            연차 값은 <b>7kW 환산 이용률</b>입니다(=7kW 충전기 1대의 이용률).{' '}
-            <b>성장 기준(1년차) = 완속 7kW 이용률{' '}
-            {(inputs.utilSlow7 * 100).toFixed(1)}%</b>. 연차 이용률에서 이 값을 뺀{' '}
-            <b>증가분(%p)</b>이 <b>모든 충전기에 대당 균등하게 7kW 환산으로</b>{' '}
-            반영됩니다(대당 증가 에너지 = 5,040kWh × 증가%p). 예: 2년차{' '}
-            {(inputs.yearUtil2 * 100).toFixed(1)}% → 증가분{' '}
-            {((inputs.yearUtil2 - inputs.utilSlow7) * 100).toFixed(1)}%p.
+            연차 값은 <b>완속 7kW 이용률</b> 기준입니다. 7kW의 성장{' '}
+            <b>비율</b>(= 연차 이용률 ÷ 7kW 이용률)이 <b>모든 충전기에 동일한
+            비율</b>로 반영됩니다. 예: 7kW{' '}
+            {(inputs.utilSlow7 * 100).toFixed(1)}% → 2년차{' '}
+            {(inputs.yearUtil2 * 100).toFixed(1)}% 이면 성장비율{' '}
+            <b>
+              ×
+              {inputs.utilSlow7 > 0
+                ? (inputs.yearUtil2 / inputs.utilSlow7).toFixed(3)
+                : '—'}
+            </b>{' '}
+            → 3kW {(inputs.utilSlow3 * 100).toFixed(2)}% →{' '}
+            <b>
+              {inputs.utilSlow7 > 0
+                ? (
+                    inputs.utilSlow3 *
+                    (inputs.yearUtil2 / inputs.utilSlow7) *
+                    100
+                  ).toFixed(2)
+                : '—'}
+              %
+            </b>{' '}
+            (모든 종류 동일 비율 성장).
           </p>
         </div>
 

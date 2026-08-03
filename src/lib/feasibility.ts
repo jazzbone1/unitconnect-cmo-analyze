@@ -274,9 +274,12 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     } else if (y === 1) {
       yearlyW.push(base)
     } else {
-      // 2~7년차: 7kW 환산 이용률 성장분 반영
+      // 2~7년차: 완속 7kW 이용률의 성장 '비율'을 전 종류에 동일하게 반영
+      //   성장비율 = 연차 이용률 ÷ 7kW 이용률
+      //   연차 에너지 = 1년차 base × 성장비율 (각 종류 이용률이 같은 비율로 증가)
       const yu = yearUtil[y - 2]
-      yearlyW.push(base + MAX_MONTHLY.slow7 * (yu - inp.utilSlow7) * total)
+      const growthRatio = inp.utilSlow7 > 0 ? yu / inp.utilSlow7 : 1
+      yearlyW.push(base * growthRatio)
     }
   }
   const sumW = yearlyW.reduce((a, w) => a + w, 0)
