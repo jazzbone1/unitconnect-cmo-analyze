@@ -96,9 +96,14 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
     b && b.contractKw > 0 && b.usageKwh > 0
       ? b.usageKwh / (b.contractKw * HOURS_PER_MONTH)
       : null
-  // 전체 설비에 실측 수용률 적용 → 예측 계약전력
+  // 전체 설비에 실측 수용률 적용 → 예측 계약전력 (수용률 반영)
   const predictedKw =
     measuredDemand != null ? installedKwMain * measuredDemand : null
+  // 실측 부하율을 전체 월충전량에 적용 → 추정 최대수요전력 (부하율 반영)
+  const predictedPeakByLoad =
+    measuredLoad != null && measuredLoad > 0 && inputs.monthlyKwh > 0
+      ? inputs.monthlyKwh / (measuredLoad * HOURS_PER_MONTH)
+      : null
 
   // 계절별 가중단가 (선택 요금제 기준)
   const selPlan = TARIFF_PLANS[r.selectedIdx]
@@ -354,7 +359,11 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                     ③ 고지서 실측 기반 (수용률 {(measuredDemand * 100).toFixed(0)}%
                     {measuredLoad != null && `, 부하율 ${(measuredLoad * 100).toFixed(1)}%`})
                   </td>
-                  <td>{formatNumber(predictedKw)} kW</td>
+                  <td>
+                    {predictedPeakByLoad != null
+                      ? `${formatNumber(predictedPeakByLoad)} kW`
+                      : '—'}
+                  </td>
                   <td className="cell--strong">{formatNumber(predictedKw)} kW</td>
                   <td>{(measuredDemand * 100).toFixed(0)}%</td>
                 </tr>
@@ -395,12 +404,25 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
           {predictedKw != null ? (
             <>
               {' '}
-              <b>③ 고지서 실측 기반</b> = 전체 설비용량({formatNumber(installedKwMain)}kW)
-              × <b>실측 수용률 {(measuredDemand! * 100).toFixed(0)}%</b>(고지서
-              계약전력÷설비) = <b>{formatNumber(predictedKw)}kW</b>. 실측값이 있으면
-              가정치(①②)보다 <b>이 값을 우선</b> 권장합니다. 예측 전체 부하율은
-              실측과 동일한 <b>{(measuredLoad ?? 0) * 100 > 0 ? (measuredLoad! * 100).toFixed(1) : '—'}%</b>로
-              봅니다(동일 사용 패턴 가정).
+              <b>③ 고지서 실측 기반</b>: 추정 최대수요전력은 <b>실측 부하율
+              {measuredLoad != null ? ` ${(measuredLoad * 100).toFixed(1)}%` : ''}</b>를
+              전체 월충전량({formatNumber(inputs.monthlyKwh)}kWh)에 적용 ={' '}
+              <b>{predictedPeakByLoad != null ? formatNumber(predictedPeakByLoad) : '—'}kW</b>.
+              적정 계약전력은 <b>실측 수용률 {(measuredDemand! * 100).toFixed(0)}%</b>를
+              전체 설비용량({formatNumber(installedKwMain)}kW)에 적용 ={' '}
+              <b>{formatNumber(predictedKw)}kW</b>.
+              {predictedPeakByLoad != null &&
+                predictedKw > predictedPeakByLoad * 1.3 && (
+                  <>
+                    {' '}
+                    <span className="warn">
+                      두 값 차이가 큼 → 기준 고지서의 계약전력이 실사용 대비
+                      과대(오버계약)일 수 있습니다. 부하율 기반(에너지) 값에 더
+                      가깝게 잡는 것을 검토하세요.
+                    </span>
+                  </>
+                )}
+              {' '}실측값이 있으면 가정치(①②)보다 <b>③을 우선</b> 권장합니다.
             </>
           ) : (
             ' ③ 고지서 실측 기반은 아래 ⑦ 고지서 패널에 계약전력·설비용량·사용량을 입력하면 자동 표시됩니다.'
