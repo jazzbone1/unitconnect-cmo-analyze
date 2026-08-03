@@ -286,29 +286,92 @@ export default function FeasibilityAnalysis({
             <Field label="7년차" unit="%" step={0.1} value={+(((inputs.yearUtil7 ?? 0.13) * 100).toFixed(4))} onChange={(v) => set({ yearUtil7: v / 100 })} standard={`${((STD.yearUtil7 ?? 0.13) * 100).toFixed(0)}%`} />
           </div>
           <p className="var-hint">
-            연차 값은 <b>완속 7kW 이용률</b> 기준입니다. 7kW의 성장{' '}
-            <b>비율</b>(= 연차 이용률 ÷ 7kW 이용률)이 <b>모든 충전기에 동일한
-            비율</b>로 반영됩니다. 예: 7kW{' '}
+            연차 값은 <b>완속 7kW 이용률</b> 기준입니다. 7kW의 증가분(%p)을{' '}
+            <b>7kW 환산(×7÷정격)</b>해 각 종류에 반영합니다. 예: 7kW{' '}
             {(inputs.utilSlow7 * 100).toFixed(1)}% → 2년차{' '}
-            {(inputs.yearUtil2 * 100).toFixed(1)}% 이면 성장비율{' '}
+            {(inputs.yearUtil2 * 100).toFixed(1)}% 이면{' '}
+            <b>+{((inputs.yearUtil2 - inputs.utilSlow7) * 100).toFixed(1)}%p</b>{' '}
+            상승 → 3kW는 +
+            {((inputs.yearUtil2 - inputs.utilSlow7) * (7 / 3) * 100).toFixed(2)}%p
+            (= 증가분×7/3) → {(inputs.utilSlow3 * 100).toFixed(2)}% →{' '}
             <b>
-              ×
-              {inputs.utilSlow7 > 0
-                ? (inputs.yearUtil2 / inputs.utilSlow7).toFixed(3)
-                : '—'}
-            </b>{' '}
-            → 3kW {(inputs.utilSlow3 * 100).toFixed(2)}% →{' '}
-            <b>
-              {inputs.utilSlow7 > 0
-                ? (
-                    inputs.utilSlow3 *
-                    (inputs.yearUtil2 / inputs.utilSlow7) *
-                    100
-                  ).toFixed(2)
-                : '—'}
+              {(
+                (inputs.utilSlow3 +
+                  (inputs.yearUtil2 - inputs.utilSlow7) * (7 / 3)) *
+                100
+              ).toFixed(2)}
               %
-            </b>{' '}
-            (모든 종류 동일 비율 성장).
+            </b>
+            .
+          </p>
+          {/* 종류별·연차별 이용률 표 */}
+          <div className="table-scroll" style={{ marginTop: '0.75rem' }}>
+            <table className="data-table charger-table">
+              <thead>
+                <tr>
+                  <th>종류</th>
+                  {Array.from(
+                    { length: Math.max(1, Math.min(7, Math.round(inputs.years))) },
+                    (_, i) => (
+                      <th key={i}>{i + 1}년차</th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {chargerRows.map((row) => {
+                  const sevenByYear = [
+                    inputs.utilSlow7,
+                    inputs.yearUtil2,
+                    inputs.yearUtil3,
+                    inputs.yearUtil4,
+                    inputs.yearUtil5,
+                    inputs.yearUtil6 ?? 0.12,
+                    inputs.yearUtil7 ?? 0.13,
+                  ]
+                  return (
+                    <tr key={row.kw}>
+                      <td className="col-name">{row.label}</td>
+                      {Array.from(
+                        {
+                          length: Math.max(
+                            1,
+                            Math.min(7, Math.round(inputs.years)),
+                          ),
+                        },
+                        (_, yi) => {
+                          const u =
+                            (inputs[row.utilKey] as number) +
+                            (sevenByYear[yi] - inputs.utilSlow7) * (7 / row.kw)
+                          return <td key={yi}>{(u * 100).toFixed(2)}%</td>
+                        },
+                      )}
+                    </tr>
+                  )
+                })}
+                <tr className="row--total">
+                  <td className="col-name">전체 (7kW 환산)</td>
+                  {Array.from(
+                    { length: Math.max(1, Math.min(7, Math.round(inputs.years))) },
+                    (_, yi) => {
+                      const fleet =
+                        r.yearlyW[0] > 0
+                          ? r.overallUtil7kw * (r.yearlyW[yi] / r.yearlyW[0])
+                          : 0
+                      return (
+                        <td key={yi} className="cell--strong">
+                          {(fleet * 100).toFixed(2)}%
+                        </td>
+                      )
+                    },
+                  )}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="var-hint">
+            각 종류의 연차 이용률 = 1년차 이용률 + (연차 7kW − 1년차 7kW) × (7 ÷
+            정격). 계약년수({Math.round(inputs.years)}년)까지 표시합니다.
           </p>
         </div>
 
