@@ -252,6 +252,8 @@ export interface BillInputs {
   round: number // 원단위절사 (보통 음수)
   usageKwh: number // 사용량 (kWh)
   contractKw: number // 계약전력 (고지서 표기, kW)
+  /** 이 계약에 해당하는 충전기 설비용량 (kW) — 선택 입력 */
+  installedKw?: number
 }
 
 export interface BillResult {
@@ -261,6 +263,10 @@ export interface BillResult {
   effInclVat: number // 실효원가 (전부 포함) 원/kWh
   loadFactor: number // 부하율
   properContractKw: number // 참고 적정 계약전력 (기준 부하율 18%)
+  /** 수용률 = 계약전력 ÷ 설비용량 (설비용량 입력 시) */
+  demandFactor: number | null
+  /** 계약초과 리스크: 없음/낮음/있음/미상 */
+  overRisk: '없음' | '낮음' | '있음' | '미상'
   perKwh: {
     basic: number
     energy: number
@@ -275,13 +281,31 @@ export function computeBill(b: BillInputs): BillResult {
   const total = supply + b.vat + b.fund + b.round
   const q = b.usageKwh
   const per = (x: number) => (q > 0 ? x / q : 0)
+  const properContractKw = q > 0 ? q / (0.18 * HOURS_PER_MONTH) : 0
+  const installed = b.installedKw ?? 0
+  const demandFactor =
+    installed > 0 && b.contractKw > 0 ? b.contractKw / installed : null
+
+  // 계약초과 리스크: 이론 최대 피크 ≤ 설비용량
+  //  - 계약전력 ≥ 설비용량 → 초과 불가(없음)
+  //  - 계약전력 ≥ 추정 피크(사용량 기반) → 낮음
+  //  - 그 외 → 있음
+  let overRisk: BillResult['overRisk'] = '미상'
+  if (installed > 0 && b.contractKw > 0) {
+    if (b.contractKw >= installed) overRisk = '없음'
+    else if (b.contractKw >= properContractKw) overRisk = '낮음'
+    else overRisk = '있음'
+  }
+
   return {
     supply,
     total,
     effExclVat: per(supply),
     effInclVat: per(total),
     loadFactor: loadFactor(b.contractKw, q),
-    properContractKw: q > 0 ? q / (0.18 * HOURS_PER_MONTH) : 0,
+    properContractKw,
+    demandFactor,
+    overRisk,
     perKwh: {
       basic: per(b.basic),
       energy: per(b.energy),

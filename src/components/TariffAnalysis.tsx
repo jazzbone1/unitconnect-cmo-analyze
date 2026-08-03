@@ -114,8 +114,52 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
     }
   }
 
+  const touGuideReady = inputs.monthlyKwh > 0 && r.contractKw > 0
+
   return (
     <section className="card settlement">
+      {/* 우측 고정 가이드 — 필요한 값이 있을 때만 표기 */}
+      {(touGuideReady || billLoaded) && (
+        <aside className="guide-rail" aria-label="계약전력 가이드">
+          {touGuideReady && (
+            <div className="guide-rail__card">
+              <div className="guide-rail__title">📐 계약전력 가이드</div>
+              <ul className="guide-rail__list">
+                <li>
+                  부하율 <b className={lf < 0.1 ? 'cell--down' : ''}>{(lf * 100).toFixed(1)}%</b>
+                </li>
+                <li>현재 계약전력 <b>{formatNumber(r.contractKw)} kW</b></li>
+                <li>적정 계약전력 <b>{formatNumber(properKw)} kW</b></li>
+                <li>
+                  판정{' '}
+                  <b className={verdict === '적정' ? 'cell--up' : 'cell--down'}>
+                    계약전력 {verdict}
+                  </b>
+                </li>
+              </ul>
+            </div>
+          )}
+          {billLoaded && (
+            <div className="guide-rail__card">
+              <div className="guide-rail__title">🧾 고지서 실측</div>
+              <ul className="guide-rail__list">
+                <li>실효원가 <b>{formatNumber(br.effInclVat)} 원</b></li>
+                <li>부하율 <b>{(br.loadFactor * 100).toFixed(1)}%</b></li>
+                <li>적정 계약전력 <b>{formatNumber(br.properContractKw)} kW</b></li>
+                {br.demandFactor != null && (
+                  <li>
+                    수용률 <b>{(br.demandFactor * 100).toFixed(0)}%</b> · 초과{' '}
+                    <b className={br.overRisk === '있음' ? 'cell--down' : br.overRisk === '없음' ? 'cell--up' : ''}>
+                      {br.overRisk}
+                    </b>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </aside>
+      )}
+
       <div className="card__header">
         <div>
           <h2>요금 구조 분석 · 한전 고압 TOU</h2>
@@ -520,6 +564,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
             <NumField label="원단위절사" unit="원" value={bill.round} onChange={(v) => setBill({ round: v })} />
             <NumField label="사용량" unit="kWh" value={bill.usageKwh} onChange={(v) => setBill({ usageKwh: v })} />
             <NumField label="계약전력(고지서)" unit="kW" value={bill.contractKw} onChange={(v) => setBill({ contractKw: v })} />
+            <NumField label="설비용량(이 계약)" unit="kW·선택" value={bill.installedKw ?? 0} onChange={(v) => setBill({ installedKw: v })} />
           </div>
         </div>
 
@@ -600,8 +645,32 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                         ? '부족'
                         : '적정'}
                   </span>
-                  <span className="stat__label">판정</span>
+                  <span className="stat__label">판정(사용량 기준)</span>
                 </div>
+                {br.demandFactor != null && (
+                  <>
+                    <div className="stat">
+                      <span className="stat__value">
+                        {(br.demandFactor * 100).toFixed(0)}%
+                      </span>
+                      <span className="stat__label">수용률(계약÷설비)</span>
+                    </div>
+                    <div className="stat">
+                      <span
+                        className={`stat__value ${
+                          br.overRisk === '있음'
+                            ? 'cell--down'
+                            : br.overRisk === '없음'
+                              ? 'cell--up'
+                              : ''
+                        }`}
+                      >
+                        초과 {br.overRisk}
+                      </span>
+                      <span className="stat__label">계약초과 리스크</span>
+                    </div>
+                  </>
+                )}
               </div>
               <p className="table-note">
                 실측 부하율 18% 기준 적정 계약전력 ≈{' '}
@@ -611,6 +680,17 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                   : bill.contractKw < br.properContractKw * 0.85
                     ? '계약전력이 추정 피크보다 낮음 → 계약초과(위약금·기본요금 상승) 위험 점검 필요.'
                     : '계약전력이 추정 피크에 부합합니다.'}{' '}
+                {br.demandFactor != null && (
+                  <>
+                    설비용량 {formatNumber(bill.installedKw ?? 0)}kW 대비 수용률{' '}
+                    {(br.demandFactor * 100).toFixed(0)}%.{' '}
+                    {br.overRisk === '없음'
+                      ? '계약전력 ≥ 설비용량 → 전량 동시가동해도 초과 불가(안전, 단 기본요금 과다 가능).'
+                      : br.overRisk === '낮음'
+                        ? '계약전력이 추정 피크 이상 → 일상 초과 위험 낮음(단, 전량 동시 시 초과 가능).'
+                        : '계약전력이 추정 피크보다 낮음 → 계약초과(위약금·기본요금 상승) 위험 있음.'}{' '}
+                  </>
+                )}
                 이 가이드는 <b>이 고지서(계약) 부분에만</b> 해당하며 다른 분석에
                 반영되지 않습니다.
               </p>
