@@ -277,13 +277,27 @@ function ProjectDetail({
       {subtab === 'report' ? (
         <ReportView model={report} setModel={setReport} />
       ) : subtab === 'tariff' ? (
-        <TariffAnalysis inputs={tariff} setInputs={setTariff} />
+        <TariffAnalysis
+          inputs={{
+            ...tariff,
+            installedKw: config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
+          }}
+          setInputs={setTariff}
+        />
       ) : subtab === 'standby' ? (
         <StandbyAnalysis
           chargers={config.chargers}
           inputs={standby}
           setInputs={setStandby}
-          effCost={computeTariff(tariff).selected.effCost}
+          effCost={
+            computeTariff({
+              ...tariff,
+              installedKw: config.chargers.reduce(
+                (a, c) => a + c.kw * c.count,
+                0,
+              ),
+            }).selected.effCost
+          }
         />
       ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis inputs={feas} setInputs={setFeas} config={config} />
