@@ -101,6 +101,8 @@ export interface TariffInputs {
   targetLoadFactor?: number
   /** 계약전력 안전 마진 (예: 0.15 = 추정 피크 +15%) */
   contractMargin?: number
+  /** 설비 기반 추정용 예상 동시충전율 (예: 0.40 = 설비의 40% 동시가동) */
+  expectedDemandFactor?: number
   /** 고지서 실측 입력 (참고용, 다른 계산에 자동반영 안 함) */
   bill?: BillInputs
 }
@@ -227,6 +229,7 @@ export function defaultTariff(): TariffInputs {
     manualPlan: null,
     targetLoadFactor: 0.18, // EV 아파트 충전 실측 대역(15~20%) 기준값
     contractMargin: 0.15, // 추정 최대수요전력 + 15% 여유
+    expectedDemandFactor: 0.4, // 설비 기반 추정용 예상 동시충전율
   }
 }
 

@@ -81,6 +81,11 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const installedKwMain = inputs.installedKw ?? inputs.contractKw
   const currentRatio = installedKwMain > 0 ? r.contractKw / installedKwMain : 0
   const properRatio = installedKwMain > 0 ? properKw / installedKwMain : 0
+  // 설비 기반 추정 (예상 동시충전율)
+  const demandF = inputs.expectedDemandFactor ?? 0.4
+  const peakCapKw = installedKwMain * demandF
+  const properCapKw = peakCapKw * (1 + margin)
+  const properCapRatio = installedKwMain > 0 ? properCapKw / installedKwMain : 0
 
   // 계절별 가중단가 (선택 요금제 기준)
   const selPlan = TARIFF_PLANS[r.selectedIdx]
@@ -274,6 +279,13 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               onChange={(v) => set({ targetLoadFactor: v })}
             />
             <NumField
+              label="예상 동시충전율"
+              unit="설비 대비"
+              step={0.05}
+              value={demandF}
+              onChange={(v) => set({ expectedDemandFactor: v })}
+            />
+            <NumField
               label="안전 마진"
               unit="0.10~0.20"
               step={0.05}
@@ -287,64 +299,77 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               </span>
             </label>
             <label className="var-field">
-              <span className="var-field__label">추정 최대수요전력</span>
-              <span className="var-field__input">{formatNumber(peakKw)} kW</span>
-            </label>
-            <label className="var-field">
-              <span className="var-field__label">
-                적정 계약전력(피크+{(margin * 100).toFixed(0)}%)
-              </span>
-              <span className="var-field__input cell--strong">
-                {formatNumber(properKw)} kW ({(properRatio * 100).toFixed(0)}%)
-              </span>
-            </label>
-            <label className="var-field">
-              <span className="var-field__label">판정</span>
+              <span className="var-field__label">판정(실사용 기준)</span>
               <span className={`var-field__input ${verdict === '적정' ? 'ok' : 'warn'}`}>
                 계약전력 {verdict}
               </span>
             </label>
           </div>
-          <p className="var-hint">
-            <b>적정 계약전력 = 추정 최대수요전력 × (1 + 안전 마진)</b> ={' '}
-            {formatNumber(peakKw)} × {(1 + margin).toFixed(2)} ={' '}
-            <b>{formatNumber(properKw)}kW</b>. 계약전력이 추정 피크
-            <b> 미만이면 과소(초과 위험)</b>, 적정보다 크게 넘으면 과대입니다.
-            계약전력 비율(수용률)은 전체 설비용량({formatNumber(installedKwMain)}kW)
-            기준이며, 적정 비율 ≈ <b>{(properRatio * 100).toFixed(0)}%</b>(=
-            {properRatio.toFixed(2)}).
-          </p>
+        </div>
+
+        {/* 두 기준 병기 */}
+        <div className="table-scroll">
+          <table className="data-table report-table">
+            <thead>
+              <tr>
+                <th>추정 기준</th>
+                <th>추정 최대수요전력</th>
+                <th>적정 계약전력(+마진 {(margin * 100).toFixed(0)}%)</th>
+                <th>적정 계약전력 비율(설비 대비)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="col-name">
+                  ① 실사용량 기반 (부하율 {(targetLF * 100).toFixed(0)}%)
+                </td>
+                <td>{formatNumber(peakKw)} kW</td>
+                <td className="cell--strong">{formatNumber(properKw)} kW</td>
+                <td>{(properRatio * 100).toFixed(0)}%</td>
+              </tr>
+              <tr>
+                <td className="col-name">
+                  ② 설비 기반 (동시충전율 {(demandF * 100).toFixed(0)}%)
+                </td>
+                <td>{formatNumber(peakCapKw)} kW</td>
+                <td className="cell--strong">{formatNumber(properCapKw)} kW</td>
+                <td>{(properCapRatio * 100).toFixed(0)}%</td>
+              </tr>
+              <tr className="row--total">
+                <td className="col-name">권장(보수적 = 큰 값)</td>
+                <td>—</td>
+                <td className="cell--strong">
+                  {formatNumber(Math.max(properKw, properCapKw))} kW
+                </td>
+                <td>
+                  {(
+                    (Math.max(properKw, properCapKw) /
+                      (installedKwMain || 1)) *
+                    100
+                  ).toFixed(0)}
+                  %
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <p className="table-note">
-          <b>부하율 = 월 충전량 ÷ (계약전력 × 720h)</b> = 평균부하 ÷ 최대부하.
-          부하율은 <b>사용 패턴이 정하는 결과값</b>이지 임의로 높이는 목표가
-          아닙니다. 적정 계약전력은 <b>실제 최대수요전력</b>에 맞춰야 하며, 이를
-          추정할 때 EV 아파트 충전 <b>실측 부하율(대략 15~20%)</b>를 씁니다.{' '}
-          <b>적정 계약전력 = 월 충전량 ÷ (기준 부하율 × 720)</b> ={' '}
-          {formatNumber(inputs.monthlyKwh)} ÷ ({targetLF} × 720) ={' '}
-          <b>{formatNumber(properKw)} kW</b>.
-          {targetLF > 0.4 && (
-            <>
-              {' '}
-              <span className="warn">
-                ⚠ 기준 부하율 {(targetLF * 100).toFixed(0)}%는 EV 충전에서
-                비현실적으로 높습니다(부하가 24시간 평탄하다는 가정). 실측
-                15~20%를 권장합니다.
-              </span>
-            </>
-          )}
+          <b>① 실사용량 기반</b> = 월 충전량 ÷ (기준 부하율 × 720) × (1+마진) —{' '}
+          <b>현재 실제 사용 패턴</b> 기준 추정 피크. <b>② 설비 기반</b> = 전체
+          설비용량({formatNumber(installedKwMain)}kW) × 예상 동시충전율 × (1+마진)
+          — <b>잠재 최대(동시충전)</b> 기준. 계약전력은{' '}
+          <b>보수적으로 둘 중 큰 값 이상</b>으로 두어야 초과 위험이 없습니다.
+          부하율은 계약전력 기준이며 임의 목표가 아닙니다.
           {verdict === '과대' && (
             <>
               {' '}
-              → 현재 계약전력이 적정보다{' '}
-              <b>{formatNumber(r.contractKw - properKw)} kW 큼</b>. 기본요금 월 약{' '}
-              <b>{formatNumber(Math.round(baseSaving))}원</b> 절감 여지(계약전력을
-              실측 최대수요전력으로 낮출 경우).
+              현재 계약전력이 ① 적정보다{' '}
+              <b>{formatNumber(r.contractKw - properKw)} kW 큼</b> → 기본요금 월 약{' '}
+              <b>{formatNumber(Math.round(baseSaving))}원</b> 절감 여지.
             </>
           )}
-          {verdict === '적정' && ' → 현재 계약전력이 추정 최대수요전력에 부합합니다.'}
           {verdict === '과소' &&
-            ' → 계약전력이 추정 피크보다 낮음. 계약초과(위약) 위험이 있으니 실측 피크를 확인하세요.'}
+            ' 현재 계약전력이 추정 피크보다 낮음 → 계약초과(위약) 위험 점검 필요.'}
         </p>
       </div>
 
