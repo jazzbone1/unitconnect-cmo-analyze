@@ -1,9 +1,12 @@
 import {
   computeTariff,
+  computeBill,
+  defaultBill,
   loadFactor,
   HOURS_PER_MONTH,
   TARIFF_PLANS,
   type TariffInputs,
+  type BillInputs,
 } from '../lib/tariff'
 import { formatNumber } from '../lib/stats'
 
@@ -78,6 +81,13 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const springR = seasonRate('spring')
   const summerR = seasonRate('summer')
   const winterR = seasonRate('winter')
+
+  // 고지서 실측 입력 (독립 계산, 자동반영 안 함)
+  const bill = inputs.bill ?? defaultBill()
+  const br = computeBill(bill)
+  const setBill = (patch: Partial<BillInputs>) =>
+    set({ bill: { ...bill, ...patch } })
+  const billLoaded = bill.usageKwh > 0
 
   return (
     <section className="card settlement">
@@ -444,6 +454,90 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
             <span className="stat__label">운영 마진 여유 (원/kWh)</span>
           </div>
         </div>
+      </div>
+
+      {/* 고지서 실측 입력 (독립·참고) */}
+      <div className="subsection bill-panel">
+        <h3 className="subsection__title">⑦ 고지서 실측 입력 (참고 · 자동반영 안 함)</h3>
+        <p className="bill-panel__desc">
+          한전 청구서의 <b>청구내역</b>을 그대로 넣으면 추정 없이 실효원가가
+          바로 나옵니다. 이 값은 <b>다른 분석·항목에 자동 반영되지 않으며</b>,
+          한 현장에 모자분리/미적용이 섞인 경우를 위해 <b>계약전력 가이드</b>만
+          제공합니다.
+        </p>
+        <div className="var-panel">
+          <div className="var-row">
+            <NumField label="기본요금" unit="원" value={bill.basic} onChange={(v) => setBill({ basic: v })} />
+            <NumField label="전력량요금" unit="원" value={bill.energy} onChange={(v) => setBill({ energy: v })} />
+            <NumField label="기후환경요금" unit="원" value={bill.climate} onChange={(v) => setBill({ climate: v })} />
+            <NumField label="연료비조정액" unit="원" value={bill.fuel} onChange={(v) => setBill({ fuel: v })} />
+            <NumField label="역률요금" unit="원" value={bill.powerFactor} onChange={(v) => setBill({ powerFactor: v })} />
+          </div>
+          <div className="var-row">
+            <NumField label="부가가치세" unit="원" value={bill.vat} onChange={(v) => setBill({ vat: v })} />
+            <NumField label="전력기금" unit="원" value={bill.fund} onChange={(v) => setBill({ fund: v })} />
+            <NumField label="원단위절사" unit="원" value={bill.round} onChange={(v) => setBill({ round: v })} />
+            <NumField label="사용량" unit="kWh" value={bill.usageKwh} onChange={(v) => setBill({ usageKwh: v })} />
+            <NumField label="계약전력(고지서)" unit="kW" value={bill.contractKw} onChange={(v) => setBill({ contractKw: v })} />
+          </div>
+        </div>
+
+        {billLoaded ? (
+          <>
+            <div className="overview">
+              <div className="stat">
+                <span className="stat__value">{formatNumber(br.effExclVat)}</span>
+                <span className="stat__label">실효 전기원가 (VAT 제외)</span>
+              </div>
+              <div className="stat">
+                <span className="stat__value">{formatNumber(br.effInclVat)}</span>
+                <span className="stat__label">실효 전기원가 (전부 포함)</span>
+              </div>
+              <div className="stat">
+                <span className="stat__value">{formatNumber(Math.round(br.total))}</span>
+                <span className="stat__label">당월요금계 (원)</span>
+              </div>
+              <div className="stat">
+                <span className={`stat__value ${br.loadFactor < 0.1 ? 'cell--down' : ''}`}>
+                  {(br.loadFactor * 100).toFixed(1)}%
+                </span>
+                <span className="stat__label">부하율</span>
+              </div>
+            </div>
+            <div className="table-scroll">
+              <table className="data-table report-table">
+                <thead>
+                  <tr>
+                    <th>항목</th>
+                    <th>금액(원)</th>
+                    <th>원/kWh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td className="col-name">기본요금</td><td>{formatNumber(bill.basic)}</td><td>{formatNumber(br.perKwh.basic)}</td></tr>
+                  <tr><td className="col-name">전력량요금</td><td>{formatNumber(bill.energy)}</td><td>{formatNumber(br.perKwh.energy)}</td></tr>
+                  <tr><td className="col-name">기후환경요금</td><td>{formatNumber(bill.climate)}</td><td>{formatNumber(br.perKwh.climate)}</td></tr>
+                  <tr><td className="col-name">연료비조정액</td><td>{formatNumber(bill.fuel)}</td><td>{formatNumber(br.perKwh.fuel)}</td></tr>
+                  <tr><td className="col-name">역률요금</td><td>{formatNumber(bill.powerFactor)}</td><td>{formatNumber(br.perKwh.powerFactor)}</td></tr>
+                  <tr className="row--sub"><td className="col-name">전기요금계(VAT 제외)</td><td>{formatNumber(Math.round(br.supply))}</td><td className="cell--strong">{formatNumber(br.effExclVat)}</td></tr>
+                  <tr className="row--total"><td className="col-name">당월요금계(포함)</td><td>{formatNumber(Math.round(br.total))}</td><td className="cell--strong">{formatNumber(br.effInclVat)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="table-note">
+              <b>계약전력 가이드</b> (참고): 부하율 {(br.loadFactor * 100).toFixed(1)}% ·
+              고지서 계약전력 {formatNumber(bill.contractKw)}kW · 실측 부하율 18% 기준
+              적정 계약전력 ≈ <b>{formatNumber(br.properContractKw)}kW</b>.{' '}
+              {bill.contractKw > br.properContractKw * 1.15
+                ? '→ 계약전력이 추정 피크 대비 여유가 큼(기본요금 절감 여지). 단, 아래 초과 리스크 유의.'
+                : bill.contractKw < br.properContractKw * 0.85
+                  ? '→ 계약전력이 추정 피크보다 낮음. 계약초과(위약) 위험 점검 필요.'
+                  : '→ 계약전력이 추정 피크에 부합.'}
+            </p>
+          </>
+        ) : (
+          <p className="table-note">사용량을 입력하면 실효원가와 계약전력 가이드가 표시됩니다.</p>
+        )}
       </div>
     </section>
   )

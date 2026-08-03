@@ -99,6 +99,8 @@ export interface TariffInputs {
   manualPlan?: number | null
   /** 적정 계약전력 판정 기준 목표 부하율 (예: 0.20 = 20%) */
   targetLoadFactor?: number
+  /** 고지서 실측 입력 (참고용, 다른 계산에 자동반영 안 함) */
+  bill?: BillInputs
 }
 
 export interface TariffPlanResult {
@@ -233,4 +235,74 @@ export function loadFactor(contractKw: number, monthlyKwh: number): number {
   return contractKw > 0 && monthlyKwh > 0
     ? monthlyKwh / (contractKw * HOURS_PER_MONTH)
     : 0
+}
+
+/**
+ * 고지서 실측 입력 — 청구내역을 그대로 넣어 실효원가를 직접 산출한다.
+ * (추정 없이 실측이 곧 결과. 다른 분석/항목에는 자동 반영하지 않음)
+ */
+export interface BillInputs {
+  basic: number // 기본요금
+  energy: number // 전력량요금
+  climate: number // 기후환경요금
+  fuel: number // 연료비조정액
+  powerFactor: number // 역률요금 (감액이면 음수)
+  vat: number // 부가가치세
+  fund: number // 전력기금
+  round: number // 원단위절사 (보통 음수)
+  usageKwh: number // 사용량 (kWh)
+  contractKw: number // 계약전력 (고지서 표기, kW)
+}
+
+export interface BillResult {
+  supply: number // 전기요금계 (VAT·기금 제외)
+  total: number // 당월요금계 (전부 포함)
+  effExclVat: number // 실효원가 (VAT·기금 제외) 원/kWh
+  effInclVat: number // 실효원가 (전부 포함) 원/kWh
+  loadFactor: number // 부하율
+  properContractKw: number // 참고 적정 계약전력 (기준 부하율 18%)
+  perKwh: {
+    basic: number
+    energy: number
+    climate: number
+    fuel: number
+    powerFactor: number
+  }
+}
+
+export function computeBill(b: BillInputs): BillResult {
+  const supply = b.basic + b.energy + b.climate + b.fuel + b.powerFactor
+  const total = supply + b.vat + b.fund + b.round
+  const q = b.usageKwh
+  const per = (x: number) => (q > 0 ? x / q : 0)
+  return {
+    supply,
+    total,
+    effExclVat: per(supply),
+    effInclVat: per(total),
+    loadFactor: loadFactor(b.contractKw, q),
+    properContractKw: q > 0 ? q / (0.18 * HOURS_PER_MONTH) : 0,
+    perKwh: {
+      basic: per(b.basic),
+      energy: per(b.energy),
+      climate: per(b.climate),
+      fuel: per(b.fuel),
+      powerFactor: per(b.powerFactor),
+    },
+  }
+}
+
+export function defaultBill(): BillInputs {
+  return {
+    basic: 0,
+    energy: 0,
+    climate: 0,
+    fuel: 0,
+    powerFactor: 0,
+    vat: 0,
+    fund: 0,
+    round: 0,
+    usageKwh: 0,
+    contractKw: 0,
+  }
 }

@@ -939,6 +939,18 @@ body {
   text-align: left;
   white-space: nowrap;
 }
+.bill-panel {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  margin-top: 1.5rem;
+  background: var(--surface-2);
+}
+.bill-panel__desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
 .var-field__input.ok {
   color: #16a34a;
 }
