@@ -1,5 +1,7 @@
 import {
   computeTariff,
+  loadFactor,
+  HOURS_PER_MONTH,
   TARIFF_PLANS,
   type TariffInputs,
 } from '../lib/tariff'
@@ -49,6 +51,33 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const subtotalAB = sel.weighted + sel.baseKwh
   const preTax = subtotalAB + inputs.climate + inputs.fuel
   const taxMult = 1 + inputs.vatRate + inputs.fundRate
+
+  // 부하율 및 적정 계약전력 판정
+  const lf = loadFactor(r.contractKw, inputs.monthlyKwh)
+  const targetLF = inputs.targetLoadFactor ?? 0.2
+  const properKw =
+    targetLF > 0 && inputs.monthlyKwh > 0
+      ? inputs.monthlyKwh / (targetLF * HOURS_PER_MONTH)
+      : 0
+  const ratio = properKw > 0 ? r.contractKw / properKw : 0
+  const verdict =
+    ratio > 1.15 ? '과대' : ratio < 0.85 ? '과소' : '적정'
+  const baseSaving = Math.max(0, r.contractKw - properKw) * sel.baseUnit
+
+  // 계절별 가중단가 (선택 요금제 기준)
+  const selPlan = TARIFF_PLANS[r.selectedIdx]
+  const seasonRate = (key: 'spring' | 'summer' | 'winter') => {
+    if (selPlan.flat) return selPlan.flat[key]
+    const t = selPlan.tou!
+    return (
+      inputs.touLight * t.light[key] +
+      inputs.touMid * t.mid[key] +
+      inputs.touPeak * t.peak[key]
+    )
+  }
+  const springR = seasonRate('spring')
+  const summerR = seasonRate('summer')
+  const winterR = seasonRate('winter')
 
   return (
     <section className="card settlement">
@@ -126,12 +155,119 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
             <span className="var-field__label">kWh당 기본요금(자동)</span>
             <span className="var-field__input">{formatNumber(r.baseKwh)} 원/kWh</span>
           </label>
+          <label className="var-field">
+            <span className="var-field__label">부하율(자동)</span>
+            <span className={`var-field__input ${lf > 0 && lf < 0.1 ? 'warn' : lf >= 0.15 ? 'ok' : ''}`}>
+              {(lf * 100).toFixed(1)}%
+            </span>
+          </label>
         </div>
+      </div>
+
+      {/* 부하율 및 적정 계약전력 판정 */}
+      <div className="subsection">
+        <h3 className="subsection__title">② 부하율 · 적정 계약전력 판정</h3>
+        <div className="var-panel">
+          <div className="var-row">
+            <label className="var-field">
+              <span className="var-field__label">현재 부하율</span>
+              <span className={`var-field__input ${lf < 0.1 ? 'warn' : lf >= 0.15 ? 'ok' : ''}`}>
+                {(lf * 100).toFixed(1)}%
+              </span>
+            </label>
+            <NumField
+              label="목표 부하율"
+              unit="(예 0.20)"
+              step={0.01}
+              value={targetLF}
+              onChange={(v) => set({ targetLoadFactor: v })}
+            />
+            <label className="var-field">
+              <span className="var-field__label">현재 계약전력</span>
+              <span className="var-field__input">{formatNumber(r.contractKw)} kW</span>
+            </label>
+            <label className="var-field">
+              <span className="var-field__label">적정 계약전력</span>
+              <span className="var-field__input cell--strong">{formatNumber(properKw)} kW</span>
+            </label>
+            <label className="var-field">
+              <span className="var-field__label">판정</span>
+              <span className={`var-field__input ${verdict === '적정' ? 'ok' : 'warn'}`}>
+                계약전력 {verdict}
+              </span>
+            </label>
+          </div>
+        </div>
+        <p className="table-note">
+          <b>부하율 = 월 충전량 ÷ (계약전력 × 720h)</b>. 기본요금은 계약전력에
+          비례하는 고정비라, 부하율이 낮으면 kWh당 기본요금이 커집니다.{' '}
+          <b>적정 계약전력 = 월 충전량 ÷ (목표 부하율 × 720)</b> = {formatNumber(inputs.monthlyKwh)} ÷
+          ({targetLF} × 720) = <b>{formatNumber(properKw)} kW</b>.{' '}
+          {verdict === '과대' && (
+            <>
+              현재 계약전력이 적정보다 <b>{formatNumber(r.contractKw - properKw)} kW 큼</b> →
+              기본요금 <b>월 약 {formatNumber(Math.round(baseSaving))}원</b> 낭비.
+              계약전력을 적정 수준으로 낮추면 실효원가가 내려갑니다.
+            </>
+          )}
+          {verdict === '적정' && '현재 계약전력이 목표 부하율에 부합합니다.'}
+          {verdict === '과소' && '계약전력이 목표 대비 낮음 → 초과수요(계약초과) 위험. 실측 피크 확인 필요.'}
+        </p>
+      </div>
+
+      {/* 계절 판정 상세 */}
+      <div className="subsection">
+        <h3 className="subsection__title">③ 계절 구분 · 계절별 가중단가 (선택: {sel.name})</h3>
+        <div className="table-scroll">
+          <table className="data-table report-table">
+            <thead>
+              <tr>
+                <th>계절</th>
+                <th>해당 월</th>
+                <th>월 수(가중)</th>
+                <th>전력량요금(원/kWh)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="col-name">봄가을철</td>
+                <td>3·4·5·9·10월</td>
+                <td>5 / 12</td>
+                <td>{formatNumber(springR)}</td>
+              </tr>
+              <tr>
+                <td className="col-name">여름철</td>
+                <td>6·7·8월</td>
+                <td>3 / 12</td>
+                <td>{formatNumber(summerR)}</td>
+              </tr>
+              <tr>
+                <td className="col-name">겨울철</td>
+                <td>11·12·1·2월</td>
+                <td>4 / 12</td>
+                <td>{formatNumber(winterR)}</td>
+              </tr>
+              <tr className="row--total">
+                <td className="col-name">가중단가 (A)</td>
+                <td>연 12개월</td>
+                <td>—</td>
+                <td className="cell--strong">
+                  {formatNumber((springR * 5 + summerR * 3 + winterR * 4) / 12)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="table-note">
+          한전 공식 계절 구분(여름 6~8월·봄가을 3~5·9~10월·겨울 11~2월)에 따라{' '}
+          <b>월 수 5·3·4로 가중평균</b>합니다. 특정 월 청구서는 그 달이 속한
+          계절 단가만 적용됩니다(예: 4월 = 봄가을 {formatNumber(springR)}원).
+        </p>
       </div>
 
       {/* 요금제 비교 */}
       <div className="subsection">
-        <h3 className="subsection__title">② 요금제 비교 및 자동 선택</h3>
+        <h3 className="subsection__title">④ 요금제 비교 및 자동 선택</h3>
         <div className="table-scroll">
           <table className="data-table">
             <thead>
@@ -201,7 +337,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
       {/* 실효원가 산정 상세 */}
       <div className="subsection">
         <h3 className="subsection__title">
-          ③ 실효 전기원가 산정 상세 (선택: {sel.name})
+          ⑤ 실효 전기원가 산정 상세 (선택: {sel.name})
         </h3>
         <div className="table-scroll">
           <table className="data-table report-table">
@@ -271,7 +407,7 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
 
       {/* 요금 구조 요약 */}
       <div className="subsection">
-        <h3 className="subsection__title">④ 요금 구조 (선택: {r.selected.name})</h3>
+        <h3 className="subsection__title">⑥ 요금 구조 (선택: {r.selected.name})</h3>
         <div className="overview">
           <div className="stat">
             <span className="stat__value">{formatNumber(r.selected.effCost)}</span>

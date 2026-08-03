@@ -97,6 +97,8 @@ export interface TariffInputs {
   opexPerKwh: number
   /** 수동 요금제 선택 (0~3), 없으면 자동(최저) */
   manualPlan?: number | null
+  /** 적정 계약전력 판정 기준 목표 부하율 (예: 0.20 = 20%) */
+  targetLoadFactor?: number
 }
 
 export interface TariffPlanResult {
@@ -219,5 +221,16 @@ export function defaultTariff(): TariffInputs {
     currentRate: 249,
     opexPerKwh: 0,
     manualPlan: null,
+    targetLoadFactor: 0.2,
   }
+}
+
+/** 월 시간수 (24h × 30d) */
+export const HOURS_PER_MONTH = 24 * 30
+
+/** 부하율 = 월충전량 ÷ (계약전력 × 720) */
+export function loadFactor(contractKw: number, monthlyKwh: number): number {
+  return contractKw > 0 && monthlyKwh > 0
+    ? monthlyKwh / (contractKw * HOURS_PER_MONTH)
+    : 0
 }
