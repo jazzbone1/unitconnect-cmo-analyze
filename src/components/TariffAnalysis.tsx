@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   computeTariff,
   computeBill,
@@ -8,7 +9,9 @@ import {
   type TariffInputs,
   type BillInputs,
 } from '../lib/tariff'
+import { recognizeBill } from '../lib/billOcr'
 import { formatNumber } from '../lib/stats'
+import Dropzone from './Dropzone'
 
 interface Props {
   inputs: TariffInputs
@@ -88,6 +91,28 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
   const setBill = (patch: Partial<BillInputs>) =>
     set({ bill: { ...bill, ...patch } })
   const billLoaded = bill.usageKwh > 0
+  const [ocrBusy, setOcrBusy] = useState(false)
+  const [ocrMsg, setOcrMsg] = useState<string | null>(null)
+
+  async function handleBillFile(files: File[]) {
+    const file = files[0]
+    if (!file) return
+    setOcrBusy(true)
+    setOcrMsg('인식 중… (이미지는 최초 1회 언어팩 다운로드로 시간이 걸릴 수 있습니다)')
+    try {
+      const { fields, recognized, missing, source } = await recognizeBill(file)
+      set({ bill: { ...bill, ...fields } })
+      setOcrMsg(
+        `${source === 'pdf' ? 'PDF' : '이미지'} 인식 완료 — 자동 입력: ${
+          recognized.length ? recognized.join(', ') : '없음'
+        }${missing.length ? ` · 직접 입력 필요: ${missing.join(', ')}` : ''}`,
+      )
+    } catch {
+      setOcrMsg('인식에 실패했습니다. 값을 직접 입력해주세요.')
+    } finally {
+      setOcrBusy(false)
+    }
+  }
 
   return (
     <section className="card settlement">
@@ -460,11 +485,27 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
       <div className="subsection bill-panel">
         <h3 className="subsection__title">⑦ 고지서 실측 입력 (참고 · 자동반영 안 함)</h3>
         <p className="bill-panel__desc">
-          한전 청구서의 <b>청구내역</b>을 그대로 넣으면 추정 없이 실효원가가
-          바로 나옵니다. 이 값은 <b>다른 분석·항목에 자동 반영되지 않으며</b>,
-          한 현장에 모자분리/미적용이 섞인 경우를 위해 <b>계약전력 가이드</b>만
-          제공합니다.
+          한전 청구서를 <b>업로드하면 자동 인식</b>됩니다(PDF·JPG·PNG). 인식하지
+          못한 값만 직접 입력하세요. 이 값은 <b>다른 분석·항목에 자동 반영되지
+          않으며</b>, 한 현장에 모자분리/미적용이 섞인 경우를 위해{' '}
+          <b>계약전력 가이드</b>만 제공합니다.
         </p>
+        <Dropzone
+          onFiles={handleBillFile}
+          disabled={ocrBusy}
+          multiple={false}
+          compact
+          icon="🧾"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+          title="청구서 파일을 끌어다 놓거나 클릭해서 선택 (PDF·JPG·PNG)"
+          hint="PDF는 텍스트 추출, 이미지는 OCR로 자동 인식합니다"
+        />
+        {ocrMsg && (
+          <p className={`status ${ocrBusy ? 'status--info' : 'status--ok'}`}>
+            {ocrBusy ? '⏳ ' : '✓ '}
+            {ocrMsg}
+          </p>
+        )}
         <div className="var-panel">
           <div className="var-row">
             <NumField label="기본요금" unit="원" value={bill.basic} onChange={(v) => setBill({ basic: v })} />

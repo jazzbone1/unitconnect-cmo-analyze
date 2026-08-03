@@ -951,6 +951,10 @@ body {
   color: var(--text-muted);
   margin: 0 0 0.75rem;
 }
+.status--ok {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .var-field__input.ok {
   color: #16a34a;
 }
