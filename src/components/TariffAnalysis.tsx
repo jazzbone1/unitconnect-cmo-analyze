@@ -72,15 +72,42 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
           </label>
         </div>
         <div className="var-row">
-          <NumField label="기본요금 단가" unit="원/kW·월" value={inputs.baseUnitPrice} onChange={(v) => set({ baseUnitPrice: v })} />
-          <NumField label="계약전력" unit="kW" value={inputs.contractKw} onChange={(v) => set({ contractKw: v })} />
+          <NumField
+            label="기본요금 단가(일괄)"
+            unit="원/kW·월"
+            value={inputs.baseUnitPrice}
+            onChange={(v) =>
+              set({
+                baseUnitPrice: v,
+                baseUnitByPlan: { I: v, II: v, III: v, IV: v },
+              })
+            }
+          />
+          <NumField label="총 설비용량" unit="kW" value={inputs.installedKw ?? inputs.contractKw} onChange={(v) => set({ installedKw: v })} />
+          <NumField label="계약전력 비율(수용률)" step={0.05} value={inputs.contractRatio ?? 1} onChange={(v) => set({ contractRatio: v })} />
+          <label className="var-field">
+            <span className="var-field__label">계약전력(자동)</span>
+            <span className="var-field__input">{formatNumber(r.contractKw)} kW</span>
+          </label>
           <NumField label="월 총 충전량" unit="kWh/월" value={inputs.monthlyKwh} onChange={(v) => set({ monthlyKwh: v })} />
         </div>
         <div className="var-row">
           <NumField label="기후환경요금" unit="원/kWh" value={inputs.climate} onChange={(v) => set({ climate: v })} />
           <NumField label="연료비조정액" unit="원/kWh" value={inputs.fuel} onChange={(v) => set({ fuel: v })} />
           <NumField label="기금율" step={0.001} value={inputs.fundRate} onChange={(v) => set({ fundRate: v })} />
-          <NumField label="부가세율" step={0.01} value={inputs.vatRate} onChange={(v) => set({ vatRate: v })} />
+          <label className="var-field">
+            <span className="var-field__label">부가세(VAT)</span>
+            <span className="var-field__input">
+              <label className="sep-check">
+                <input
+                  type="checkbox"
+                  checked={inputs.vatRate > 0}
+                  onChange={(e) => set({ vatRate: e.target.checked ? 0.1 : 0 })}
+                />
+                <span>{inputs.vatRate > 0 ? '포함(10%)' : '제외'}</span>
+              </label>
+            </span>
+          </label>
         </div>
         <div className="var-row">
           <NumField label="현재 가중평균 요금" unit="원/kWh" value={inputs.currentRate} onChange={(v) => set({ currentRate: v })} />
@@ -102,6 +129,8 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                 <th>선택</th>
                 <th>요금제</th>
                 <th>가중단가</th>
+                <th>기본요금(원/kW)</th>
+                <th>기본요금(원/kWh)</th>
                 <th>실효원가</th>
                 <th>운영손익분기</th>
                 <th>비고</th>
@@ -121,6 +150,23 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
                   </td>
                   <td className="col-name">{p.name}</td>
                   <td>{formatNumber(p.weighted)}</td>
+                  <td>
+                    <input
+                      className="cell-input"
+                      type="number"
+                      style={{ width: 80 }}
+                      value={inputs.baseUnitByPlan?.[p.id] ?? inputs.baseUnitPrice}
+                      onChange={(e) =>
+                        set({
+                          baseUnitByPlan: {
+                            ...(inputs.baseUnitByPlan ?? {}),
+                            [p.id]: Number(e.target.value) || 0,
+                          },
+                        })
+                      }
+                    />
+                  </td>
+                  <td>{formatNumber(p.baseKwh)}</td>
                   <td className="cell--strong">{formatNumber(p.effCost)}</td>
                   <td>{formatNumber(p.breakeven)}</td>
                   <td className="cell--muted">
@@ -132,7 +178,8 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
           </table>
         </div>
         <p className="table-note">
-          자동 선택: 가중단가 최저 요금제. 라디오로 수동 지정 가능.{' '}
+          자동 선택: <b>실효원가 최저</b> 요금제(기본요금 포함). 선택별 기본요금
+          단가를 다르게 입력하면 반영됩니다. 라디오로 수동 지정 가능.{' '}
           {inputs.manualPlan != null && (
             <button type="button" className="link-button" onClick={() => set({ manualPlan: null })}>
               자동선택으로

@@ -71,10 +71,16 @@ export interface TariffInputs {
   touMid: number
   /** TOU 비중 — 최대부하 */
   touPeak: number
-  /** 기본요금 단가 (원/kW/월) */
+  /** 기본요금 단가 (원/kW/월) — 선택별 미지정 시 공통값 */
   baseUnitPrice: number
-  /** 계약전력 (kW) */
+  /** 선택별 기본요금 단가 (원/kW/월). 없으면 baseUnitPrice 사용 */
+  baseUnitByPlan?: Record<string, number>
+  /** (구) 계약전력 (kW) — 하위호환. 신규는 installedKw×contractRatio 사용 */
   contractKw: number
+  /** 총 설비용량 (kW) */
+  installedKw?: number
+  /** 계약전력 비율(수용률) — 계약전력 = 설비용량 × 비율 */
+  contractRatio?: number
   /** 월 총 충전량 (kWh) */
   monthlyKwh: number
   /** 기후환경요금 (원/kWh) */
@@ -99,17 +105,23 @@ export interface TariffPlanResult {
   note: string
   /** 전력량요금 가중단가 (원/kWh) */
   weighted: number
+  /** 이 선택의 기본요금 단가 (원/kW) */
+  baseUnit: number
+  /** 이 선택의 kWh당 기본요금 환산 */
+  baseKwh: number
   /** 실효 전기원가 (원/kWh) */
   effCost: number
   /** 운영손익분기 요금 (원/kWh) */
   breakeven: number
-  /** 최저(자동선택 대상)인지 */
+  /** 최저(자동선택 대상)인지 — 실효원가 최저 */
   isMin: boolean
 }
 
 export interface TariffResult {
   plans: TariffPlanResult[]
-  /** kWh당 기본요금 환산 */
+  /** 적용 계약전력 (kW) = 설비용량 × 비율 */
+  contractKw: number
+  /** 선택된 요금제의 kWh당 기본요금 환산 */
   baseKwh: number
   /** 선택된 요금제 인덱스 */
   selectedIdx: number
@@ -128,9 +140,15 @@ export function seasonAvg(r: SeasonRates): number {
   return (r.spring * spring + r.summer * summer + r.winter * winter) / 12
 }
 
+/** 적용 계약전력: 설비용량×비율(신규) 또는 구 contractKw(하위호환) */
+export function effectiveContractKw(i: TariffInputs): number {
+  if (i.installedKw != null)
+    return i.installedKw * (i.contractRatio != null ? i.contractRatio : 1)
+  return i.contractKw
+}
+
 export function computeTariff(i: TariffInputs): TariffResult {
-  const baseKwh =
-    i.monthlyKwh > 0 ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh : 0
+  const contractKw = effectiveContractKw(i)
 
   const raw = TARIFF_PLANS.map((p) => {
     const weighted = p.flat
@@ -138,17 +156,30 @@ export function computeTariff(i: TariffInputs): TariffResult {
       : i.touLight * seasonAvg(p.tou!.light) +
         i.touMid * seasonAvg(p.tou!.mid) +
         i.touPeak * seasonAvg(p.tou!.peak)
+    // 선택별 기본요금 단가 (없으면 공통값)
+    const baseUnit = i.baseUnitByPlan?.[p.id] ?? i.baseUnitPrice
+    const baseKwh = i.monthlyKwh > 0 ? (contractKw * baseUnit) / i.monthlyKwh : 0
     const effCost = round2(
       (weighted + i.climate + i.fuel + baseKwh) * (1 + i.vatRate + i.fundRate),
     )
     const breakeven = round2(effCost + (i.opexPerKwh || 0))
-    return { id: p.id, name: p.name, note: p.note, weighted, effCost, breakeven }
+    return {
+      id: p.id,
+      name: p.name,
+      note: p.note,
+      weighted,
+      baseUnit,
+      baseKwh,
+      effCost,
+      breakeven,
+    }
   })
 
-  const minWeighted = Math.min(...raw.map((r) => r.weighted))
+  // 최적 선택 = 실효원가(기본요금 포함) 최저
+  const minEff = Math.min(...raw.map((r) => r.effCost))
   const plans: TariffPlanResult[] = raw.map((r) => ({
     ...r,
-    isMin: r.weighted === minWeighted,
+    isMin: r.effCost === minEff,
   }))
 
   const autoIdx = plans.findIndex((p) => p.isMin)
@@ -159,7 +190,14 @@ export function computeTariff(i: TariffInputs): TariffResult {
   const selected = plans[selectedIdx]
   const marginRoom = i.currentRate - selected.breakeven
 
-  return { plans, baseKwh, selectedIdx, selected, marginRoom }
+  return {
+    plans,
+    contractKw,
+    baseKwh: selected.baseKwh,
+    selectedIdx,
+    selected,
+    marginRoom,
+  }
 }
 
 /** 기본값 (문서 예시 기준, 모두 편집 가능) */
@@ -169,7 +207,10 @@ export function defaultTariff(): TariffInputs {
     touMid: 0.1664,
     touPeak: 0.2643,
     baseUnitPrice: 2580,
+    baseUnitByPlan: { I: 2580, II: 2580, III: 2580, IV: 2580 },
     contractKw: 0,
+    installedKw: 0,
+    contractRatio: 1,
     monthlyKwh: 0,
     climate: 9,
     fuel: 5,

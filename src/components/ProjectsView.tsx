@@ -117,7 +117,10 @@ function ProjectDetail({
     if (project.tariff) return project.tariff
     // 계약전력·월충전량을 충전기 설정/정산 데이터로 자동 기입
     const t = defaultTariff()
-    t.contractKw = project.chargers.reduce((a, c) => a + c.kw * c.count, 0)
+    const cap = project.chargers.reduce((a, c) => a + c.kw * c.count, 0)
+    t.installedKw = cap
+    t.contractRatio = 1
+    t.contractKw = cap
     const files = project.files ?? project.settlementFiles ?? []
     const months = files.length
       ? computeAll(files, {
