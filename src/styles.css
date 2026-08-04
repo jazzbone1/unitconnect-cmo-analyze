@@ -848,10 +848,17 @@ body {
   color: var(--accent);
   font-size: 0.85rem;
 }
+.report-cover__doctype {
+  margin: 0.1rem 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
 .report-cover__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  align-items: center;
+  gap: 0.75rem;
   font-size: 0.85rem;
   color: var(--text-muted);
 }
@@ -859,6 +866,25 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+.report-cover__sep {
+  color: var(--border);
+}
+.report-cover__conf {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+/* 편집 가능한 섹션 제목 입력 */
+.report-sec-title-input {
+  font-size: 1.05rem;
+  font-weight: 700;
+  width: 100%;
+  max-width: 640px;
+}
+.report-sec-title-input--h4 {
+  font-size: 1rem;
 }
 .report-block {
   margin-top: 1.5rem;
@@ -1382,6 +1408,58 @@ body {
     background: #eef2fb !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  /* 표는 페이지 폭에 맞춰 가로 스크롤 없이 전부 표시 */
+  .report-root .table-scroll {
+    overflow: visible !important;
+  }
+  .report-root table.data-table,
+  .report-root table.report-table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+  .report-root th,
+  .report-root td {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    padding: 3px 5px !important;
+  }
+  .report-root .cell-input,
+  .report-root input {
+    max-width: 100% !important;
+  }
+  /* 표지: PDF 첫 페이지 한 장을 꽉 채워 중앙 정렬, 이후는 다음 페이지 */
+  .report-root .report-cover-card {
+    min-height: 248mm;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    break-after: page;
+    page-break-after: always;
+    margin: 0 !important;
+  }
+  .report-root .report-cover {
+    align-items: center;
+    gap: 1.1rem;
+  }
+  .report-root .report-cover .cell-input {
+    text-align: center;
+  }
+  .report-root .report-cover__brand {
+    font-size: 12pt;
+  }
+  .report-root .report-cover > .cell-input {
+    font-size: 24pt !important;
+    font-weight: 800;
+    text-align: center;
+  }
+  .report-root .report-cover__doctype {
+    font-size: 15pt;
+  }
+  .report-root .report-cover .num-input,
+  .report-root .report-cover__meta {
+    justify-content: center;
   }
 }
 .report-textarea {

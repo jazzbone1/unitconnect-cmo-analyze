@@ -61,6 +61,8 @@ export interface ReportModel {
   reportDate: string
   /** 섹션별 보고서 포함 여부. 미설정 시 전체 포함 */
   visible?: Record<string, boolean>
+  /** 섹션 제목 사용자 편집값(키→제목). 미설정 시 기본 제목 사용 */
+  secTitle?: Record<string, string>
   /** Part1 개요 표 (자유 행) */
   overview: { id: string; label: string; value: string; note: string }[]
   /** Part1 유형별 실적 표 */
@@ -321,4 +323,8 @@ export function defaultReport(): ReportModel {
 
 export function newOpexRow(): OpexRow {
   return { id: rid(), name: '', yearCost: 0, note: '' }
+}
+
+export function newRecommendRow() {
+  return { id: rid(), label: '', current: '', proposed: '', note: '' }
 }

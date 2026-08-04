@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   computeElecCost,
   computeProfit,
@@ -6,6 +6,7 @@ import {
   opexMonthlyTotal,
   opexPerKwh,
   newOpexRow,
+  newRecommendRow,
   type ElecCostInput,
   type ReportModel,
 } from '../lib/report'
@@ -25,12 +26,20 @@ const signManwon = (v: number) =>
   `${v >= 0 ? '+' : '-'}약 ${Math.abs(Math.round(v / 10000)).toLocaleString()}만원`
 
 /* ---------- 입력 셀 ---------- */
+/**
+ * 바로 수정 가능한 숫자 입력. 제어형 number 입력은 매 키 입력마다
+ * 재포맷돼 편집이 어려우므로, 포커스 중에는 입력 문자열(text)을 유지하고
+ * 포커스 해제 시에만 모델값을 표시한다.
+ */
 function NumInput({
   value,
   onChange,
   suffix,
   width = 90,
   linked,
+  nullable,
+  onNull,
+  placeholder,
 }: {
   value: number
   onChange: (v: number) => void
@@ -38,16 +47,40 @@ function NumInput({
   width?: number
   /** 앞 단계 자동 연동 값이면 음영 표시 */
   linked?: boolean
+  /** 빈 값 허용(빈 값 시 onNull 호출) */
+  nullable?: boolean
+  onNull?: () => void
+  placeholder?: string
 }) {
+  const [focused, setFocused] = useState(false)
+  const [text, setText] = useState('')
+  const modelText = Number.isFinite(value) && value !== 0 ? String(value) : ''
   return (
     <span className="num-input">
       <input
         className={`cell-input${linked ? ' cell-input--linked' : ''}`}
-        type="number"
+        type="text"
+        inputMode="decimal"
         style={{ width }}
         title={linked ? '앞 단계 자동 연동 값' : undefined}
-        value={Number.isFinite(value) ? value : ''}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        placeholder={placeholder}
+        value={focused ? text : modelText}
+        onFocus={() => {
+          setText(modelText)
+          setFocused(true)
+        }}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^0-9.]/g, '')
+          setText(raw)
+          if (raw === '' || raw === '.') {
+            if (nullable && onNull) onNull()
+            else onChange(0)
+            return
+          }
+          const n = Number(raw)
+          if (Number.isFinite(n)) onChange(n)
+        }}
       />
       {suffix && <span className="num-suffix">{suffix}</span>}
     </span>
@@ -124,11 +157,15 @@ export default function ReportView({
     k,
     tag = 'h3',
     label,
+    editable,
   }: {
     k: string
     tag?: 'h3' | 'h4'
     label: string
+    /** 제목을 직접 수정 가능하게 (secTitle에 저장) */
+    editable?: boolean
   }) {
+    const title = model.secTitle?.[k] ?? label
     return (
       <div className="report-sec-head">
         <label className="report-sec-toggle no-print" title="보고서 포함 여부">
@@ -138,10 +175,24 @@ export default function ReportView({
             onChange={() => toggleSec(k)}
           />
         </label>
-        {tag === 'h3' ? (
-          <h3 className="subsection__title">{label}</h3>
+        {editable ? (
+          <input
+            className={`cell-input report-sec-title-input${
+              tag === 'h4' ? ' report-sec-title-input--h4' : ''
+            }`}
+            type="text"
+            value={title}
+            onChange={(e) =>
+              setModel((m) => ({
+                ...m,
+                secTitle: { ...(m.secTitle ?? {}), [k]: e.target.value },
+              }))
+            }
+          />
+        ) : tag === 'h3' ? (
+          <h3 className="subsection__title">{title}</h3>
         ) : (
-          <h4 className="report-block__title">{label}</h4>
+          <h4 className="report-block__title">{title}</h4>
         )}
       </div>
     )
@@ -278,25 +329,15 @@ export default function ReportView({
               <tr className="row--total">
                 <td className="col-name">★ 실효 전기원가 (Lv1)</td>
                 <td className="cell--strong">
-                  <span className="num-input">
-                    <input
-                      className={`cell-input${linkA ? ' cell-input--linked' : ''}`}
-                      type="number"
-                      style={{ width: 90 }}
-                      title={linkA ? '앞 단계 자동 연동 값(요금구조 실효원가)' : undefined}
-                      placeholder={r.computedLv1.toFixed(1)}
-                      value={g.lv1Override ?? ''}
-                      onChange={(e) =>
-                        updGroup(which, {
-                          lv1Override:
-                            e.target.value === ''
-                              ? null
-                              : Number(e.target.value),
-                        })
-                      }
-                    />
-                    <span className="num-suffix">원/kWh</span>
-                  </span>
+                  <NumInput
+                    value={g.lv1Override ?? 0}
+                    onChange={(v) => updGroup(which, { lv1Override: v })}
+                    suffix="원/kWh"
+                    linked={linkA}
+                    nullable
+                    onNull={() => updGroup(which, { lv1Override: null })}
+                    placeholder={r.computedLv1.toFixed(1)}
+                  />
                 </td>
                 <td className="cell--muted">
                   {r.overridden ? (
@@ -475,8 +516,8 @@ export default function ReportView({
       </header>
 
       <main className="app__main">
-        {/* 표지 */}
-        <section className="card">
+        {/* 표지 (PDF 첫 페이지) */}
+        <section className="card report-cover-card">
           <div className="report-cover">
             <span className="report-cover__brand">UNITCONNECT</span>
             <TextInput
@@ -485,6 +526,9 @@ export default function ReportView({
               wide
               linked
             />
+            <p className="report-cover__doctype">
+              전기차 충전 인프라 컨설팅 보고서
+            </p>
             <div className="report-cover__meta">
               <label>
                 분석 기간{' '}
@@ -493,6 +537,7 @@ export default function ReportView({
                   onChange={(v) => setModel((m) => ({ ...m, period: v }))}
                 />
               </label>
+              <span className="report-cover__sep">|</span>
               <label>
                 보고일{' '}
                 <TextInput
@@ -501,6 +546,7 @@ export default function ReportView({
                 />
               </label>
             </div>
+            <div className="report-cover__conf">UNITCONNECT | Confidential</div>
           </div>
         </section>
 
@@ -616,14 +662,14 @@ export default function ReportView({
         <section className="card">
           <h2>Part 2. 문제점 — 전기요금 구조 및 운영비</h2>
 
-          <SecHead k="2-1" tag="h4" label="2-1. 모자분리 충전기 (7kW 완속 · DC 급속)" />
+          <SecHead k="2-1" tag="h4" label="2-1. 모자분리 충전기 (7kW 완속 · DC 급속)" editable />
           {secOn('2-1') && (
             <ElecCostBlock
               which="groupA"
               sub="일반용(을) 고압 요금 · 모자분리 적용"
             />
           )}
-          <SecHead k="2-2" tag="h4" label="2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)" />
+          <SecHead k="2-2" tag="h4" label="2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)" editable />
           {secOn('2-2') && (
             <ElecCostBlock
               which="groupB"
@@ -748,12 +794,20 @@ export default function ReportView({
                     <th>현행 요금</th>
                     <th>최소 인상안</th>
                     <th>비고</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {model.recommend.map((row) => (
                     <tr key={row.id}>
-                      <td className="col-name">{row.label}</td>
+                      <td className="col-name">
+                        <TextInput
+                          value={row.label}
+                          onChange={(v) =>
+                            updList('recommend', row.id, { label: v })
+                          }
+                        />
+                      </td>
                       {(['current', 'proposed', 'note'] as const).map((k) => (
                         <td key={k}>
                           <TextInput
@@ -765,11 +819,39 @@ export default function ReportView({
                           />
                         </td>
                       ))}
+                      <td>
+                        <button
+                          type="button"
+                          className="link-button link-button--danger no-print"
+                          onClick={() =>
+                            setModel((m) => ({
+                              ...m,
+                              recommend: m.recommend.filter(
+                                (r) => r.id !== row.id,
+                              ),
+                            }))
+                          }
+                        >
+                          삭제
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            <button
+              type="button"
+              className="link-button no-print"
+              onClick={() =>
+                setModel((m) => ({
+                  ...m,
+                  recommend: [...m.recommend, newRecommendRow()],
+                }))
+              }
+            >
+              + 권고 항목 추가
+            </button>
           </div>
           )}
         </section>
