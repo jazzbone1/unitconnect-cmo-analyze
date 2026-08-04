@@ -204,9 +204,10 @@ function seedReport(
       currentRate: c.rate,
       standbyKwh,
     })
-    // 모자분리 종류 실효원가(Lv1) 자동 반영:
-    //  고지서 실측 입력(⑦)이 있으면 실측 실효원가, 없으면 요금구조 추정 실효원가
+    // 모자분리 종류(전용 계량기) = 전기차 충전전력 요금 기본단가(저압 2,390/고압 2,580)
     if (sep) {
+      g.baseUnitPrice = c.kw >= 50 ? 2580 : 2390
+      // 실효원가(Lv1): 고지서 실측 입력(⑦) 있으면 실측, 없으면 요금구조 추정
       const src = billEffCost != null ? billEffCost : effCostSeed
       if (src != null && Number.isFinite(src)) {
         g.lv1Override = Math.round(src * 10) / 10

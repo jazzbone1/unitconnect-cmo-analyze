@@ -355,24 +355,25 @@ export function newTier(): RateTier {
   return { id: rid(), name: '', kwh: 0, unit: 0, cap: null }
 }
 
-/** 계약종별 표준 기본요금 단가 (원/kW·월). 주택용은 공용부 일반용 근사값. */
-export const STANDARD_BASE_UNIT: Record<ContractType, number> = {
-  housing_low: 6490,
-  housing_high: 8320,
+/** 일반용(을) 계약전력 기반 표준 기본요금 단가 (원/kW·월). */
+export const STANDARD_BASE_UNIT: Partial<Record<ContractType, number>> = {
   general_low: 6490,
   general_high: 8320,
 }
 
 /**
  * 기본요금 단가(원/kW) 산정:
- *  - 고지서/값이 있으면 실측 = 기본요금 ÷ 계약전력
- *  - 없으면 계약종별 표준 단가
+ *  - 고지서/값이 있으면 실측 = 기본요금 ÷ 계약전력 (계약형태 무관)
+ *  - 없으면: 일반용만 표준 단가. 주택용은 기본요금이 원/세대(누진)이라 원/kW 표준이
+ *    없으므로, 누진 단계 기본요금과 계약전력을 입력해 실측으로 산정해야 함(=0 반환).
  */
 export function baseUnitPerKw(a: ApartmentBillInputs): {
   value: number
-  source: 'measured' | 'standard'
+  source: 'measured' | 'standard' | 'none'
 } {
   if (a.baseCharge > 0 && a.contractKw > 0)
     return { value: a.baseCharge / a.contractKw, source: 'measured' }
-  return { value: STANDARD_BASE_UNIT[a.contractType], source: 'standard' }
+  const std = STANDARD_BASE_UNIT[a.contractType]
+  if (std != null) return { value: std, source: 'standard' }
+  return { value: 0, source: 'none' } // 주택용: 계약전력 입력 필요
 }
