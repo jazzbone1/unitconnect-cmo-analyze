@@ -695,6 +695,16 @@ export default function ReportView({
                       width={80}
                       linked
                     />
+                    <span className="cell--muted" style={{ fontWeight: 400 }}>
+                      {' '}× 아파트 요금제{' '}
+                    </span>
+                    <NumInput
+                      value={g.standbyRate ?? 0}
+                      onChange={(v) => upd({ standbyRate: v })}
+                      suffix="원/kWh"
+                      width={80}
+                      linked
+                    />
                   </td>
                   <td>{won1(p.standbyPerKwh)}</td>
                   <td>{manwon(p.standbyLossMonth)}</td>

@@ -384,11 +384,32 @@ export function baseUnitPerKw(a: ApartmentBillInputs): {
 
 /**
  * (A) 시간대·계절 가중 전력량요금 단가(원/kWh) — 선택된 계약형태/누진구간의
- * 전력량요금 합계 ÷ 사용량. 기후·연료·기본·부가세는 제외한 순수 전력량요금 단가로,
- * 보고서 (A) 항목에 그대로 연동한다. tierKwh가 0이면 0.
+ * 순수 전력량요금 단가(기후·연료·기본·부가세 제외)로, 보고서 (A) 항목에 연동한다.
+ *  - 사용량이 입력돼 있으면: 전력량요금 합계 ÷ 사용량(실측 가중).
+ *  - 사용량 미입력이라도(요금제·구간만 선택): 선택된 구간의 단가 기준으로 반영.
+ *      · TOU(일반용): 경/중/최대부하 시간대 비율 가중 단가.
+ *      · 누진(주택용): 선택된 누진 단계(기본요금 일치)의 단가, 없으면 최고 단계.
  */
 export function aptEnergyRate(a: ApartmentBillInputs): number {
   const r = computeApartmentBill(a)
   const qty = r.tierKwh > 0 ? r.tierKwh : a.usageKwh
-  return qty > 0 ? r.energyTotal / qty : 0
+  if (qty > 0 && r.energyTotal > 0) return r.energyTotal / qty
+  // 사용량 미입력 폴백 — 선택된 계약형태·구간 단가로 대표 단가 산출
+  const tiers = a.tiers ?? []
+  if (!tiers.length) return 0
+  // TOU: 시간대 비율(경/중/최대) 가중 단가
+  const sumR = tiers.reduce((s, t) => s + (t.ratio ?? 0), 0)
+  if (sumR > 0) {
+    return (
+      tiers.reduce((s, t) => s + effUnit(t, a.season) * (t.ratio ?? 0), 0) / sumR
+    )
+  }
+  // 누진: 선택된 단계(기본요금 일치) 단가, 없으면 최고 단계 단가
+  const hhFactor = a.perHousehold && a.households > 0 ? a.households : 1
+  const sel = tiers.find(
+    (t) =>
+      t.base != null &&
+      Math.round(t.base * hhFactor) === Math.round(a.baseCharge),
+  )
+  return effUnit(sel ?? tiers[tiers.length - 1], a.season)
 }

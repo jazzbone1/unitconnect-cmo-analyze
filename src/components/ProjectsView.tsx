@@ -245,6 +245,12 @@ function seedReport(
       const er = aptEnergyRate(aptBill)
       if (er > 0) g.powerRate = Math.round(er * 10) / 10
     }
+    // 대기전력 손실 단가: 모자분리 미적용은 공용부(아파트) 전기로 소비 →
+    //  아파트 요금제 단가 기준으로 자동 반영.
+    if (!sep && aptBill) {
+      const er = aptEnergyRate(aptBill)
+      if (er > 0) g.standbyRate = Math.round(er * 10) / 10
+    }
     return g
   })
 
@@ -371,6 +377,8 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
           // 보존, 미입력이면 아파트요금분석 시드값 반영.
           billBase: prev.billBase ?? sg.billBase,
           billContractKw: prev.billContractKw ?? sg.billContractKw,
+          // 대기전력 손실 단가: 아파트 요금제 단가로 자동 연동.
+          standbyRate: sg.standbyRate,
         }
       // 모자분리 그룹: 실효원가(Lv1)를 고지서 실측/요금구조에서 자동 반영
       return { ...base, lv1Override: sg.lv1Override }
@@ -714,6 +722,7 @@ function ProjectDetail({
           inputs={standby}
           setInputs={setStandby}
           effCost={autoElecCost}
+          aptRate={aptEnergyRate(aptBill)}
         />
       ) : subtab === 'aptbill' ? (
         <ApartmentBillAnalysis inputs={aptBill} setInputs={setAptBill} />

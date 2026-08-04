@@ -65,6 +65,11 @@ export interface ElecCostInput {
    */
   standbyKwh?: number
   /**
+   * 대기전력 손실 단가 (원/kWh). 모자분리 미적용 시 대기전력은 공용부(아파트)
+   * 전기로 소비되므로 아파트 요금제 단가로 평가한다. 미설정 시 그룹 실효원가(lv1) 사용.
+   */
+  standbyRate?: number
+  /**
    * 모자분리 미적용 그룹의 공용부 기본요금 배분 적용 여부.
    * true면 미적용이어도 (B) 기본요금 환산 = 계약전력 × 기본단가 ÷ 월사용량으로 계산.
    * (계약전력=요금구조 ① 적정계약전력, 기본단가=아파트 요금분석 기본단가)
@@ -300,9 +305,14 @@ export function computeProfit(
   const q = input.monthlyKwh
   const revenuePerKwh = input.currentRate
   const marginPerKwh = revenuePerKwh - lv1
-  // 모자분리 미적용: 충전기 대기전력이 공용부 전기로 소비 → 공용전기세 부과 손실
+  // 모자분리 미적용: 충전기 대기전력이 공용부 전기로 소비 → 공용전기세 부과 손실.
+  //  손실 단가는 아파트 요금제 단가(standbyRate)로 평가, 없으면 그룹 실효원가(lv1).
   const standbyKwh = input.separated === false ? (input.standbyKwh ?? 0) : 0
-  const standbyLossMonth = standbyKwh * lv1
+  const standbyRate =
+    input.standbyRate != null && Number.isFinite(input.standbyRate)
+      ? input.standbyRate
+      : lv1
+  const standbyLossMonth = standbyKwh * standbyRate
   const standbyPerKwh = q > 0 ? standbyLossMonth / q : 0
   const netPerKwh = marginPerKwh - opexRate - standbyPerKwh
   return {
