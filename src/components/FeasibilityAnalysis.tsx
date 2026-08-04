@@ -22,6 +22,8 @@ interface FeasibilityAnalysisProps {
   standbyMonthlyKwhSeparated?: number
   /** 전체 종류 월 대기전력량 (kWh) — 대기전력 탭 자동연동 */
   standbyMonthlyKwhAll?: number
+  /** 요금 구조 탭 실효 전기원가 (원/kWh·VAT제외) — 자동 반영 기본값 */
+  autoElecCost?: number
 }
 
 /**
@@ -116,9 +118,19 @@ export default function FeasibilityAnalysis({
   config,
   standbyMonthlyKwhSeparated = 0,
   standbyMonthlyKwhAll = 0,
+  autoElecCost,
 }: FeasibilityAnalysisProps) {
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
+
+  // 전기원가: override 있으면 우선, 없으면 요금구조 실효원가 자동 반영(없으면 147)
+  const hasElecOverride =
+    inputs.elecCostOverride != null && Number.isFinite(inputs.elecCostOverride)
+  const autoElec =
+    autoElecCost != null && Number.isFinite(autoElecCost) ? autoElecCost : ELEC_COST
+  const effElecCost = hasElecOverride
+    ? (inputs.elecCostOverride as number)
+    : autoElec
 
   // 영업비 1대분(계약년수별) — 전 프로젝트 공통(일괄) 설정, 직접 기입 가능
   const [bizFeeByYear, setBizFeeByYear] = usePersistentState<number[]>(
@@ -155,6 +167,8 @@ export default function FeasibilityAnalysis({
     standbyMonthlyKwhAll,
     // 영업비는 공통 기준표(계약년수별)에서 자동 적용
     bizFeePerUnit: appliedBizFee,
+    // 전기원가는 요금구조 실효원가 자동반영(또는 override)
+    elecCostUnit: effElecCost,
   }
   const r = computeFeasibility(eff)
 
@@ -308,13 +322,33 @@ export default function FeasibilityAnalysis({
             onChange={(v) => set({ rateVat: v })}
             standard={`${standardRate(inputs.rateVat)}원`}
           />
-          <Field
-            label="전기원가"
-            unit="원/kWh·VAT제외"
-            value={inputs.elecCostUnit ?? ELEC_COST}
-            onChange={(v) => set({ elecCostUnit: v })}
-            standard={`${ELEC_COST}원`}
-          />
+          <label className="var-field">
+            <span className="var-field__label">
+              전기원가
+              <span className="var-field__unit">원/kWh·VAT제외</span>
+            </span>
+            <DecimalInput
+              className="var-field__input"
+              value={effElecCost}
+              onValue={(v) => set({ elecCostOverride: v })}
+            />
+            <span className="var-field__std">
+              {hasElecOverride ? (
+                <>
+                  직접입력 ·{' '}
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => set({ elecCostOverride: null })}
+                  >
+                    요금구조({autoElec.toFixed(1)}원)로 되돌리기
+                  </button>
+                </>
+              ) : (
+                `요금구조 실효원가 자동 반영 (${autoElec.toFixed(1)}원)`
+              )}
+            </span>
+          </label>
         </div>
 
         {/* 대기전력 전기원가 합산/구분 */}
@@ -378,7 +412,7 @@ export default function FeasibilityAnalysis({
             모자분리 계약 충전기는 전용 계량기가 24시간 가동되어 대기전력도
             운영사 부담입니다. 대기전력량(kWh)은 대기전력 탭의 대당 대기전력(W)
             설정을 그대로 사용하고, 단가는 위 사업성 전기원가(
-            {inputs.elecCostUnit ?? ELEC_COST}원/kWh)로 환산합니다. 합산 시
+            {effElecCost.toFixed(1)}원/kWh)로 환산합니다. 합산 시
             손익·목표달성 충전단가에 반영됩니다.
           </p>
         </div>
@@ -898,7 +932,7 @@ export default function FeasibilityAnalysis({
           </table>
         </div>
         <p className="table-note">
-          전기원가 {inputs.elecCostUnit ?? ELEC_COST}원/kWh · PG 수수료율{' '}
+          전기원가 {effElecCost.toFixed(1)}원/kWh · PG 수수료율{' '}
           {(PG_RATE * 100).toFixed(2)}% ·
           누적 충전량(ΣW) {formatNumber(Math.round(r.sumW))} kWh · 영업비
           환산계수 {r.convFactor.toFixed(4)}. 사업성 판정: 영업이익률 ≥ 목표이면

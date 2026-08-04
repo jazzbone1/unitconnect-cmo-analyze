@@ -83,6 +83,8 @@ export interface TariffInputs {
   contractRatio?: number
   /** 월 총 충전량 (kWh) */
   monthlyKwh: number
+  /** 월 총 충전량 직접입력(override). null/미설정 시 사업성 월사용량 자동 반영 */
+  monthlyKwhOverride?: number | null
   /** 기후환경요금 (원/kWh) */
   climate: number
   /** 연료비조정액 (원/kWh) */

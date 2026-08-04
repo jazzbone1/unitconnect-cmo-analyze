@@ -254,6 +254,42 @@ function ProjectDetail({
   const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
 
+  // 총 설비용량(kW)
+  const installedKw = useMemo(
+    () => config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
+    [config],
+  )
+  // 사업성 분석 월 사용량 합산치 = Σ(종류 이용률 × 정격 × 720 × 대수)
+  const feasMonthlyKwh = useMemo(() => {
+    const countOf = (kw: number) =>
+      config.chargers.find((c) => c.kw === kw)?.count ?? 0
+    const rows: [number, keyof FeasibilityInputs][] = [
+      [100, 'utilFast100'],
+      [50, 'utilFast50'],
+      [7, 'utilSlow7'],
+      [3.5, 'utilSlow35'],
+      [3, 'utilSlow3'],
+    ]
+    return rows.reduce(
+      (a, [kw, key]) =>
+        a + ((feas[key] as number) || 0) * kw * 720 * countOf(kw),
+      0,
+    )
+  }, [feas, config])
+  // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
+  const effMonthlyKwh =
+    tariff.monthlyKwhOverride != null &&
+    Number.isFinite(tariff.monthlyKwhOverride)
+      ? (tariff.monthlyKwhOverride as number)
+      : Math.round(feasMonthlyKwh)
+  // 요금 구조 실효원가(사업성 전기원가로 자동 반영)
+  const autoElecCost = useMemo(
+    () =>
+      computeTariff({ ...tariff, installedKw, monthlyKwh: effMonthlyKwh })
+        .selected.effCost,
+    [tariff, installedKw, effMonthlyKwh],
+  )
+
   // 앞 단계(단지정보·충전기 요금·요금구조·정산) 변경 시 보고서의 자동 연동(음영)
   // 필드를 실시간 반영한다. 직접입력 필드는 보존.
   const linkedSeed = useMemo(
@@ -410,26 +446,16 @@ function ProjectDetail({
         />
       ) : subtab === 'tariff' ? (
         <TariffAnalysis
-          inputs={{
-            ...tariff,
-            installedKw: config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
-          }}
+          inputs={{ ...tariff, installedKw, monthlyKwh: effMonthlyKwh }}
           setInputs={setTariff}
+          autoMonthlyKwh={Math.round(feasMonthlyKwh)}
         />
       ) : subtab === 'standby' ? (
         <StandbyAnalysis
           chargers={config.chargers}
           inputs={standby}
           setInputs={setStandby}
-          effCost={
-            computeTariff({
-              ...tariff,
-              installedKw: config.chargers.reduce(
-                (a, c) => a + c.kw * c.count,
-                0,
-              ),
-            }).selected.effCost
-          }
+          effCost={autoElecCost}
         />
       ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis
@@ -444,6 +470,7 @@ function ProjectDetail({
           standbyMonthlyKwhAll={
             computeStandby(config.chargers, standby, 0).totalKwh
           }
+          autoElecCost={autoElecCost}
         />
       ) : (
         <>

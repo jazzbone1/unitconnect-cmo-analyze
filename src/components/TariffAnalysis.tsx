@@ -16,6 +16,8 @@ import Dropzone from './Dropzone'
 interface Props {
   inputs: TariffInputs
   setInputs: (i: TariffInputs) => void
+  /** 사업성 분석 월 사용량 합산치 (자동 반영 기본값) */
+  autoMonthlyKwh?: number
 }
 
 function NumField({
@@ -48,8 +50,15 @@ function NumField({
   )
 }
 
-export default function TariffAnalysis({ inputs, setInputs }: Props) {
+export default function TariffAnalysis({
+  inputs,
+  setInputs,
+  autoMonthlyKwh,
+}: Props) {
   const set = (patch: Partial<TariffInputs>) => setInputs({ ...inputs, ...patch })
+  const monthlyOverridden =
+    inputs.monthlyKwhOverride != null &&
+    Number.isFinite(inputs.monthlyKwhOverride)
   const r = computeTariff(inputs)
   const touSum = inputs.touLight + inputs.touMid + inputs.touPeak
   // 선택된 요금제 실효원가 산정 단계값
@@ -268,7 +277,36 @@ export default function TariffAnalysis({ inputs, setInputs }: Props) {
               })
             }
           />
-          <NumField label="월 총 충전량" unit="kWh/월" value={inputs.monthlyKwh} onChange={(v) => set({ monthlyKwh: v })} />
+          <label className="var-field">
+            <span className="var-field__label">월 총 충전량</span>
+            <span className="var-field__input">
+              <input
+                className="cell-input"
+                type="number"
+                value={Number.isFinite(inputs.monthlyKwh) ? inputs.monthlyKwh : ''}
+                onChange={(e) =>
+                  set({ monthlyKwhOverride: Number(e.target.value) || 0 })
+                }
+              />
+              <span className="var-field__unit">kWh/월</span>
+            </span>
+            <span className="var-field__std">
+              {monthlyOverridden ? (
+                <>
+                  직접입력 ·{' '}
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => set({ monthlyKwhOverride: null })}
+                  >
+                    사업성 월사용량({formatNumber(autoMonthlyKwh ?? 0)})으로
+                  </button>
+                </>
+              ) : (
+                `사업성 월사용량 자동 반영 (${formatNumber(autoMonthlyKwh ?? 0)} kWh)`
+              )}
+            </span>
+          </label>
         </div>
         <div className="var-row">
           <NumField label="기후환경요금" unit="원/kWh" value={inputs.climate} onChange={(v) => set({ climate: v })} />
