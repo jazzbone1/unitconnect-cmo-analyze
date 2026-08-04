@@ -35,7 +35,7 @@ function Field({
   unit?: string
   value: number
   onChange: (v: number) => void
-  step?: number
+  step?: number | string
   /** 유닛커넥트 기준(변경금지) 표시값 */
   standard?: string
 }) {
@@ -48,7 +48,7 @@ function Field({
       <input
         className="var-field__input"
         type="number"
-        step={step}
+        step={step ?? 'any'}
         value={Number.isFinite(value) ? value : ''}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
       />
@@ -321,7 +321,7 @@ export default function FeasibilityAnalysis({
                       <input
                         className="cell-input"
                         type="number"
-                        step={0.1}
+                        step="any"
                         value={+(((inputs[row.utilKey] as number) * 100).toFixed(4)) || ''}
                         placeholder="0"
                         onChange={(e) =>
@@ -370,12 +370,12 @@ export default function FeasibilityAnalysis({
             연차별 이용률 (7kW 환산, 성장 예상)
           </h4>
           <div className="var-row">
-            <Field label="2년차" unit="%" step={0.1} value={+(inputs.yearUtil2 * 100).toFixed(4)} onChange={(v) => set({ yearUtil2: v / 100 })} standard={`${(STD.yearUtil2 * 100).toFixed(0)}%`} />
-            <Field label="3년차" unit="%" step={0.1} value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} standard={`${(STD.yearUtil3 * 100).toFixed(0)}%`} />
-            <Field label="4년차" unit="%" step={0.1} value={+(inputs.yearUtil4 * 100).toFixed(4)} onChange={(v) => set({ yearUtil4: v / 100 })} standard={`${(STD.yearUtil4 * 100).toFixed(0)}%`} />
-            <Field label="5년차" unit="%" step={0.1} value={+(inputs.yearUtil5 * 100).toFixed(4)} onChange={(v) => set({ yearUtil5: v / 100 })} standard={`${(STD.yearUtil5 * 100).toFixed(0)}%`} />
-            <Field label="6년차" unit="%" step={0.1} value={+(((inputs.yearUtil6 ?? 0.12) * 100).toFixed(4))} onChange={(v) => set({ yearUtil6: v / 100 })} standard={`${((STD.yearUtil6 ?? 0.12) * 100).toFixed(0)}%`} />
-            <Field label="7년차" unit="%" step={0.1} value={+(((inputs.yearUtil7 ?? 0.13) * 100).toFixed(4))} onChange={(v) => set({ yearUtil7: v / 100 })} standard={`${((STD.yearUtil7 ?? 0.13) * 100).toFixed(0)}%`} />
+            <Field label="2년차" unit="%" step="any" value={+(inputs.yearUtil2 * 100).toFixed(4)} onChange={(v) => set({ yearUtil2: v / 100 })} standard={`${(STD.yearUtil2 * 100).toFixed(0)}%`} />
+            <Field label="3년차" unit="%" step="any" value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} standard={`${(STD.yearUtil3 * 100).toFixed(0)}%`} />
+            <Field label="4년차" unit="%" step="any" value={+(inputs.yearUtil4 * 100).toFixed(4)} onChange={(v) => set({ yearUtil4: v / 100 })} standard={`${(STD.yearUtil4 * 100).toFixed(0)}%`} />
+            <Field label="5년차" unit="%" step="any" value={+(inputs.yearUtil5 * 100).toFixed(4)} onChange={(v) => set({ yearUtil5: v / 100 })} standard={`${(STD.yearUtil5 * 100).toFixed(0)}%`} />
+            <Field label="6년차" unit="%" step="any" value={+(((inputs.yearUtil6 ?? 0.12) * 100).toFixed(4))} onChange={(v) => set({ yearUtil6: v / 100 })} standard={`${((STD.yearUtil6 ?? 0.12) * 100).toFixed(0)}%`} />
+            <Field label="7년차" unit="%" step="any" value={+(((inputs.yearUtil7 ?? 0.13) * 100).toFixed(4))} onChange={(v) => set({ yearUtil7: v / 100 })} standard={`${((STD.yearUtil7 ?? 0.13) * 100).toFixed(0)}%`} />
           </div>
           <p className="var-hint">
             연차 값은 <b>완속 7kW 이용률</b> 기준입니다. 7kW의 증가분(%p)을{' '}
@@ -773,7 +773,7 @@ export default function FeasibilityAnalysis({
           <Field
             label="영업이익 포기율"
             unit="%"
-            step={0.1}
+            step="any"
             value={+(inputs.profitGiveupRate * 100).toFixed(4)}
             onChange={(v) => set({ profitGiveupRate: (v || 0) / 100 })}
           />
