@@ -323,9 +323,12 @@ function ProjectDetail({
   const [standby, setStandby] = useState<StandbyInputs>(
     () => project.standby ?? defaultStandby(),
   )
-  const [aptBill, setAptBill] = useState<ApartmentBillInputs>(
-    () => project.aptBill ?? defaultApartmentBill(),
-  )
+  const [aptBill, setAptBill] = useState<ApartmentBillInputs>(() => {
+    if (project.aptBill) return project.aptBill
+    const d = defaultApartmentBill()
+    d.households = project.households ?? 0 // 가구수 자동 반영
+    return d
+  })
   const [site, setSite] = useState<SiteInfo>({
     name: project.name,
     address: project.address,

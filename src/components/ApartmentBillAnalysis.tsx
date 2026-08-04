@@ -85,14 +85,21 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
       const usage = fields.usageKwh ?? inputs.usageKwh
       // 계약종별이 인식되면 그 프리셋 구간을, 아니면 기존 구간을 사용
       const ct = (contractType as ContractType) || inputs.contractType
+      const perHh = ct.startsWith('housing')
       const baseTiers =
         contractType && contractType !== inputs.contractType
           ? applySeasonTiers(tierPreset(ct).tiers, inputs.season)
           : inputs.tiers
-      // 계약 형태에 맞춰 인식된 사용량을 구간에 자동배분
-      const { tiers, baseCharge } = distribute(baseTiers, usage)
+      // 계약 형태에 맞춰 인식된 사용량을 구간에 자동배분(주택용은 세대평균 기준)
+      const { tiers, baseCharge } = distribute(
+        baseTiers,
+        usage,
+        perHh,
+        inputs.households,
+      )
       set({
         contractType: ct,
+        perHousehold: perHh,
         baseCharge: fields.basic ?? baseCharge ?? inputs.baseCharge,
         climate: fields.climate ?? inputs.climate,
         fuel: fields.fuel ?? inputs.fuel,
@@ -117,11 +124,22 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
   const isProgressive = inputs.tiers.some((t) => t.cap != null)
   const isTou = inputs.tiers.some((t) => t.ratio != null)
 
-  // 계약 형태에 맞춰 총 사용량을 구간에 자동 배분 + 주택용 누진 기본요금 반영
-  function distribute(tiers: typeof inputs.tiers, usage: number) {
+  // 계약 형태에 맞춰 사용량을 구간에 자동 배분 + 주택용 누진 기본요금 반영.
+  //  세대별 누진(perHousehold)이면 세대평균에 누진 적용, 기본요금은 세대당×세대수.
+  function distribute(
+    tiers: typeof inputs.tiers,
+    usage: number,
+    perHh: boolean,
+    hh: number,
+  ) {
     if (tiers.some((t) => t.cap != null)) {
-      const next = distributeProgressive(tiers, usage)
-      return { tiers: next, baseCharge: reachedBaseCharge(next) }
+      const hhN = perHh && hh > 0 ? hh : 1
+      const next = distributeProgressive(tiers, usage / hhN) // 세대평균 기준
+      const base = reachedBaseCharge(next)
+      return {
+        tiers: next,
+        baseCharge: base != null ? Math.round(base * hhN) : null,
+      }
     }
     if (tiers.some((t) => t.ratio != null)) {
       return { tiers: distributeByRatio(tiers, usage), baseCharge: null }
@@ -131,10 +149,18 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
 
   function applyPreset(type: ContractType) {
     const p = tierPreset(type)
+    // 주택용(누진)은 세대별 누진 기본 적용, 일반용은 해제
+    const perHh = type.startsWith('housing')
     const seasoned = applySeasonTiers(p.tiers, inputs.season)
-    const { tiers, baseCharge } = distribute(seasoned, inputs.usageKwh)
+    const { tiers, baseCharge } = distribute(
+      seasoned,
+      inputs.usageKwh,
+      perHh,
+      inputs.households,
+    )
     set({
       contractType: type,
+      perHousehold: perHh,
       tiers,
       baseCharge: baseCharge ?? p.baseCharge,
     })
@@ -142,13 +168,28 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
 
   function applySeason(season: Season) {
     const seasoned = applySeasonTiers(inputs.tiers, season)
-    const { tiers, baseCharge } = distribute(seasoned, inputs.usageKwh)
+    const { tiers, baseCharge } = distribute(
+      seasoned,
+      inputs.usageKwh,
+      inputs.perHousehold,
+      inputs.households,
+    )
     set({ season, tiers, baseCharge: baseCharge ?? inputs.baseCharge })
   }
 
+  function reDistribute(patch: Partial<ApartmentBillInputs>) {
+    const next = { ...inputs, ...patch }
+    const { tiers, baseCharge } = distribute(
+      next.tiers,
+      next.usageKwh,
+      next.perHousehold,
+      next.households,
+    )
+    set({ ...patch, tiers, baseCharge: baseCharge ?? next.baseCharge })
+  }
+
   function setUsage(v: number) {
-    const { tiers, baseCharge } = distribute(inputs.tiers, v)
-    set({ usageKwh: v, tiers, baseCharge: baseCharge ?? inputs.baseCharge })
+    reDistribute({ usageKwh: v })
   }
 
   return (
@@ -217,6 +258,15 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             </span>
             <NumCell value={inputs.usageKwh} onChange={setUsage} />
           </label>
+          <label className="var-field">
+            <span className="var-field__label">
+              가구수(세대)<span className="var-field__unit">세대</span>
+            </span>
+            <NumCell
+              value={inputs.households}
+              onChange={(v) => reDistribute({ households: v })}
+            />
+          </label>
           {(isProgressive || isTou) && (
             <button
               type="button"
@@ -228,6 +278,29 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             </button>
           )}
         </div>
+        {isProgressive && (
+          <div className="var-row" style={{ marginTop: '0.4rem' }}>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={inputs.perHousehold}
+                onChange={(e) =>
+                  reDistribute({ perHousehold: e.target.checked })
+                }
+              />
+              <span>
+                세대별 누진 적용 (아파트 종합계약) — 총 사용량을 가구수로 나눈
+                세대평균에 누진 적용 후 ×세대수
+              </span>
+            </label>
+            {inputs.perHousehold && inputs.households > 0 && (
+              <span className="var-field__std" style={{ alignSelf: 'center' }}>
+                세대당 평균 {formatNumber(Math.round(r.perHhKwh))} kWh (총{' '}
+                {formatNumber(inputs.usageKwh)} ÷ {inputs.households}세대)
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 기본료 */}
@@ -246,9 +319,11 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             </b>
           </div>
           <p className="hint hint--tight">
-            {inputs.contractType.startsWith('housing')
-              ? '주택용 누진: 총 사용량이 도달한 단계의 기본요금이 자동 적용됩니다(0~200:1단계 · 201~400:2단계 · 400 초과:3단계). 고지서 값과 다르면 직접 수정하세요.'
-              : '일반용은 계약전력 × 기본단가(원/kW)로 부과됩니다. 고지서 기본요금을 입력하세요.'}
+            {r.perHousehold
+              ? `주택용 종합계약: 세대평균이 도달한 단계의 세대당 기본요금 × 세대수(${inputs.households})가 자동 적용됩니다. 고지서 값과 다르면 직접 수정하세요.`
+              : inputs.contractType.startsWith('housing')
+                ? '주택용 누진: 총 사용량이 도달한 단계의 기본요금이 자동 적용됩니다. 아파트 종합계약이면 위 「세대별 누진 적용」을 켜세요.'
+                : '일반용은 계약전력 × 기본단가(원/kW)로 부과됩니다. 고지서 기본요금을 입력하세요.'}
           </p>
         </div>
       </div>
@@ -261,9 +336,11 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             <thead>
               <tr>
                 <th>구간</th>
-                <th>사용량(kWh)</th>
+                <th>{r.perHousehold ? '세대당 사용량(kWh)' : '사용량(kWh)'}</th>
                 <th>단가(원/kWh)</th>
-                <th>부과 금액(원)</th>
+                <th>
+                  부과 금액(원){r.perHousehold ? ' (×세대수)' : ''}
+                </th>
                 <th></th>
               </tr>
             </thead>
@@ -324,8 +401,14 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
                 </tr>
               ))}
               <tr className="row--total">
-                <td className="col-name">전력량요금 합계</td>
-                <td>{formatNumber(r.tierKwh)}</td>
+                <td className="col-name">
+                  전력량요금 합계{r.perHousehold ? ` (총 ${formatNumber(r.tierKwh)}kWh)` : ''}
+                </td>
+                <td>
+                  {r.perHousehold
+                    ? `${formatNumber(Math.round(r.perHhKwh))} (세대당)`
+                    : formatNumber(r.tierKwh)}
+                </td>
                 <td />
                 <td className="cell--strong">{won(r.energyTotal)}</td>
                 <td />

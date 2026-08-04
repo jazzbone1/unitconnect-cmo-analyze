@@ -107,6 +107,10 @@ export interface ApartmentBillInputs {
   usageKwh: number
   /** 계절 기준 (annual=연간 가중, 또는 특정 계절) */
   season: Season
+  /** 가구수(세대수) — 아파트 종합계약 세대별 누진 산정 */
+  households: number
+  /** 세대별 누진 적용 여부 (주택용 종합계약). true면 세대평균에 누진 적용 후 ×세대수 */
+  perHousehold: boolean
 }
 
 /** 선택 계절에 맞춰 각 구간의 단가·누진상한을 설정한다. */
@@ -256,13 +260,23 @@ export function reachedBaseCharge(tiers: RateTier[]): number | null {
 }
 
 export interface TierResult extends RateTier {
-  /** 구간 부과 금액 = 사용량 × 단가 */
+  /** 구간 세대당 사용량 (kWh) — perHousehold일 때 세대평균, 아니면 전체 */
+  kwhPerHh: number
+  /** 구간 총 사용량 (kWh) = 세대당 × 세대수 */
+  kwhTotal: number
+  /** 구간 총 부과 금액 (원) = 세대당 사용량 × 단가 × 세대수 */
   amount: number
 }
 
 export interface ApartmentBillResult {
   tiers: TierResult[]
-  /** 구간 사용량 합계 (kWh) */
+  /** 세대별 누진 적용 여부 */
+  perHousehold: boolean
+  /** 적용 세대수 (perHousehold 아니면 1) */
+  hh: number
+  /** 세대당 평균 사용량 (kWh) */
+  perHhKwh: number
+  /** 구간 총 사용량 합계 (kWh) */
   tierKwh: number
   /** 전력량요금 합계 (원) */
   energyTotal: number
@@ -283,11 +297,19 @@ export interface ApartmentBillResult {
 export function computeApartmentBill(
   i: ApartmentBillInputs,
 ): ApartmentBillResult {
-  const tiers: TierResult[] = i.tiers.map((t) => ({
-    ...t,
-    amount: (t.kwh || 0) * (t.unit || 0),
-  }))
-  const tierKwh = tiers.reduce((a, t) => a + (t.kwh || 0), 0)
+  // 아파트 종합계약(주택용): 세대평균에 누진 적용 후 세대수를 곱한다.
+  const hh = i.perHousehold && i.households > 0 ? i.households : 1
+  const tiers: TierResult[] = i.tiers.map((t) => {
+    const kwhPerHh = t.kwh || 0
+    return {
+      ...t,
+      kwhPerHh,
+      kwhTotal: kwhPerHh * hh,
+      amount: kwhPerHh * (t.unit || 0) * hh,
+    }
+  })
+  const perHhKwh = tiers.reduce((a, t) => a + t.kwhPerHh, 0)
+  const tierKwh = tiers.reduce((a, t) => a + t.kwhTotal, 0)
   const energyTotal = tiers.reduce((a, t) => a + t.amount, 0)
   const supply = i.baseCharge + energyTotal + i.climate + i.fuel
   const total = supply + i.vat + i.fund + i.round
@@ -296,6 +318,9 @@ export function computeApartmentBill(
   const denom = i.baseCharge + energyTotal
   return {
     tiers,
+    perHousehold: i.perHousehold && i.households > 0,
+    hh,
+    perHhKwh,
     tierKwh,
     energyTotal,
     baseCharge: i.baseCharge,
@@ -321,6 +346,8 @@ export function defaultApartmentBill(): ApartmentBillInputs {
     round: 0,
     usageKwh: 0,
     season: 'annual',
+    households: 0,
+    perHousehold: false,
   }
 }
 
