@@ -19,7 +19,7 @@ import {
   computeTariff,
   computeBill,
   defaultTariff,
-  properContractKwByUsage,
+  effectiveContractKw,
   type TariffInputs,
   type BillInputs,
 } from '../lib/tariff'
@@ -214,16 +214,13 @@ function seedReport(
         g.lv1Override = Math.round(src * 10) / 10
       }
     }
-    // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력(요금구조①) × 기본단가(아파트요금)
+    // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력 × 기본단가(아파트요금)
+    //  적정계약전력 = 요금 구조의 '현재 계약전력(비율)' 값(설비용량 × 수용률).
     if (!sep && tariff && aptBill) {
-      const proper = properContractKwByUsage(
-        groupMonthly,
-        tariff.targetLoadFactor ?? 0.18,
-        tariff.contractMargin ?? 0.15,
-      )
-      g.contractKw = Math.round(proper)
+      const contractKw = effectiveContractKw(tariff)
+      g.contractKw = Math.round(contractKw)
       g.baseUnitPrice = Math.round(baseUnitPerKw(aptBill).value)
-      g.apartmentBaseAlloc = proper > 0
+      g.apartmentBaseAlloc = contractKw > 0
       // 고지서 역산: 공용부 고지서에 기본요금·계약전력이 있으면(주로 일반용) 시드.
       // 있으면 기본단가 = 기본요금 ÷ 계약전력으로 역산, 없으면 표준/누진 폴백.
       if (aptBill.baseCharge > 0 && aptBill.contractKw > 0) {
