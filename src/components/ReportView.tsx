@@ -126,6 +126,14 @@ export default function ReportView({
       visible: { ...(m.visible ?? {}), [k]: !(m.visible?.[k] !== false) },
     }))
 
+  // 2-1/2-2에서 편집한 섹션 제목을 하한선 등 하위 표에 그대로 사용(번호 접두어 제거)
+  const SEC_DEFAULT: Record<string, string> = {
+    '2-1': '2-1. 모자분리 충전기 (7kW 완속 · DC 급속)',
+    '2-2': '2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)',
+  }
+  const groupTitle = (k: string) =>
+    (model.secTitle?.[k] ?? SEC_DEFAULT[k] ?? '').replace(/^\s*\d+-\d+\.\s*/, '')
+
   /* ---------- 앞 단계 값 자동 반영 ---------- */
   function autoFill() {
     if (!autoSeed) return
@@ -798,18 +806,16 @@ export default function ReportView({
           </div>
           )}
 
-          {/* 요금 하한선 분석 (자동 반영) */}
+          {/* 요금 하한선 분석 (자동 반영) — 제목·표출을 2-1/2-2 설정에 연동 */}
           <SecHead k="2-4" tag="h4" label="2-4. 요금 하한선 분석" />
           {secOn('2-4') && (
             <>
-              <LowerBound
-                which="groupA"
-                title="모자분리 충전기 (7kW · DC)"
-              />
-              <LowerBound
-                which="groupB"
-                title="모자분리 미적용 (3kW)"
-              />
+              {secOn('2-1') && (
+                <LowerBound which="groupA" title={groupTitle('2-1')} />
+              )}
+              {secOn('2-2') && (
+                <LowerBound which="groupB" title={groupTitle('2-2')} />
+              )}
             </>
           )}
 
