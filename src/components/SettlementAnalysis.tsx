@@ -157,6 +157,11 @@ function ComparisonSection({
                 <br />
                 (원)
               </th>
+              {chargers.length > 0 && (
+                <th className="group-head" colSpan={chargers.length}>
+                  종류별 사용금액 (원)
+                </th>
+              )}
               <th rowSpan={2}>
                 전체
                 <br />
@@ -177,6 +182,14 @@ function ComparisonSection({
               {chargers.map((c, ci) => (
                 <th
                   key={`uh-${c.id}`}
+                  className={`type-col${ci === 0 ? ' group-start' : ''}`}
+                >
+                  {c.name}
+                </th>
+              ))}
+              {chargers.map((c, ci) => (
+                <th
+                  key={`ah-${c.id}`}
                   className={`type-col${ci === 0 ? ' group-start' : ''}`}
                 >
                   {c.name}
@@ -219,6 +232,16 @@ function ComparisonSection({
                     </td>
                   ))}
                   <td>{formatNumber(Math.round(m.amountCalc))}</td>
+                  {chargers.map((c, ci) => (
+                    <td
+                      key={`a-${c.id}`}
+                      className={`type-col${ci === 0 ? ' group-start' : ''}`}
+                    >
+                      {m.splitMode === 'none'
+                        ? '—'
+                        : formatNumber(Math.round(typeById.get(c.id)?.amount ?? 0))}
+                    </td>
+                  ))}
                   <td>{formatNumber(m.utilTotal)}</td>
                   {chargers.map((c, ci) => (
                     <td

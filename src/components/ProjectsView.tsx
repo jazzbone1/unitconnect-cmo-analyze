@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SavedSite } from '../lib/sites'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
@@ -53,7 +53,7 @@ function seedReport(
         value: total ? `${total.toLocaleString()}대` : '',
         note: breakdown,
       }
-    if (row.label === '현행 요금' && currentRateText)
+    if (row.label === '현행 요금')
       return { ...row, value: currentRateText }
     return row
   })
@@ -137,6 +137,40 @@ function deriveTariff(project: SavedSite): TariffInputs {
   return t
 }
 
+/** 앞 단계 자동 연동(음영) 필드만 보고서에 반영, 직접입력 필드는 보존 */
+function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
+  const byLabel = new Map(s.overview.map((r) => [r.label, r]))
+  const linkedLabels = ['세대수', '충전기', '현행 요금']
+  const overview = m.overview.map((row) => {
+    if (linkedLabels.includes(row.label)) {
+      const src = byLabel.get(row.label)
+      if (src)
+        return {
+          ...row,
+          value: src.value,
+          note: row.label === '충전기' ? src.note : row.note,
+        }
+    }
+    return row
+  })
+  return {
+    ...m,
+    siteName: s.siteName || m.siteName,
+    overview,
+    perType: s.perType,
+    monthly: s.monthly,
+    opexBaseKwh: s.opexBaseKwh,
+    groupA: {
+      ...m.groupA,
+      contractKw: s.groupA.contractKw,
+      monthlyKwh: s.groupA.monthlyKwh,
+      lv1Override: s.groupA.lv1Override,
+      currentRate: s.groupA.currentRate,
+    },
+    groupB: { ...m.groupB, currentRate: s.groupB.currentRate },
+  }
+}
+
 interface ProjectsViewProps {
   projects: SavedSite[]
   selectedId: string | null
@@ -191,6 +225,25 @@ function ProjectDetail({
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
+
+  // 앞 단계(단지정보·충전기 요금·요금구조·정산) 변경 시 보고서의 자동 연동(음영)
+  // 필드를 실시간 반영한다. 직접입력 필드는 보존.
+  const linkedSeed = useMemo(
+    () =>
+      seedReport(
+        {
+          name: site.name,
+          households: site.households,
+        } as SavedSite,
+        config,
+        files,
+        tariff,
+      ),
+    [site.name, site.households, config, files, tariff],
+  )
+  useEffect(() => {
+    setReport((m) => mergeLinked(m, linkedSeed))
+  }, [linkedSeed])
 
   const settlementFiles = useMemo(
     () => files.filter((f) => detectSettlement(f.dataset)),
