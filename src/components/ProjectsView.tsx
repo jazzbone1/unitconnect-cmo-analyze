@@ -186,6 +186,9 @@ function seedReport(
     const usageAvg = months.length
       ? Math.round((usageByType.get(c.id) ?? 0) / months.length)
       : 0
+    // 월 사용량: 정산값 우선, 없으면 사업성 종류별 월 사용량(이용률×정격×720×대수)
+    const feasMonthly = Math.round(utilByKw(c.kw) * c.kw * 720 * c.count)
+    const groupMonthly = usageAvg > 0 ? usageAvg : feasMonthly
     const sep = !!c.separated
     const standbyKwh =
       !sep && standby
@@ -197,7 +200,7 @@ function seedReport(
       kw: c.kw,
       count: c.count,
       separated: sep,
-      monthlyKwh: usageAvg,
+      monthlyKwh: groupMonthly,
       currentRate: c.rate,
       standbyKwh,
     })
@@ -212,7 +215,7 @@ function seedReport(
     // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력(요금구조①) × 기본단가(아파트요금)
     if (!sep && tariff && aptBill) {
       const proper = properContractKwByUsage(
-        usageAvg,
+        groupMonthly,
         tariff.targetLoadFactor ?? 0.18,
         tariff.contractMargin ?? 0.15,
       )
