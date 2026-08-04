@@ -617,7 +617,7 @@ export default function FeasibilityAnalysis({
               연 성장률 1%p 반영
             </button>
           </div>
-          <div className="var-row">
+          <div className="var-row var-row--stack">
             <Field label="2년차" unit="%" step="any" value={+(inputs.yearUtil2 * 100).toFixed(4)} onChange={(v) => set({ yearUtil2: v / 100 })} standard={`${(STD.yearUtil2 * 100).toFixed(0)}%`} />
             <Field label="3년차" unit="%" step="any" value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} standard={`${(STD.yearUtil3 * 100).toFixed(0)}%`} />
             <Field label="4년차" unit="%" step="any" value={+(inputs.yearUtil4 * 100).toFixed(4)} onChange={(v) => set({ yearUtil4: v / 100 })} standard={`${(STD.yearUtil4 * 100).toFixed(0)}%`} />
