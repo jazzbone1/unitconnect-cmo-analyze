@@ -211,6 +211,42 @@ export default function FeasibilityAnalysis({
     { kw: 3, label: '완속(콘센트) 3kW', utilKey: 'utilSlow3', rateKey: 'rateSlow3' },
   ]
 
+  // 종류별 목표 달성 충전단가:
+  //  전기원가는 사용량 비례, 운영·영업·CAPEX는 대당 균등 배분 후 그 종류 사용량으로 나눔.
+  //  종류별 단가를 사용량 가중하면 전체 목표단가와 일치.
+  const perTypeTarget = (margin: number) => {
+    const yearsN = Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))
+    const sevenByYearT = [
+      inputs.utilSlow7,
+      inputs.yearUtil2,
+      inputs.yearUtil3,
+      inputs.yearUtil4,
+      inputs.yearUtil5,
+      inputs.yearUtil6 ?? 0.12,
+      inputs.yearUtil7 ?? 0.13,
+    ]
+    const elecFixed = -(r.elecCost + r.standbyCost) // 전기(+대기) 총원가, 양수
+    const nonElecFixed = -(r.opsCost + r.bizCost + r.capex) // 운영·영업·capex, 양수
+    const denomF = 1 - PG_RATE - margin
+    return chargerRows.map((row) => {
+      const count = countOf(row.kw)
+      let Et = 0 // Σ 월사용량(연차 합) — sumW의 종류별 몫
+      for (let y = 0; y < yearsN; y++) {
+        const uy =
+          (inputs[row.utilKey] as number) +
+          (sevenByYearT[y] - inputs.utilSlow7) * (7 / row.kw)
+        Et += uy * row.kw * 720 * count
+      }
+      const energyShare = r.sumW > 0 ? Et / r.sumW : 0
+      const countShare = r.totalUnits > 0 ? count / r.totalUnits : 0
+      const Ft = elecFixed * energyShare + nonElecFixed * countShare
+      const totalKwh = 12 * Et
+      const target =
+        totalKwh > 0 && denomF > 0 ? (Ft / (totalKwh * denomF)) * 1.1 : null
+      return { row, count, totalKwh, target }
+    })
+  }
+
   const pnl: { label: string; value: number; strong?: boolean; minus?: boolean }[] = [
     { label: '매출 (VAT 제외)', value: r.revenue, strong: true },
     { label: '(−) PG 수수료', value: r.pgFee, minus: true },
@@ -1168,6 +1204,51 @@ export default function FeasibilityAnalysis({
             {'{'}12·연사용량·(1−PG−목표이익률){'}'} × 1.1(VAT).
           </p>
         </div>
+
+        {/* 종류별 목표 달성 충전단가 */}
+        <h4 className="summary-block__title" style={{ marginTop: '0.75rem' }}>
+          충전기 종류별 목표 달성 충전단가
+        </h4>
+        <div className="table-scroll">
+          <table className="data-table charger-table">
+            <thead>
+              <tr>
+                <th>종류</th>
+                <th>대수</th>
+                <th>계약기간 총 사용량(kWh)</th>
+                <th>목표 달성 단가(원/kWh)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {perTypeTarget(
+                customMarginPct.trim() === '' ? r.targetMargin : customMargin,
+              )
+                .filter((t) => t.count > 0)
+                .map((t) => (
+                  <tr key={t.row.kw}>
+                    <td className="col-name">{t.row.label}</td>
+                    <td>{t.count.toLocaleString()}</td>
+                    <td>{formatNumber(Math.round(t.totalKwh))}</td>
+                    <td className="cell--strong">
+                      {t.target == null
+                        ? '달성불가'
+                        : `${formatNumber(Math.round(t.target))} 원/kWh`}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="hint hint--tight">
+          종류별 배분: 전기원가는 사용량 비례, 운영·영업·CAPEX는 대당 균등
+          배분해 그 종류의 사용량으로 나눕니다. 사용량이 적은 완속은 대당
+          고정비 부담이 커 목표 단가가 높고, 사용량이 큰 급속은 낮습니다. 종류별
+          단가를 사용량 가중 평균하면 위 전체 목표 단가와 일치합니다. (목표이익률{' '}
+          {(
+            (customMarginPct.trim() === '' ? r.targetMargin : customMargin) * 100
+          ).toFixed(2)}
+          % 기준)
+        </p>
       </div>
 
       {/* ③ 영업비 차감 → 충전단가 인하 */}
