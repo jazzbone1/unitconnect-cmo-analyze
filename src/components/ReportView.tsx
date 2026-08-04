@@ -101,9 +101,11 @@ function TextInput({
 }) {
   return (
     <input
-      className={`cell-input${linked ? ' cell-input--linked' : ''}`}
+      className={`cell-input cell-input--rtext${wide ? ' cell-input--rwide' : ''}${
+        linked ? ' cell-input--linked' : ''
+      }`}
       type="text"
-      style={{ width: wide ? '100%' : 140 }}
+      style={{ width: wide ? '100%' : undefined }}
       title={linked ? '앞 단계 자동 연동 값' : undefined}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -166,8 +168,10 @@ export default function ReportView({
     editable?: boolean
   }) {
     const title = model.secTitle?.[k] ?? label
+    const on = secOn(k)
+    // 미체크(제외) 섹션은 제목까지 인쇄에서 숨김(화면에서는 체크박스로 재선택 가능)
     return (
-      <div className="report-sec-head">
+      <div className={`report-sec-head${on ? '' : ' no-print'}`}>
         <label className="report-sec-toggle no-print" title="보고서 포함 여부">
           <input
             type="checkbox"
