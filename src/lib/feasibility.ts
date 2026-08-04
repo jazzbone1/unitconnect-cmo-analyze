@@ -41,6 +41,14 @@ export interface FeasibilityInputs {
   yearUtil7?: number
   /** 전기원가 (VAT 제외) 원/kWh — 기본 147, 수정 가능 */
   elecCostUnit?: number
+  /** 대기전력 전기원가를 사업성에 합산할지 여부 (기본 true) */
+  includeStandby?: boolean
+  /** 대기전력 반영 범위: 'separated'=모자분리 종류만(기본), 'all'=전체 종류 */
+  standbyScope?: 'separated' | 'all'
+  /** 모자분리 종류 월 대기전력량 (kWh) — 대기전력 탭에서 자동 주입 */
+  standbyMonthlyKwhSeparated?: number
+  /** 전체 종류 월 대기전력량 (kWh) — 대기전력 탭에서 자동 주입 */
+  standbyMonthlyKwhAll?: number
   /** 영업비 1대분 단가 (원/대) */
   bizFeePerUnit: number
   /** 영업비 차감/대 (충전단가 하락 검토용) */
@@ -189,7 +197,18 @@ export interface FeasibilityResult {
   sumW: number
   revenue: number
   pgFee: number
+  /** 충전 전기원가 (부호 음수) — 대기전력 제외분(구분) */
   elecCost: number
+  /** 대기전력 전기원가 (부호 음수) — 합산 시 반영, 미합산 시 표시용 */
+  standbyCost: number
+  /** 대기전력을 사업성에 합산했는지 여부 */
+  standbyIncluded: boolean
+  /** 월 대기전력량 (kWh) — 적용 범위 기준 */
+  standbyMonthlyKwh: number
+  /** 계약기간 총 대기전력량 (kWh) */
+  standbyKwhTotal: number
+  /** 전기원가 합계 (충전+대기, 부호 음수) — 합산 관점 */
+  elecCostTotal: number
   grossProfit: number
   opsCost: number
   bizCost: number
@@ -293,7 +312,18 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
       ? inp.elecCostUnit
       : ELEC_COST
   const elecCost = -12 * elecUnit * sumW
-  const grossProfit = revenue + pgFee + elecCost
+  // 대기전력 전기원가 — 모자분리 종류(기본)만, 계약기간 전체(월 kWh × 12 × 년수)
+  const contractYears = Math.min(inp.years, MAX_YEARS)
+  const standbyMonthlyKwh =
+    (inp.standbyScope === 'all'
+      ? inp.standbyMonthlyKwhAll
+      : inp.standbyMonthlyKwhSeparated) ?? 0
+  const standbyKwhTotal = standbyMonthlyKwh * 12 * contractYears
+  const standbyIncluded = inp.includeStandby !== false // 기본 합산
+  const standbyCostFull = -elecUnit * standbyKwhTotal // 대기전력 비용(항상 계산)
+  const standbyCost = standbyIncluded ? standbyCostFull : 0 // 손익 반영분
+  const elecCostTotal = elecCost + standbyCostFull // 합산 관점(충전+대기), 토글 무관
+  const grossProfit = revenue + pgFee + elecCost + standbyCost
   const opsCost = -total * opexPerUnit * 3 * 4 * Math.min(inp.years, MAX_YEARS)
   const bizCost = -total * inp.bizFeePerUnit * convFactor
   const capex = -(total * inp.mojaBunri + inp.miniPc)
@@ -323,7 +353,7 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
   }
 
   // 목표 달성 충전단가
-  const fixedCosts = -(elecCost + opsCost + bizCost + capex)
+  const fixedCosts = -(elecCost + standbyCost + opsCost + bizCost + capex)
   const targetRate = (() => {
     const denom = 12 * sumW * (1 - PG_RATE - targetMargin)
     return denom <= 0 ? null : (fixedCosts / denom) * 1.1
@@ -362,6 +392,11 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     revenue,
     pgFee,
     elecCost,
+    standbyCost,
+    standbyIncluded,
+    standbyMonthlyKwh,
+    standbyKwhTotal,
+    elecCostTotal,
     grossProfit,
     opsCost,
     bizCost,

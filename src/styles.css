@@ -388,6 +388,43 @@ body {
   margin: 0.25rem 0 0;
 }
 
+/* 대기전력 전기원가 합산/구분 */
+.standby-merge__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.standby-merge__scope {
+  gap: 1.5rem;
+}
+.toggle,
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.toggle input,
+.radio input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.cell--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.settlement .data-table .row--total td {
+  border-top: 2px solid var(--border);
+  font-weight: 800;
+}
+
 .scenario-line {
   font-size: 0.95rem;
   margin: 0.25rem 0 0;

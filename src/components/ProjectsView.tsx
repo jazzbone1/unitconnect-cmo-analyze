@@ -8,7 +8,7 @@ import { detectRegistry, computeRegistry } from '../lib/registry'
 import { parseUploadedFiles } from '../lib/ingest'
 import { defaultReport, type ReportModel } from '../lib/report'
 import { computeTariff, defaultTariff, type TariffInputs } from '../lib/tariff'
-import { defaultStandby, type StandbyInputs } from '../lib/standby'
+import { defaultStandby, computeStandby, type StandbyInputs } from '../lib/standby'
 import type { FileEntry } from '../types'
 import SettlementAnalysis from './SettlementAnalysis'
 import RegistryAnalysis from './RegistryAnalysis'
@@ -300,7 +300,19 @@ function ProjectDetail({
           }
         />
       ) : subtab === 'feasibility' ? (
-        <FeasibilityAnalysis inputs={feas} setInputs={setFeas} config={config} />
+        <FeasibilityAnalysis
+          inputs={feas}
+          setInputs={setFeas}
+          config={config}
+          standbyMonthlyKwhSeparated={computeStandby(
+            config.chargers.filter((c) => c.separated),
+            standby,
+            0,
+          ).totalKwh}
+          standbyMonthlyKwhAll={
+            computeStandby(config.chargers, standby, 0).totalKwh
+          }
+        />
       ) : (
         <>
           <div className="dropzone-row">

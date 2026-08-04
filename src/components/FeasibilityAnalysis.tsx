@@ -17,6 +17,10 @@ interface FeasibilityAnalysisProps {
   inputs: FeasibilityInputs
   setInputs: (i: FeasibilityInputs) => void
   config: SettlementConfig
+  /** 모자분리 종류 월 대기전력량 (kWh) — 대기전력 탭 자동연동 */
+  standbyMonthlyKwhSeparated?: number
+  /** 전체 종류 월 대기전력량 (kWh) — 대기전력 탭 자동연동 */
+  standbyMonthlyKwhAll?: number
 }
 
 function Field({
@@ -63,6 +67,8 @@ export default function FeasibilityAnalysis({
   inputs,
   setInputs,
   config,
+  standbyMonthlyKwhSeparated = 0,
+  standbyMonthlyKwhAll = 0,
 }: FeasibilityAnalysisProps) {
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
@@ -77,6 +83,8 @@ export default function FeasibilityAnalysis({
     countSlow7: countOf(7),
     countSlow35: countOf(3.5),
     countSlow3: countOf(3),
+    standbyMonthlyKwhSeparated,
+    standbyMonthlyKwhAll,
   }
   const r = computeFeasibility(eff)
 
@@ -108,7 +116,12 @@ export default function FeasibilityAnalysis({
   const pnl: { label: string; value: number; strong?: boolean; minus?: boolean }[] = [
     { label: '매출 (VAT 제외)', value: r.revenue, strong: true },
     { label: '(−) PG 수수료', value: r.pgFee, minus: true },
-    { label: '(−) 전기원가', value: r.elecCost, minus: true },
+    { label: '(−) 전기원가 (충전)', value: r.elecCost, minus: true },
+    {
+      label: `(−) 전기원가 (대기전력${r.standbyIncluded ? '' : ', 미합산'})`,
+      value: r.standbyCost,
+      minus: true,
+    },
     { label: '매출총이익', value: r.grossProfit, strong: true },
     { label: '(−) 현장 운영비', value: r.opsCost, minus: true },
     { label: '(−) 영업비 (총)', value: r.bizCost, minus: true },
@@ -215,6 +228,72 @@ export default function FeasibilityAnalysis({
             onChange={(v) => set({ elecCostUnit: v })}
             standard={`${ELEC_COST}원`}
           />
+        </div>
+
+        {/* 대기전력 전기원가 합산/구분 */}
+        <div className="subsection standby-merge">
+          <div className="standby-merge__head">
+            <h4 className="summary-block__title">
+              대기전력 전기원가 반영 (대기전력 탭 자동연동)
+            </h4>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={inputs.includeStandby !== false}
+                onChange={(e) => set({ includeStandby: e.target.checked })}
+              />
+              <span>사업성에 합산</span>
+            </label>
+          </div>
+          <div className="var-row standby-merge__scope">
+            <label className="radio">
+              <input
+                type="radio"
+                name="standbyScope"
+                checked={(inputs.standbyScope ?? 'separated') === 'separated'}
+                onChange={() => set({ standbyScope: 'separated' })}
+              />
+              <span>모자분리 종류만 ({standbyMonthlyKwhSeparated.toLocaleString()} kWh/월)</span>
+            </label>
+            <label className="radio">
+              <input
+                type="radio"
+                name="standbyScope"
+                checked={inputs.standbyScope === 'all'}
+                onChange={() => set({ standbyScope: 'all' })}
+              />
+              <span>전체 종류 ({standbyMonthlyKwhAll.toLocaleString()} kWh/월)</span>
+            </label>
+          </div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <tbody>
+                <tr>
+                  <td className="col-name">충전 전기원가 (구분)</td>
+                  <td className="cell--num">{won(r.elecCost)}</td>
+                </tr>
+                <tr>
+                  <td className="col-name">
+                    대기전력 전기원가 (계약 {Math.min(inputs.years, MAX_YEARS)}년 ·{' '}
+                    {Math.round(r.standbyKwhTotal).toLocaleString()} kWh)
+                    {r.standbyIncluded ? '' : ' · 미합산'}
+                  </td>
+                  <td className="cell--num">{won(r.elecCostTotal - r.elecCost)}</td>
+                </tr>
+                <tr className="row--total">
+                  <td className="col-name">전기원가 합계 (충전+대기)</td>
+                  <td className="cell--num cell--strong">{won(r.elecCostTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="hint hint--tight">
+            모자분리 계약 충전기는 전용 계량기가 24시간 가동되어 대기전력도
+            운영사 부담입니다. 대기전력량(kWh)은 대기전력 탭의 대당 대기전력(W)
+            설정을 그대로 사용하고, 단가는 위 사업성 전기원가(
+            {inputs.elecCostUnit ?? ELEC_COST}원/kWh)로 환산합니다. 합산 시
+            손익·목표달성 충전단가에 반영됩니다.
+          </p>
         </div>
 
         <div className="subsection">
