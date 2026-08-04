@@ -24,6 +24,8 @@ interface FeasibilityAnalysisProps {
   standbyMonthlyKwhAll?: number
   /** 요금 구조 탭 실효 전기원가 (원/kWh·VAT제외) — 자동 반영 기본값 */
   autoElecCost?: number
+  /** 연차별 전기원가 모델 (부하율 고정: 이용률↑ → 계약전력↑·충전량↑) */
+  elecYearModel?: { monthlyKwh: number; contractKw: number; effCost: number }[]
 }
 
 /**
@@ -119,9 +121,16 @@ export default function FeasibilityAnalysis({
   standbyMonthlyKwhSeparated = 0,
   standbyMonthlyKwhAll = 0,
   autoElecCost,
+  elecYearModel,
 }: FeasibilityAnalysisProps) {
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
+  // 연차별 실효원가 배열(부하율 고정 모델). override 사용 시 단일값 우선.
+  const useYearModel =
+    !!elecYearModel && elecYearModel.length > 0 && !inputs.elecCostOverride
+  const elecByYear = useYearModel
+    ? elecYearModel!.map((m) => m.effCost)
+    : undefined
 
   // 전기원가: override 있으면 우선, 없으면 요금구조 실효원가 자동 반영(없으면 147)
   const hasElecOverride =
@@ -170,7 +179,7 @@ export default function FeasibilityAnalysis({
     // 전기원가는 요금구조 실효원가 자동반영(또는 override)
     elecCostUnit: effElecCost,
   }
-  const r = computeFeasibility(eff)
+  const r = computeFeasibility(eff, elecByYear)
 
   // 목표 영업이익률 직접입력 → 목표달성 충전단가 자동계산
   // 최초값은 UC 기준 목표이익률(r.targetMargin, %)로 시작
@@ -710,6 +719,105 @@ export default function FeasibilityAnalysis({
             연 사용량 = 연차 이용률 × 정격(kW) × 720h × 12 × 대수. 전체 합계는
             사업성 계산의 연차 사용량과 동일합니다.
           </p>
+
+          {/* 연차별 전기원가 모델 (부하율 고정) */}
+          {useYearModel && (
+            <>
+              <h5
+                className="report-block__subtitle"
+                style={{ marginTop: '0.75rem' }}
+              >
+                연차별 전기원가 모델 (부하율 고정 · 요금구조 연동)
+              </h5>
+              <div className="table-scroll">
+                <table className="data-table charger-table">
+                  <thead>
+                    <tr>
+                      <th>구분</th>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((_, i) => (
+                          <th key={i}>{i + 1}년차</th>
+                        ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="col-name">계약전력(kW)</td>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((m, i) => (
+                          <td key={i}>{formatNumber(Math.round(m.contractKw))}</td>
+                        ))}
+                    </tr>
+                    <tr>
+                      <td className="col-name">월 충전량(kWh)</td>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((m, i) => (
+                          <td key={i}>{formatNumber(Math.round(m.monthlyKwh))}</td>
+                        ))}
+                    </tr>
+                    <tr>
+                      <td className="col-name">연 충전량(kWh)</td>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((m, i) => (
+                          <td key={i}>
+                            {formatNumber(Math.round(m.monthlyKwh * 12))}
+                          </td>
+                        ))}
+                    </tr>
+                    <tr className="row--sub">
+                      <td className="col-name">실효원가(원/kWh)</td>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((m, i) => (
+                          <td key={i} className="cell--strong">
+                            {m.effCost.toFixed(1)}
+                          </td>
+                        ))}
+                    </tr>
+                    <tr className="row--total">
+                      <td className="col-name">연 전기원가(원)</td>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((m, i) => (
+                          <td key={i} className="cell--strong">
+                            {formatNumber(Math.round(m.effCost * m.monthlyKwh * 12))}
+                          </td>
+                        ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="var-hint">
+                <b>부하율 고정</b> 가정: 이용률↑ → 충전량↑에 맞춰 계약전력을 같은
+                비율로 증설(부하율 유지). 이때 kWh당 기본요금이 일정해 실효원가(원/kWh)는
+                거의 변하지 않고, <b>계약전력·기본요금 총액·연 전기원가</b>가 매년
+                증가합니다. 각 연차 전기원가가 손익에 개별 반영됩니다. · 전기원가를
+                직접입력(override)하면 이 모델 대신 단일값이 적용됩니다.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="subsection">

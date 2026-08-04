@@ -238,7 +238,11 @@ export interface FeasibilityResult {
   rateAfterGiveup: number | null
 }
 
-export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
+export function computeFeasibility(
+  inp: FeasibilityInputs,
+  /** 연차별 실효 전기원가(원/kWh, VAT제외). 지정 시 연차별로 전기원가 적용 */
+  elecByYear?: number[],
+): FeasibilityResult {
   const c100 = inp.countFast100 ?? 0
   const total =
     c100 + inp.countFast50 + inp.countSlow7 + inp.countSlow35 + inp.countSlow3
@@ -315,7 +319,15 @@ export function computeFeasibility(inp: FeasibilityInputs): FeasibilityResult {
     inp.elecCostUnit != null && Number.isFinite(inp.elecCostUnit)
       ? inp.elecCostUnit
       : ELEC_COST
-  const elecCost = -12 * elecUnit * sumW
+  // 연차별 실효원가가 주어지면 연차별로 (그 해 원가 × 그 해 사용량), 아니면 단일 원가
+  const elecCost =
+    elecByYear && elecByYear.length
+      ? -12 *
+        yearlyW.reduce(
+          (acc, w, i) => acc + (elecByYear[i] ?? elecUnit) * w,
+          0,
+        )
+      : -12 * elecUnit * sumW
   // 대기전력 전기원가 — 모자분리 종류(기본)만, 계약기간 전체(월 kWh × 12 × 년수)
   const contractYears = Math.min(inp.years, MAX_YEARS)
   const standbyMonthlyKwh =

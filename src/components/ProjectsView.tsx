@@ -3,7 +3,11 @@ import type { SavedSite } from '../lib/sites'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement, computeAll } from '../lib/settlement'
-import { DEFAULT_INPUTS, type FeasibilityInputs } from '../lib/feasibility'
+import {
+  DEFAULT_INPUTS,
+  computeFeasibility,
+  type FeasibilityInputs,
+} from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
 import { parseUploadedFiles } from '../lib/ingest'
 import { defaultReport, type ReportModel } from '../lib/report'
@@ -282,13 +286,44 @@ function ProjectDetail({
     Number.isFinite(tariff.monthlyKwhOverride)
       ? (tariff.monthlyKwhOverride as number)
       : Math.round(feasMonthlyKwh)
-  // 요금 구조 실효원가(사업성 전기원가로 자동 반영)
-  const autoElecCost = useMemo(
-    () =>
-      computeTariff({ ...tariff, installedKw, monthlyKwh: effMonthlyKwh })
-        .selected.effCost,
+  // 요금 구조 결과(실효원가·계약전력)
+  const tariffEff = useMemo(
+    () => computeTariff({ ...tariff, installedKw, monthlyKwh: effMonthlyKwh }),
     [tariff, installedKw, effMonthlyKwh],
   )
+  const autoElecCost = tariffEff.selected.effCost
+
+  // 연차별 전기원가 모델 (부하율 고정: 이용률↑ → 충전량↑·계약전력↑)
+  //  - 연차 월충전량 = 사업성 yearlyW
+  //  - 계약전력_N = 월충전량_N ÷ (부하율 × 720)  (부하율=1년차 기준 유지)
+  //  - 실효원가_N = 요금구조 재산정(계약전력_N, 월충전량_N)
+  const elecYearModel = useMemo(() => {
+    const countOf = (kw: number) =>
+      config.chargers.find((c) => c.kw === kw)?.count ?? 0
+    const effFeas: FeasibilityInputs = {
+      ...feas,
+      countFast100: countOf(100),
+      countFast50: countOf(50),
+      countSlow7: countOf(7),
+      countSlow35: countOf(3.5),
+      countSlow3: countOf(3),
+    }
+    const yearlyW = computeFeasibility(effFeas).yearlyW
+    const contractKw1 = tariffEff.contractKw
+    const mk1 = yearlyW[0] || effMonthlyKwh || 1
+    const lf = contractKw1 > 0 ? mk1 / (contractKw1 * 720) : 0
+    return yearlyW.map((mk) => {
+      const contractKw = lf > 0 ? mk / (lf * 720) : contractKw1
+      const effCost = computeTariff({
+        ...tariff,
+        installedKw: undefined,
+        contractRatio: undefined,
+        contractKw,
+        monthlyKwh: mk,
+      }).selected.effCost
+      return { monthlyKwh: mk, contractKw, effCost }
+    })
+  }, [feas, config, tariff, tariffEff, effMonthlyKwh])
 
   // 앞 단계(단지정보·충전기 요금·요금구조·정산) 변경 시 보고서의 자동 연동(음영)
   // 필드를 실시간 반영한다. 직접입력 필드는 보존.
@@ -471,6 +506,7 @@ function ProjectDetail({
             computeStandby(config.chargers, standby, 0).totalKwh
           }
           autoElecCost={autoElecCost}
+          elecYearModel={elecYearModel}
         />
       ) : (
         <>
