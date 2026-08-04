@@ -362,18 +362,22 @@ export const STANDARD_BASE_UNIT: Partial<Record<ContractType, number>> = {
 }
 
 /**
- * 기본요금 단가(원/kW) 산정:
- *  - 고지서/값이 있으면 실측 = 기본요금 ÷ 계약전력 (계약형태 무관)
- *  - 없으면: 일반용만 표준 단가. 주택용은 기본요금이 원/세대(누진)이라 원/kW 표준이
- *    없으므로, 누진 단계 기본요금과 계약전력을 입력해 실측으로 산정해야 함(=0 반환).
+ * 기본요금 단가(원/kW) 산정 — 보고서 미적용 (B) = 기본단가 × 적정계약전력 ÷ 월사용량:
+ *  - 주택용: 선택한 누진 단계의 '세대당 기본료'를 기본단가로 사용(누진 단계 선택만으로 산출).
+ *  - 일반용: 고지서/값 있으면 실측(기본요금 ÷ 계약전력), 없으면 계약종별 표준 단가.
  */
 export function baseUnitPerKw(a: ApartmentBillInputs): {
   value: number
-  source: 'measured' | 'standard' | 'none'
+  source: 'tier' | 'measured' | 'standard' | 'none'
 } {
+  if (a.contractType.startsWith('housing')) {
+    // 세대별 누진이면 baseCharge가 ×세대수이므로 세대당으로 환산
+    const hh = a.perHousehold && a.households > 0 ? a.households : 1
+    return { value: a.baseCharge > 0 ? a.baseCharge / hh : 0, source: 'tier' }
+  }
   if (a.baseCharge > 0 && a.contractKw > 0)
     return { value: a.baseCharge / a.contractKw, source: 'measured' }
   const std = STANDARD_BASE_UNIT[a.contractType]
   if (std != null) return { value: std, source: 'standard' }
-  return { value: 0, source: 'none' } // 주택용: 계약전력 입력 필요
+  return { value: 0, source: 'none' }
 }

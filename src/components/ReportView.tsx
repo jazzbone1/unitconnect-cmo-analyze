@@ -404,8 +404,8 @@ export default function ReportView({
                     />
                     {g.baseUnitPrice <= 0 && (
                       <div style={{ color: 'var(--warn, #b45309)' }}>
-                        기본단가 0 — 주택용은 아파트 요금분석에 계약전력(과 누진
-                        단계 기본요금)을 입력해야 실측 단가가 산출됩니다.
+                        기본단가 0 — 아파트 요금분석에서 계약종별·누진 단계(주택용)
+                        또는 계약전력(일반용)을 설정하세요.
                       </div>
                     )}
                   </td>

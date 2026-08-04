@@ -360,11 +360,15 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             <b>
               {(() => {
                 const bu = baseUnitPerKw(inputs)
+                if (bu.source === 'tier')
+                  return bu.value > 0
+                    ? `${formatNumber(Math.round(bu.value))} 원/kW (누진 단계 세대당 기본료 기준)`
+                    : '누진 단계를 선택하세요'
                 if (bu.source === 'measured')
                   return `${formatNumber(Math.round(bu.value))} 원/kW (실측: ${formatNumber(inputs.baseCharge)} ÷ ${formatNumber(inputs.contractKw)}kW)`
                 if (bu.source === 'standard')
                   return `${formatNumber(bu.value)} 원/kW (계약종별 표준)`
-                return '계약전력 입력 필요 (주택용은 기본요금 ÷ 계약전력)'
+                return '고지서 기본요금·계약전력 입력 필요'
               })()}
             </b>
           </div>
