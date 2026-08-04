@@ -169,7 +169,11 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
       lv1Override: s.groupA.lv1Override,
       currentRate: s.groupA.currentRate,
     },
-    groupB: { ...m.groupB, currentRate: s.groupB.currentRate },
+    groupB: {
+      ...m.groupB,
+      contractKw: s.groupB.contractKw,
+      currentRate: s.groupB.currentRate,
+    },
   }
 }
 
