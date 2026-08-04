@@ -309,6 +309,19 @@ export default function ReportView({
             기존 계약(공용부)으로 기본요금 없음
           </span>
         </label>
+        {!sep && (
+          <label className="toggle report-moja no-print">
+            <input
+              type="checkbox"
+              checked={g.apartmentBaseAlloc === true}
+              onChange={(e) => upd({ apartmentBaseAlloc: e.target.checked })}
+            />
+            <span>
+              공용부 기본요금 배분 — (B)를 <b>적정계약전력(요금구조①) × 기본단가
+              (아파트 요금분석) ÷ 월사용량</b>으로 자동 계산
+            </span>
+          </label>
+        )}
 
         <div className="table-scroll">
           <table className="data-table report-table">
@@ -333,7 +346,11 @@ export default function ReportView({
               </tr>
               <tr>
                 <td className="col-name">(B) kWh당 기본요금 환산</td>
-                <td>{sep ? `${won1(r.baseCharge)}/kWh` : '없음'}</td>
+                <td>
+                  {sep || g.apartmentBaseAlloc === true
+                    ? `${won1(r.baseCharge)}/kWh`
+                    : '없음'}
+                </td>
                 {sep ? (
                   <td className="cell--muted">
                     <NumInput
@@ -348,6 +365,32 @@ export default function ReportView({
                       onChange={(v) => upd({ baseUnitPrice: v })}
                       suffix="원 ÷"
                       width={70}
+                    />{' '}
+                    <NumInput
+                      value={g.monthlyKwh}
+                      onChange={(v) => upd({ monthlyKwh: v })}
+                      suffix="kWh"
+                      width={80}
+                      linked={linkA}
+                    />
+                  </td>
+                ) : g.apartmentBaseAlloc === true ? (
+                  <td className="cell--muted">
+                    공용부 배분: 적정계약전력{' '}
+                    <NumInput
+                      value={g.contractKw}
+                      onChange={(v) => upd({ contractKw: v })}
+                      suffix="kW ×"
+                      width={64}
+                      linked
+                    />{' '}
+                    기본단가{' '}
+                    <NumInput
+                      value={g.baseUnitPrice}
+                      onChange={(v) => upd({ baseUnitPrice: v })}
+                      suffix="원 ÷"
+                      width={64}
+                      linked
                     />{' '}
                     <NumInput
                       value={g.monthlyKwh}

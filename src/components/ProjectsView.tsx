@@ -15,10 +15,16 @@ import {
   makeElecGroup,
   type ReportModel,
 } from '../lib/report'
-import { computeTariff, defaultTariff, type TariffInputs } from '../lib/tariff'
+import {
+  computeTariff,
+  defaultTariff,
+  properContractKwByUsage,
+  type TariffInputs,
+} from '../lib/tariff'
 import { defaultStandby, computeStandby, type StandbyInputs } from '../lib/standby'
 import {
   defaultApartmentBill,
+  baseUnitPerKw,
   type ApartmentBillInputs,
 } from '../lib/apartmentBill'
 import type { FileEntry } from '../types'
@@ -41,6 +47,7 @@ function seedReport(
   tariff?: TariffInputs,
   standby?: StandbyInputs,
   feas?: FeasibilityInputs,
+  aptBill?: ApartmentBillInputs,
 ): ReportModel {
   const d = defaultReport()
   d.siteName = project.name
@@ -189,6 +196,17 @@ function seedReport(
     if (sep && effCostSeed != null && Number.isFinite(effCostSeed)) {
       g.lv1Override = Math.round(effCostSeed * 10) / 10
     }
+    // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력(요금구조①) × 기본단가(아파트요금)
+    if (!sep && tariff && aptBill) {
+      const proper = properContractKwByUsage(
+        usageAvg,
+        tariff.targetLoadFactor ?? 0.18,
+        tariff.contractMargin ?? 0.15,
+      )
+      g.contractKw = Math.round(proper)
+      g.baseUnitPrice = Math.round(baseUnitPerKw(aptBill).value)
+      g.apartmentBaseAlloc = proper > 0
+    }
     return g
   })
   return d
@@ -269,7 +287,7 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
     elecGroups: (s.elecGroups ?? []).map((sg) => {
       const prev = (m.elecGroups ?? []).find((g) => g.id === sg.id)
       if (!prev) return sg
-      return {
+      const base = {
         ...prev,
         name: sg.name,
         kw: sg.kw,
@@ -279,6 +297,17 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
         currentRate: sg.currentRate,
         standbyKwh: sg.standbyKwh,
       }
+      // 미적용 그룹은 공용부 기본요금 배분값(계약전력·기본단가)도 자동 연동.
+      // 배분 적용 여부(토글)는 사용자가 끈 경우 보존(undefined면 자동값 사용).
+      if (sg.separated === false)
+        return {
+          ...base,
+          contractKw: sg.contractKw,
+          baseUnitPrice: sg.baseUnitPrice,
+          apartmentBaseAlloc:
+            prev.apartmentBaseAlloc ?? sg.apartmentBaseAlloc,
+        }
+      return base
     }),
   }
 }
@@ -317,6 +346,7 @@ function ProjectDetail({
         deriveTariff(project),
         project.standby ?? defaultStandby(),
         project.feas ?? DEFAULT_INPUTS(),
+        project.aptBill ?? defaultApartmentBill(),
       ),
   )
   const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
@@ -436,8 +466,9 @@ function ProjectDetail({
         tariff,
         standby,
         feas,
+        aptBill,
       ),
-    [site.name, site.households, config, files, tariff, standby, feas],
+    [site.name, site.households, config, files, tariff, standby, feas, aptBill],
   )
   useEffect(() => {
     setReport((m) => mergeLinked(m, linkedSeed))
@@ -584,6 +615,7 @@ function ProjectDetail({
               tariff,
               standby,
               feas,
+              aptBill,
             )
           }
         />

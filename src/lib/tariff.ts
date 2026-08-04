@@ -238,6 +238,21 @@ export function defaultTariff(): TariffInputs {
 /** 월 시간수 (24h × 30d) */
 export const HOURS_PER_MONTH = 24 * 30
 
+/**
+ * ① 실사용량 기반 적정 계약전력 (kW)
+ *  = 월 충전량 ÷ (기준 부하율 × 720) × (1 + 안전 마진)
+ */
+export function properContractKwByUsage(
+  monthlyKwh: number,
+  targetLoadFactor: number,
+  contractMargin: number,
+): number {
+  if (monthlyKwh <= 0 || targetLoadFactor <= 0) return 0
+  return (
+    (monthlyKwh / (targetLoadFactor * HOURS_PER_MONTH)) * (1 + contractMargin)
+  )
+}
+
 /** 부하율 = 월충전량 ÷ (계약전력 × 720) */
 export function loadFactor(contractKw: number, monthlyKwh: number): number {
   return contractKw > 0 && monthlyKwh > 0

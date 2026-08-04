@@ -354,3 +354,25 @@ export function defaultApartmentBill(): ApartmentBillInputs {
 export function newTier(): RateTier {
   return { id: rid(), name: '', kwh: 0, unit: 0, cap: null }
 }
+
+/** 계약종별 표준 기본요금 단가 (원/kW·월). 주택용은 공용부 일반용 근사값. */
+export const STANDARD_BASE_UNIT: Record<ContractType, number> = {
+  housing_low: 6490,
+  housing_high: 8320,
+  general_low: 6490,
+  general_high: 8320,
+}
+
+/**
+ * 기본요금 단가(원/kW) 산정:
+ *  - 고지서/값이 있으면 실측 = 기본요금 ÷ 계약전력
+ *  - 없으면 계약종별 표준 단가
+ */
+export function baseUnitPerKw(a: ApartmentBillInputs): {
+  value: number
+  source: 'measured' | 'standard'
+} {
+  if (a.baseCharge > 0 && a.contractKw > 0)
+    return { value: a.baseCharge / a.contractKw, source: 'measured' }
+  return { value: STANDARD_BASE_UNIT[a.contractType], source: 'standard' }
+}

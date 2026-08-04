@@ -30,6 +30,12 @@ export interface ElecCostInput {
    * 공용부 전기로 소비되어 공용전기세에 부과되는 손실분 계산에 사용.
    */
   standbyKwh?: number
+  /**
+   * 모자분리 미적용 그룹의 공용부 기본요금 배분 적용 여부.
+   * true면 미적용이어도 (B) 기본요금 환산 = 계약전력 × 기본단가 ÷ 월사용량으로 계산.
+   * (계약전력=요금구조 ① 적정계약전력, 기본단가=아파트 요금분석 기본단가)
+   */
+  apartmentBaseAlloc?: boolean
 }
 
 /** 등록 충전기 종류별 전기원가 분석 그룹 */
@@ -147,13 +153,14 @@ export interface ElecCostResult {
 }
 
 export function computeElecCost(i: ElecCostInput): ElecCostResult {
-  // 모자분리 미적용(공용부·아파트 기존 계약)이면 추가 기본요금 없음 → (B)=0
-  const baseCharge =
-    i.separated === false
-      ? 0
-      : i.monthlyKwh > 0
-        ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh
-        : 0
+  // 모자분리 미적용(공용부)은 추가 기본요금 없음 → (B)=0.
+  //  단, 공용부 기본요금 배분(apartmentBaseAlloc)이 켜지면 (B)를 계산한다.
+  const noBase = i.separated === false && i.apartmentBaseAlloc !== true
+  const baseCharge = noBase
+    ? 0
+    : i.monthlyKwh > 0
+      ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh
+      : 0
   const subtotal = i.powerRate + baseCharge
   const computedLv1 = (subtotal + i.climateFee) * i.taxMultiplier
   const overridden =
