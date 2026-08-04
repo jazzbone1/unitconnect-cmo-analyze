@@ -167,9 +167,11 @@ export default function FeasibilityAnalysis({
     ? (inputs.bizFeeOverride as number)
     : standardBizFee
 
-  // 대수는 단지 정보의 충전기 수량과 자동 연동 (읽기 전용)
+  // 대수·요금은 단지 정보의 '충전기 종류별 수량·요금'과 자동 연동 (읽기 전용)
   const countOf = (kw: number) =>
     config.chargers.find((c) => c.kw === kw)?.count ?? 0
+  const rateOf = (kw: number) =>
+    config.chargers.find((c) => c.kw === kw)?.rate ?? 0
   const eff: FeasibilityInputs = {
     ...inputs,
     countFast100: countOf(100),
@@ -177,6 +179,12 @@ export default function FeasibilityAnalysis({
     countSlow7: countOf(7),
     countSlow35: countOf(3.5),
     countSlow3: countOf(3),
+    // 충전 요금: '충전기 종류별 수량 요금' 표의 값 자동 반영(0이면 전체 단가 사용)
+    rateFast100: rateOf(100),
+    rateFast50: rateOf(50),
+    rateSlow7: rateOf(7),
+    rateSlow35: rateOf(3.5),
+    rateSlow3: rateOf(3),
     standbyMonthlyKwhSeparated,
     standbyMonthlyKwhAll,
     // 영업비는 공통 기준표(계약년수별)에서 자동 적용
@@ -506,15 +514,13 @@ export default function FeasibilityAnalysis({
                     <td className="std-cell">
                       {((STD[row.utilKey as keyof typeof STD] as number) * 100).toFixed(2)}%
                     </td>
-                    <td>
-                      <DecimalInput
-                        className="cell-input"
-                        value={inputs[row.rateKey] as number}
-                        placeholder={`전체 ${inputs.rateVat}`}
-                        onValue={(n) =>
-                          set({ [row.rateKey]: n } as Partial<FeasibilityInputs>)
-                        }
-                      />
+                    <td
+                      className="std-cell"
+                      title="충전기 종류별 수량 요금 표에서 자동 반영"
+                    >
+                      {rateOf(row.kw) > 0
+                        ? `${formatNumber(rateOf(row.kw))}원`
+                        : `전체 ${formatNumber(inputs.rateVat)}원`}
                     </td>
                     <td className="std-cell" title="이용률 × 정격 × 720h × 대수">
                       {formatNumber(
@@ -579,8 +585,9 @@ export default function FeasibilityAnalysis({
             </table>
           </div>
           <p className="var-hint">
-            종류별 요금을 비우면 전체 충전단가({inputs.rateVat}원)를 사용합니다.
-            종류별로 입력하면 에너지 비중으로 가중해 매출에 반영됩니다. · 전체
+            종류별 요금은 <b>'충전기 종류별 수량 요금' 표</b>에서 자동 반영됩니다
+            (미입력 종류는 전체 충전단가 {inputs.rateVat}원 적용). 종류별 요금은
+            에너지 비중으로 가중해 매출에 반영됩니다. · 전체
             이용률(7kW 환산) <b>{(r.overallUtil7kw * 100).toFixed(2)}%</b>{' '}
             (정격별 100/7·50/7·3.5/7·3/7 환산 반영) · <b>월 사용량</b> = 이용률 ×
             정격(kW) × 720h × 대수 (연 사용량 = ×12)
