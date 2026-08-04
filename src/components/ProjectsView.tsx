@@ -111,6 +111,8 @@ function seedReport(
         perUnitMonthly = utilByKw(c.kw) * c.kw * 720 // 대당 월 충전량
         kwhTotal = perUnitMonthly * c.count * 12 // 연간 총 충전량
       }
+      // 월 이용률 = 대당 월 충전량 ÷ (정격 × 720). 표시된 대당 월 충전량과 정합.
+      const util = c.kw > 0 ? perUnitMonthly / (c.kw * 720) : 0
       // 매출: 충전량 × '충전기 종류별 수량 요금'(config.rate)
       return {
         id: c.id,
@@ -124,6 +126,7 @@ function seedReport(
         perUnit: perUnitMonthly
           ? `${Math.round(perUnitMonthly).toLocaleString()} kWh`
           : '',
+        util: util > 0 ? `${(util * 100).toFixed(2)}%` : '',
       }
     })
   }
@@ -183,6 +186,13 @@ function seedReport(
     tariff && billHasData(tariff.bill)
       ? computeBill(tariff.bill as BillInputs).effInclVat
       : null
+  // 공용부 적정계약전력을 충전기 비중(설비용량=정격×대수)에 맞춰 분배하기 위한 수용률.
+  //  각 종류 적정계약전력 = (정격×대수) × 수용률.  Σ(종류) = 요금구조 현재 계약전력.
+  const totalCapKw = active.reduce((a, c) => a + c.kw * c.count, 0)
+  const contractRatioEff =
+    tariff && totalCapKw > 0 ? effectiveContractKw(tariff) / totalCapKw : 0
+  // 운영비 원/kWh 분모(전체 월 충전량) — 종류별 월 사용량 합계로 자동 산출.
+  let totalGroupMonthly = 0
   d.elecGroups = active.map((c) => {
     const usageAvg = months.length
       ? Math.round((usageByType.get(c.id) ?? 0) / months.length)
@@ -190,6 +200,7 @@ function seedReport(
     // 월 사용량: 정산값 우선, 없으면 사업성 종류별 월 사용량(이용률×정격×720×대수)
     const feasMonthly = Math.round(utilByKw(c.kw) * c.kw * 720 * c.count)
     const groupMonthly = usageAvg > 0 ? usageAvg : feasMonthly
+    totalGroupMonthly += groupMonthly
     const sep = !!c.separated
     const standbyKwh =
       !sep && standby
@@ -215,9 +226,9 @@ function seedReport(
       }
     }
     // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력 × 기본단가(아파트요금)
-    //  적정계약전력 = 요금 구조의 '현재 계약전력(비율)' 값(설비용량 × 수용률).
+    //  적정계약전력 = 요금 구조 현재 계약전력을 충전기 비중(정격×대수)으로 분배한 값.
     if (!sep && tariff && aptBill) {
-      const contractKw = effectiveContractKw(tariff)
+      const contractKw = c.kw * c.count * contractRatioEff
       g.contractKw = Math.round(contractKw)
       g.baseUnitPrice = Math.round(baseUnitPerKw(aptBill).value)
       g.apartmentBaseAlloc = contractKw > 0
@@ -236,7 +247,28 @@ function seedReport(
     }
     return g
   })
+
+  // 운영비 원/kWh 분모: 사업성 분석 종류별 월 사용량 합계를 자동 반영.
+  if (totalGroupMonthly > 0) d.opexBaseKwh = totalGroupMonthly
+
+  // 충전요금 인상 권고안: 현행 요금을 '충전기 종류별 수량·요금'의 요금으로 자동 반영.
+  //  (현행 요금은 편집 가능하되 기본값은 config.rate를 따라간다.)
+  if (active.length) {
+    d.recommend = active.map((c) => ({
+      id: c.id,
+      label: `${c.kw >= 50 ? '급속' : '완속'} (${c.name})`,
+      current: c.rate > 0 ? `${Math.round(c.rate)}원/kWh` : '',
+      proposed: '',
+      note: c.kw >= 50 ? '높은 수선비 적립 필요' : 'Lv2 초과 필수',
+    }))
+  }
   return d
+}
+
+/** 권고안 라벨에서 정격(kW) 숫자를 추출 (예: "완속 (7kW)" → 7) */
+function kwFromLabel(label: string): number | null {
+  const m = label.match(/(\d+(?:\.\d+)?)\s*kW/i)
+  return m ? Number(m[1]) : null
 }
 
 /** 모자분리 미적용(비모자분리) 종류의 월 대기전력량 합계 (kWh) */
@@ -342,6 +374,18 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
         }
       // 모자분리 그룹: 실효원가(Lv1)를 고지서 실측/요금구조에서 자동 반영
       return { ...base, lv1Override: sg.lv1Override }
+    }),
+    // 인상 권고안: 현행 요금(current)만 '충전기 종류별 요금'에서 자동 연동.
+    //  행 id 또는 라벨의 정격(kW)으로 시드 행을 매칭. 나머지 열(최소 인상안·비고)은 보존.
+    recommend: (m.recommend ?? []).map((r) => {
+      const sr =
+        (s.recommend ?? []).find((x) => x.id === r.id) ??
+        (s.recommend ?? []).find(
+          (x) =>
+            kwFromLabel(x.label) != null &&
+            kwFromLabel(x.label) === kwFromLabel(r.label),
+        )
+      return sr && sr.current ? { ...r, current: sr.current } : r
     }),
   }
 }

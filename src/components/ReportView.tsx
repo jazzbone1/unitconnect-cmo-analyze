@@ -290,6 +290,21 @@ export default function ReportView({
       ),
     }))
   }
+  // 표 헤더명(사용자 편집) — secTitle 맵에 키별로 저장. 미설정 시 기본 라벨.
+  const colTitle = (k: string, def: string) => model.secTitle?.[k] ?? def
+  const setColTitle = (k: string, v: string) =>
+    setModel((m) => ({ ...m, secTitle: { ...(m.secTitle ?? {}), [k]: v } }))
+  // 편집 가능한 표 헤더 셀
+  const colHead = (k: string, def: string) => (
+    <th>
+      <input
+        className="cell-input report-colhead-input"
+        type="text"
+        value={colTitle(k, def)}
+        onChange={(e) => setColTitle(k, e.target.value)}
+      />
+    </th>
+  )
 
   /* ---------- 실효 전기원가 산출 블록 ---------- */
   function ElecCostBlock({ group, sub }: { group: ElecGroup; sub: string }) {
@@ -872,21 +887,24 @@ export default function ReportView({
             <table className="data-table report-table">
               <thead>
                 <tr>
-                  <th>유형</th>
-                  <th>대수</th>
-                  <th>충전량</th>
-                  <th>매출</th>
-                  <th>대당 월 충전량</th>
+                  {colHead('pt.type', '유형')}
+                  {colHead('pt.count', '대수')}
+                  {colHead('pt.kwh', '충전량')}
+                  {colHead('pt.revenue', '매출')}
+                  {colHead('pt.perUnit', '대당 월 충전량')}
+                  {colHead('pt.util', '월 이용률')}
                 </tr>
               </thead>
               <tbody>
                 {model.perType.map((row) => (
                   <tr key={row.id}>
                     <td className="col-name">{row.type}</td>
-                    {(['count', 'kwh', 'revenue', 'perUnit'] as const).map((k) => (
+                    {(
+                      ['count', 'kwh', 'revenue', 'perUnit', 'util'] as const
+                    ).map((k) => (
                       <td key={k}>
                         <TextInput
-                          value={row[k]}
+                          value={row[k] ?? ''}
                           onChange={(v) => updList('perType', row.id, { [k]: v })}
                           linked
                         />
@@ -1109,6 +1127,7 @@ export default function ReportView({
                               updList('recommend', row.id, { [k]: v })
                             }
                             wide={k === 'note'}
+                            linked={k === 'current'}
                           />
                         </td>
                       ))}

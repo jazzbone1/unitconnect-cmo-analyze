@@ -150,6 +150,8 @@ export interface ReportModel {
     kwh: string
     revenue: string
     perUnit: string
+    /** 월 이용률 (예: "9.15%") — 대당 월 충전량 옆 병기 */
+    util?: string
   }[]
   /** Part1 월별 추이 표 */
   monthly: { id: string; month: string; kwh: string; revenue: string; note: string }[]

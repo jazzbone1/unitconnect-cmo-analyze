@@ -1795,6 +1795,26 @@ body {
   width: 110px;
   text-align: left;
 }
+/* 편집 가능한 표 헤더 입력칸 — 헤더처럼 보이되 수정 가능 */
+.report-colhead-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.15rem 0.3rem;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text);
+}
+.report-colhead-input:hover {
+  border-color: var(--border);
+}
+.report-colhead-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
 .cell-input--sm {
   width: 58px;
 }
