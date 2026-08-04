@@ -24,12 +24,60 @@ interface FeasibilityAnalysisProps {
   standbyMonthlyKwhAll?: number
 }
 
+/**
+ * 소수점 입력이 온전히 되는 숫자 입력.
+ * 제어형 number 입력은 매 키 입력마다 값을 재포맷하기 때문에
+ * "0.0"처럼 소수를 입력하는 중간 단계에서 0으로 리셋되어
+ * 0.05 같은 소수 둘째 자리 이하 값을 끝까지 입력할 수 없다.
+ * 포커스 중에는 사용자가 친 문자열(text)을 그대로 유지하고,
+ * 포커스가 없을 때만 모델 값을 문자열로 표시해 이 문제를 해결한다.
+ */
+function DecimalInput({
+  className,
+  value,
+  onValue,
+  placeholder,
+}: {
+  className?: string
+  value: number
+  onValue: (n: number) => void
+  placeholder?: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const [text, setText] = useState('')
+  const modelText = Number.isFinite(value) && value !== 0 ? String(value) : ''
+  return (
+    <input
+      className={className}
+      type="text"
+      inputMode="decimal"
+      placeholder={placeholder}
+      value={focused ? text : modelText}
+      onFocus={() => {
+        setText(modelText)
+        setFocused(true)
+      }}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => {
+        // 숫자와 소수점만 허용
+        const raw = e.target.value.replace(/[^0-9.]/g, '')
+        setText(raw)
+        if (raw === '' || raw === '.') {
+          onValue(0)
+          return
+        }
+        const n = Number(raw)
+        if (Number.isFinite(n)) onValue(n)
+      }}
+    />
+  )
+}
+
 function Field({
   label,
   unit,
   value,
   onChange,
-  step,
   standard,
 }: {
   label: string
@@ -46,12 +94,10 @@ function Field({
         {label}
         {unit && <span className="var-field__unit">{unit}</span>}
       </span>
-      <input
+      <DecimalInput
         className="var-field__input"
-        type="number"
-        step={step ?? 'any'}
-        value={Number.isFinite(value) ? value : ''}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        value={value}
+        onValue={onChange}
       />
       {standard !== undefined && (
         <span className="var-field__std">UC 기준 {standard}</span>
@@ -203,13 +249,10 @@ export default function FeasibilityAnalysis({
                   <tr key={row.years} className={isYear ? 'row--selected' : ''}>
                     <td className="col-name">{row.years}년</td>
                     <td>
-                      <input
+                      <DecimalInput
                         className="cell-input"
-                        type="number"
-                        step="any"
-                        min={0}
-                        value={bizFeeByYear[i] ?? ''}
-                        onChange={(e) => setBizFeeAt(i, Number(e.target.value) || 0)}
+                        value={bizFeeByYear[i] ?? 0}
+                        onValue={(n) => setBizFeeAt(i, n)}
                       />
                     </td>
                     <td className={highActive ? 'cell--up' : ''}>
@@ -355,14 +398,12 @@ export default function FeasibilityAnalysis({
                     <td className="col-name">{row.label}</td>
                     <td>{countOf(row.kw).toLocaleString()}</td>
                     <td>
-                      <input
+                      <DecimalInput
                         className="cell-input"
-                        type="number"
-                        step="any"
-                        value={+(((inputs[row.utilKey] as number) * 100).toFixed(4)) || ''}
+                        value={+(((inputs[row.utilKey] as number) * 100).toFixed(6))}
                         placeholder="0"
-                        onChange={(e) =>
-                          set({ [row.utilKey]: (Number(e.target.value) || 0) / 100 } as Partial<FeasibilityInputs>)
+                        onValue={(n) =>
+                          set({ [row.utilKey]: n / 100 } as Partial<FeasibilityInputs>)
                         }
                       />
                     </td>
@@ -373,14 +414,12 @@ export default function FeasibilityAnalysis({
                       {((STD[row.utilKey as keyof typeof STD] as number) * 100).toFixed(2)}%
                     </td>
                     <td>
-                      <input
+                      <DecimalInput
                         className="cell-input"
-                        type="number"
-                        min={0}
-                        value={(inputs[row.rateKey] as number) || ''}
+                        value={inputs[row.rateKey] as number}
                         placeholder={`전체 ${inputs.rateVat}`}
-                        onChange={(e) =>
-                          set({ [row.rateKey]: Number(e.target.value) || 0 } as Partial<FeasibilityInputs>)
+                        onValue={(n) =>
+                          set({ [row.rateKey]: n } as Partial<FeasibilityInputs>)
                         }
                       />
                     </td>
