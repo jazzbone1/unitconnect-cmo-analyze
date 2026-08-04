@@ -908,6 +908,14 @@ body {
   font-weight: 600;
   color: var(--text);
 }
+.report-reverse {
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface-alt, #f1f5f9);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
 .report-block {
   margin-top: 1.5rem;
 }

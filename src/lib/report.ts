@@ -71,6 +71,14 @@ export interface ElecCostInput {
    */
   apartmentBaseAlloc?: boolean
   /**
+   * 공용부 기본요금 배분 시 '고지서 역산' 기본요금(원). 공용부 고지서의 실제
+   * 기본요금. billContractKw와 함께 있으면 기본단가 = 기본요금 ÷ 계약전력으로
+   * 역산하여 baseUnitPrice 대신 사용. 없으면 표준/누진 기본단가로 폴백.
+   */
+  billBase?: number
+  /** 공용부 기본요금 배분 '고지서 역산' 계약전력(kW). 공용부 고지서 계약전력. */
+  billContractKw?: number
+  /**
    * 고지서 실측 항목 모드. true면 (A)/(B)/기후/배수 조립식이 아니라
    * 기존 전기요금 고지서의 청구 항목(기본요금·전력량요금·기후·연료·역률·부가세·
    * 기금·절사)을 그대로 입력하고, 실효원가(Lv1) = 청구금액 ÷ 사용량으로 산출한다.
@@ -193,6 +201,10 @@ export interface ElecCostResult {
   computedLv1: number
   /** 직접입력값 사용 여부 */
   overridden: boolean
+  /** (B) 산출에 실제 사용된 기본단가(원/kW) */
+  baseUnitUsed: number
+  /** 공용부 배분 기본단가를 고지서에서 역산했는지 여부 */
+  baseUnitReversed: boolean
 }
 
 export function computeElecCost(i: ElecCostInput): ElecCostResult {
@@ -211,22 +223,38 @@ export function computeElecCost(i: ElecCostInput): ElecCostResult {
       computedLv1: effPerKwh,
       lv1: overridden ? (i.lv1Override as number) : effPerKwh,
       overridden,
+      baseUnitUsed: 0,
+      baseUnitReversed: false,
     }
   }
   // 모자분리 미적용(공용부)은 추가 기본요금 없음 → (B)=0.
   //  단, 공용부 기본요금 배분(apartmentBaseAlloc)이 켜지면 (B)를 계산한다.
   const noBase = i.separated === false && i.apartmentBaseAlloc !== true
+  // 기본단가: 고지서 역산(기본요금 ÷ 계약전력)이 가능하면 우선, 없으면 표준/누진값.
+  const canReverse =
+    (i.billBase ?? 0) > 0 && (i.billContractKw ?? 0) > 0
+  const baseUnitUsed = canReverse
+    ? (i.billBase as number) / (i.billContractKw as number)
+    : i.baseUnitPrice
   const baseCharge = noBase
     ? 0
     : i.monthlyKwh > 0
-      ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh
+      ? (i.contractKw * baseUnitUsed) / i.monthlyKwh
       : 0
   const subtotal = i.powerRate + baseCharge
   const computedLv1 = (subtotal + i.climateFee) * i.taxMultiplier
   const overridden =
     i.lv1Override != null && Number.isFinite(i.lv1Override)
   const lv1 = overridden ? (i.lv1Override as number) : computedLv1
-  return { baseCharge, subtotal, lv1, computedLv1, overridden }
+  return {
+    baseCharge,
+    subtotal,
+    lv1,
+    computedLv1,
+    overridden,
+    baseUnitUsed,
+    baseUnitReversed: canReverse && !noBase,
+  }
 }
 
 /** 운영비 월 합계(원) */

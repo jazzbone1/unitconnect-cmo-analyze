@@ -480,13 +480,18 @@ export default function ReportView({
                       linked
                     />{' '}
                     기본단가{' '}
-                    <NumInput
-                      value={g.baseUnitPrice}
-                      onChange={(v) => upd({ baseUnitPrice: v })}
-                      suffix="원 ÷"
-                      width={64}
-                      linked
-                    />{' '}
+                    {r.baseUnitReversed ? (
+                      <b>{Math.round(r.baseUnitUsed).toLocaleString()}원</b>
+                    ) : (
+                      <NumInput
+                        value={g.baseUnitPrice}
+                        onChange={(v) => upd({ baseUnitPrice: v })}
+                        suffix="원"
+                        width={64}
+                        linked
+                      />
+                    )}{' '}
+                    ÷{' '}
                     <NumInput
                       value={g.monthlyKwh}
                       onChange={(v) => upd({ monthlyKwh: v })}
@@ -494,10 +499,36 @@ export default function ReportView({
                       width={80}
                       linked={linkA}
                     />
-                    {g.baseUnitPrice <= 0 && (
+                    {/* 고지서 역산: 있으면 기본단가 = 기본요금 ÷ 계약전력, 없으면 표준/누진 */}
+                    <div className="report-reverse no-print">
+                      고지서 역산: 기본요금{' '}
+                      <NumInput
+                        value={g.billBase ?? 0}
+                        onChange={(v) => upd({ billBase: v })}
+                        suffix="원 ÷"
+                        width={96}
+                      />{' '}
+                      계약전력{' '}
+                      <NumInput
+                        value={g.billContractKw ?? 0}
+                        onChange={(v) => upd({ billContractKw: v })}
+                        suffix="kW"
+                        width={70}
+                      />{' '}
+                      {r.baseUnitReversed ? (
+                        <span className="cell--up">
+                          → 기본단가 {Math.round(r.baseUnitUsed).toLocaleString()}
+                          원/kW (고지서 역산 적용)
+                        </span>
+                      ) : (
+                        <span>→ 미입력 시 표준/누진 기본단가 사용</span>
+                      )}
+                    </div>
+                    {!r.baseUnitReversed && g.baseUnitPrice <= 0 && (
                       <div style={{ color: 'var(--warn, #b45309)' }}>
                         기본단가 0 — 아파트 요금분석에서 계약종별·누진 단계(주택용)
-                        또는 계약전력(일반용)을 설정하세요.
+                        또는 계약전력(일반용)을 설정하거나, 위 고지서 역산에
+                        기본요금·계약전력을 입력하세요.
                       </div>
                     )}
                   </td>

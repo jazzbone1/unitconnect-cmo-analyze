@@ -224,6 +224,12 @@ function seedReport(
       g.contractKw = Math.round(proper)
       g.baseUnitPrice = Math.round(baseUnitPerKw(aptBill).value)
       g.apartmentBaseAlloc = proper > 0
+      // 고지서 역산: 공용부 고지서에 기본요금·계약전력이 있으면(주로 일반용) 시드.
+      // 있으면 기본단가 = 기본요금 ÷ 계약전력으로 역산, 없으면 표준/누진 폴백.
+      if (aptBill.baseCharge > 0 && aptBill.contractKw > 0) {
+        g.billBase = Math.round(aptBill.baseCharge)
+        g.billContractKw = Math.round(aptBill.contractKw)
+      }
     }
     // (A) 시간대·계절 가중 전력량요금: 아파트 요금분석에서 선택한 계약형태·누진구간의
     // 전력량요금 단가(전력량요금 ÷ 사용량)를 연동. 고지서 실측 모드가 아닐 때 적용.
@@ -332,6 +338,10 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
           baseUnitPrice: sg.baseUnitPrice,
           apartmentBaseAlloc:
             prev.apartmentBaseAlloc ?? sg.apartmentBaseAlloc,
+          // 고지서 역산값(공용부 기본요금·계약전력)은 사용자가 직접 입력한 경우
+          // 보존, 미입력이면 아파트요금분석 시드값 반영.
+          billBase: prev.billBase ?? sg.billBase,
+          billContractKw: prev.billContractKw ?? sg.billContractKw,
         }
       // 모자분리 그룹: 실효원가(Lv1)를 고지서 실측/요금구조에서 자동 반영
       return { ...base, lv1Override: sg.lv1Override }
