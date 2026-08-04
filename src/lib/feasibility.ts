@@ -43,6 +43,12 @@ export interface FeasibilityInputs {
   elecCostUnit?: number
   /** 전기원가 직접입력(override). null/미설정 시 요금구조 실효원가 자동 반영 */
   elecCostOverride?: number | null
+  /**
+   * 연차별 전기원가 모델의 계약전력 가정.
+   * 'demandFixed'(기본): 수용률·계약전력 고정 → 이용률↑ 시 부하율 상승·실효원가 하락.
+   * 'loadFactorFixed': 부하율 고정 → 계약전력을 충전량 비례로 증설·실효원가 일정.
+   */
+  elecYearMode?: 'demandFixed' | 'loadFactorFixed'
   /** 대기전력 전기원가를 사업성에 합산할지 여부 (기본 true) */
   includeStandby?: boolean
   /** 대기전력 반영 범위: 'separated'=모자분리 종류만(기본), 'all'=전체 종류 */

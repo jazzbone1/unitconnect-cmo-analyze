@@ -24,8 +24,13 @@ interface FeasibilityAnalysisProps {
   standbyMonthlyKwhAll?: number
   /** 요금 구조 탭 실효 전기원가 (원/kWh·VAT제외) — 자동 반영 기본값 */
   autoElecCost?: number
-  /** 연차별 전기원가 모델 (부하율 고정: 이용률↑ → 계약전력↑·충전량↑) */
-  elecYearModel?: { monthlyKwh: number; contractKw: number; effCost: number }[]
+  /** 연차별 전기원가 모델 (계약전력 가정에 따라 실효원가 연차 변화) */
+  elecYearModel?: {
+    monthlyKwh: number
+    contractKw: number
+    effCost: number
+    loadFactor: number
+  }[]
 }
 
 /**
@@ -742,12 +747,34 @@ export default function FeasibilityAnalysis({
           {/* 연차별 전기원가 모델 (부하율 고정) */}
           {useYearModel && (
             <>
-              <h5
-                className="report-block__subtitle"
+              <div
+                className="standby-merge__head"
                 style={{ marginTop: '0.75rem' }}
               >
-                연차별 전기원가 모델 (부하율 고정 · 요금구조 연동)
-              </h5>
+                <h5 className="report-block__subtitle" style={{ margin: 0 }}>
+                  연차별 전기원가 모델 (요금구조 연동)
+                </h5>
+                <div className="var-row standby-merge__scope">
+                  <label className="radio">
+                    <input
+                      type="radio"
+                      name="elecYearMode"
+                      checked={(inputs.elecYearMode ?? 'demandFixed') === 'demandFixed'}
+                      onChange={() => set({ elecYearMode: 'demandFixed' })}
+                    />
+                    <span>수용률·계약전력 고정 (부하율↑·실효원가↓)</span>
+                  </label>
+                  <label className="radio">
+                    <input
+                      type="radio"
+                      name="elecYearMode"
+                      checked={inputs.elecYearMode === 'loadFactorFixed'}
+                      onChange={() => set({ elecYearMode: 'loadFactorFixed' })}
+                    />
+                    <span>부하율 고정 (계약전력 증설·실효원가 일정)</span>
+                  </label>
+                </div>
+              </div>
               <div className="table-scroll">
                 <table className="data-table charger-table">
                   <thead>
@@ -773,6 +800,27 @@ export default function FeasibilityAnalysis({
                         )
                         .map((m, i) => (
                           <td key={i}>{formatNumber(Math.round(m.contractKw))}</td>
+                        ))}
+                    </tr>
+                    <tr>
+                      <td className="col-name">부하율(%)</td>
+                      {elecYearModel!
+                        .slice(
+                          0,
+                          Math.max(1, Math.min(7, Math.round(inputs.years))),
+                        )
+                        .map((m, i) => (
+                          <td
+                            key={i}
+                            className={m.loadFactor > 1 ? 'cell--down' : ''}
+                            title={
+                              m.loadFactor > 1
+                                ? '부하율 100% 초과 — 계약전력 초과(증설 필요)'
+                                : undefined
+                            }
+                          >
+                            {(m.loadFactor * 100).toFixed(1)}%
+                          </td>
                         ))}
                     </tr>
                     <tr>
@@ -829,11 +877,14 @@ export default function FeasibilityAnalysis({
                 </table>
               </div>
               <p className="var-hint">
-                <b>부하율 고정</b> 가정: 이용률↑ → 충전량↑에 맞춰 계약전력을 같은
-                비율로 증설(부하율 유지). 이때 kWh당 기본요금이 일정해 실효원가(원/kWh)는
-                거의 변하지 않고, <b>계약전력·기본요금 총액·연 전기원가</b>가 매년
-                증가합니다. 각 연차 전기원가가 손익에 개별 반영됩니다. · 전기원가를
-                직접입력(override)하면 이 모델 대신 단일값이 적용됩니다.
+                <b>부하율 = 이용률 ÷ 수용률(동시충전율)</b>. ·{' '}
+                <b>수용률·계약전력 고정</b>: 피크(계약전력)를 유지 → 이용률↑ 시
+                사용량만 늘어 <b>부하율 상승·실효원가(원/kWh) 하락</b> (부하율 100%
+                초과 시 계약전력 증설 필요). ·{' '}
+                <b>부하율 고정</b>: 계약전력을 충전량 비례로 증설 → 실효원가 거의
+                일정하나 계약전력·기본요금 총액이 매년 증가. 각 연차 실효원가가
+                손익에 개별 반영됩니다. 전기원가 직접입력(override) 시 이 모델 대신
+                단일값이 적용됩니다.
               </p>
             </>
           )}

@@ -311,9 +311,18 @@ function ProjectDetail({
     const yearlyW = computeFeasibility(effFeas).yearlyW
     const contractKw1 = tariffEff.contractKw
     const mk1 = yearlyW[0] || effMonthlyKwh || 1
-    const lf = contractKw1 > 0 ? mk1 / (contractKw1 * 720) : 0
+    const lf1 = contractKw1 > 0 ? mk1 / (contractKw1 * 720) : 0
+    // 'loadFactorFixed': 부하율 유지 → 계약전력 충전량 비례 증설
+    // 'demandFixed'(기본): 수용률·계약전력 고정 → 부하율 상승·실효원가 하락
+    const mode = feas.elecYearMode ?? 'demandFixed'
     return yearlyW.map((mk) => {
-      const contractKw = lf > 0 ? mk / (lf * 720) : contractKw1
+      const contractKw =
+        mode === 'loadFactorFixed'
+          ? lf1 > 0
+            ? mk / (lf1 * 720)
+            : contractKw1
+          : contractKw1
+      const loadFactorN = contractKw > 0 ? mk / (contractKw * 720) : 0
       const effCost = computeTariff({
         ...tariff,
         installedKw: undefined,
@@ -321,7 +330,7 @@ function ProjectDetail({
         contractKw,
         monthlyKwh: mk,
       }).selected.effCost
-      return { monthlyKwh: mk, contractKw, effCost }
+      return { monthlyKwh: mk, contractKw, effCost, loadFactor: loadFactorN }
     })
   }, [feas, config, tariff, tariffEff, effMonthlyKwh])
 
