@@ -995,6 +995,23 @@ body {
 .report-table--calc th:nth-child(2),
 .report-table--calc td:nth-child(2) {
   width: 22%;
+  /* 금액/단가 열: 입력칸·텍스트 모두 우측 정렬해 숫자 오른끝을 통일 */
+  text-align: right;
+}
+/* 우측정렬 셀 안의 입력 위젯도 오른쪽에 붙도록 */
+.report-table--calc td:nth-child(2) .num-input {
+  justify-content: flex-end;
+}
+/* 운영비 표: 연 비용·월 비용(2·3열) 숫자를 우측 정렬로 통일(헤더 포함) */
+.report-table--opex th:nth-child(2),
+.report-table--opex td:nth-child(2),
+.report-table--opex th:nth-child(3),
+.report-table--opex td:nth-child(3) {
+  text-align: right;
+  white-space: nowrap;
+}
+.report-table--opex td:nth-child(2) .num-input {
+  justify-content: flex-end;
 }
 .report-table--calc th:nth-child(3),
 .report-table--calc td:nth-child(3) {

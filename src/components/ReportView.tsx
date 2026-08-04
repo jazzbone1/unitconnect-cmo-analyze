@@ -830,7 +830,7 @@ export default function ReportView({
         <section className="card">
           <h2>Part 1. 충전 인프라 현황</h2>
 
-          <SecHead k="1-1" label="1-1. 단지 개요" />
+          {SecHead({ k: '1-1', label: '1-1. 단지 개요' })}
           {secOn('1-1') && (
           <div className="table-scroll">
             <table className="data-table report-table">
@@ -866,7 +866,7 @@ export default function ReportView({
           </div>
           )}
 
-          <SecHead k="1-2" label="1-2. 충전기 유형별 실적" />
+          {SecHead({ k: '1-2', label: '1-2. 충전기 유형별 실적' })}
           {secOn('1-2') && (
           <div className="table-scroll">
             <table className="data-table report-table">
@@ -899,7 +899,7 @@ export default function ReportView({
           </div>
           )}
 
-          <SecHead k="1-3" label="1-3. 월별 충전 추이" />
+          {SecHead({ k: '1-3', label: '1-3. 월별 충전 추이' })}
           {secOn('1-3') && (
           <div className="table-scroll">
             <table className="data-table report-table">
@@ -943,37 +943,35 @@ export default function ReportView({
           {/* 등록 충전기 종류별 전기원가 분석 */}
           {groups.map((g, i) => (
             <Fragment key={g.id}>
-              <SecHead
-                k={groupKey(g.id)}
-                tag="h4"
-                label={`2-${i + 1}. ${g.name} 전기원가${
+              {SecHead({
+                k: groupKey(g.id),
+                tag: 'h4',
+                label: `2-${i + 1}. ${g.name} 전기원가${
                   g.separated !== false ? ' (모자분리)' : ' (공용부)'
-                }`}
-                editable
-              />
-              {secOn(groupKey(g.id)) && (
-                <ElecCostBlock
-                  group={g}
-                  sub={
+                }`,
+                editable: true,
+              })}
+              {secOn(groupKey(g.id)) &&
+                ElecCostBlock({
+                  group: g,
+                  sub:
                     g.separated !== false
                       ? '모자분리 적용 · 계약전력 기반 기본요금 부과'
-                      : '모자분리 미적용 · 공용부 전기세 부과 (기본요금 없음)'
-                  }
-                />
-              )}
+                      : '모자분리 미적용 · 공용부 전기세 부과 (기본요금 없음)',
+                })}
             </Fragment>
           ))}
 
           {/* 운영비 내역 */}
-          <SecHead
-            k="2-opex"
-            tag="h4"
-            label={`2-${groups.length + 1}. 운영비 내역 (예상)`}
-          />
+          {SecHead({
+            k: '2-opex',
+            tag: 'h4',
+            label: `2-${groups.length + 1}. 운영비 내역 (예상)`,
+          })}
           {secOn('2-opex') && (
           <div className="report-block">
             <div className="table-scroll">
-              <table className="data-table report-table">
+              <table className="data-table report-table report-table--opex">
                 <thead>
                   <tr>
                     <th>구분</th>
@@ -1059,25 +1057,26 @@ export default function ReportView({
           )}
 
           {/* 요금 하한선 분석 — 종류별 (각 종류 체크 여부 연동) */}
-          <SecHead
-            k="2-lb"
-            tag="h4"
-            label={`2-${groups.length + 2}. 요금 하한선 분석`}
-          />
+          {SecHead({
+            k: '2-lb',
+            tag: 'h4',
+            label: `2-${groups.length + 2}. 요금 하한선 분석`,
+          })}
           {secOn('2-lb') &&
-            groups.map(
-              (g, i) =>
-                secOn(groupKey(g.id)) && (
-                  <LowerBound key={g.id} group={g} title={groupTitle2(g, i)} />
-                ),
+            groups.map((g, i) =>
+              secOn(groupKey(g.id)) ? (
+                <Fragment key={g.id}>
+                  {LowerBound({ group: g, title: groupTitle2(g, i) })}
+                </Fragment>
+              ) : null,
             )}
 
           {/* 충전요금 인상 권고안 */}
-          <SecHead
-            k="2-rec"
-            tag="h4"
-            label={`2-${groups.length + 3}. 충전요금 인상 권고안`}
-          />
+          {SecHead({
+            k: '2-rec',
+            tag: 'h4',
+            label: `2-${groups.length + 3}. 충전요금 인상 권고안`,
+          })}
           {secOn('2-rec') && (
           <div className="report-block">
             <div className="table-scroll">
@@ -1155,7 +1154,7 @@ export default function ReportView({
         {(secOn('3-0') || secOn('3-1') || secOn('3-2') || secOn('3-3') || secOn('3-4')) && (
         <section className="card">
           <h2>Part 3. 해결 방안</h2>
-          <SecHead k="3-0" tag="h4" label="3-0. 공통 전제" />
+          {SecHead({ k: '3-0', tag: 'h4', label: '3-0. 공통 전제' })}
           {secOn('3-0') && (
           <div className="report-premise">
             <textarea
@@ -1169,7 +1168,7 @@ export default function ReportView({
           </div>
           )}
 
-          <SecHead k="3-1" tag="h4" label="3-1. 방안 ① 자치운영 — 고려사항" />
+          {SecHead({ k: '3-1', tag: 'h4', label: '3-1. 방안 ① 자치운영 — 고려사항' })}
           {secOn('3-1') && (
           <div className="report-block">
             <div className="table-scroll">
@@ -1206,7 +1205,7 @@ export default function ReportView({
           </div>
           )}
 
-          <SecHead k="3-2" tag="h4" label="3-2. 방안 ② CPO 위탁" />
+          {SecHead({ k: '3-2', tag: 'h4', label: '3-2. 방안 ② CPO 위탁' })}
           {secOn('3-2') && (
           <div className="report-block">
             <div className="table-scroll">
@@ -1241,7 +1240,7 @@ export default function ReportView({
           </div>
           )}
 
-          <SecHead k="3-3" tag="h4" label="3-3. 방안 ③ CMO 위탁운영 (UNITCONNECT)" />
+          {SecHead({ k: '3-3', tag: 'h4', label: '3-3. 방안 ③ CMO 위탁운영 (UNITCONNECT)' })}
           {secOn('3-3') && (
           <div className="report-block">
             <div className="table-scroll">
@@ -1276,7 +1275,7 @@ export default function ReportView({
           </div>
           )}
 
-          <SecHead k="3-4" tag="h4" label="3-4. 3가지 방안 비교" />
+          {SecHead({ k: '3-4', tag: 'h4', label: '3-4. 3가지 방안 비교' })}
           {secOn('3-4') && (
           <div className="report-block">
             <div className="table-scroll">
