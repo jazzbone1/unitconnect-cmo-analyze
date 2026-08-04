@@ -6,6 +6,7 @@ import {
   distributeByRatio,
   applySeasonTiers,
   reachedBaseCharge,
+  baseUnitPerKw,
   newTier,
   CONTRACT_LABELS,
   SEASON_LABELS,
@@ -352,6 +353,19 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
                 width={130}
                 suffix="원"
               />
+            </b>
+          </div>
+          <div className="target-row">
+            <span>→ 기본단가 (원/kW · 보고서 연동)</span>
+            <b>
+              {(() => {
+                const bu = baseUnitPerKw(inputs)
+                if (bu.source === 'measured')
+                  return `${formatNumber(Math.round(bu.value))} 원/kW (실측: ${formatNumber(inputs.baseCharge)} ÷ ${formatNumber(inputs.contractKw)}kW)`
+                if (bu.source === 'standard')
+                  return `${formatNumber(bu.value)} 원/kW (계약종별 표준)`
+                return '계약전력 입력 필요 (주택용은 기본요금 ÷ 계약전력)'
+              })()}
             </b>
           </div>
           <p className="hint hint--tight">
