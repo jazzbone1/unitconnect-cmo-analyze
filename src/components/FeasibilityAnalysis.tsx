@@ -547,9 +547,28 @@ export default function FeasibilityAnalysis({
         </div>
 
         <div className="subsection">
-          <h4 className="summary-block__title">
-            연차별 이용률 (7kW 환산, 성장 예상)
-          </h4>
+          <div className="standby-merge__head">
+            <h4 className="summary-block__title">
+              연차별 이용률 (7kW 환산, 성장 예상)
+            </h4>
+            <button
+              type="button"
+              className="btn-secondary"
+              title="완속 7kW 이용률을 기준으로 매년 1%p씩 상승 반영"
+              onClick={() =>
+                set({
+                  yearUtil2: inputs.utilSlow7 + 0.01,
+                  yearUtil3: inputs.utilSlow7 + 0.02,
+                  yearUtil4: inputs.utilSlow7 + 0.03,
+                  yearUtil5: inputs.utilSlow7 + 0.04,
+                  yearUtil6: inputs.utilSlow7 + 0.05,
+                  yearUtil7: inputs.utilSlow7 + 0.06,
+                })
+              }
+            >
+              연 성장률 1%p 반영
+            </button>
+          </div>
           <div className="var-row">
             <Field label="2년차" unit="%" step="any" value={+(inputs.yearUtil2 * 100).toFixed(4)} onChange={(v) => set({ yearUtil2: v / 100 })} standard={`${(STD.yearUtil2 * 100).toFixed(0)}%`} />
             <Field label="3년차" unit="%" step="any" value={+(inputs.yearUtil3 * 100).toFixed(4)} onChange={(v) => set({ yearUtil3: v / 100 })} standard={`${(STD.yearUtil3 * 100).toFixed(0)}%`} />
