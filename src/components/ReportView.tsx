@@ -247,9 +247,22 @@ export default function ReportView({
     const p = computeProfit(g, opexRate)
     // 그룹 A(모자분리)만 요금구조 탭에서 계약전력·월사용량·실효원가 연동
     const linkA = which === 'groupA'
+    // 모자분리 적용 여부: 미적용이면 계약전력 기반 기본요금(B) 없음
+    const sep = g.separated !== false
     return (
       <div className="report-block">
         <p className="report-block__sub">{sub}</p>
+        <label className="toggle report-moja no-print">
+          <input
+            type="checkbox"
+            checked={sep}
+            onChange={(e) => updGroup(which, { separated: e.target.checked })}
+          />
+          <span>
+            모자분리 적용 (계약전력 기반 기본요금 별도 부과) — 미체크 시 아파트
+            기존 계약(공용부)으로 기본요금 없음
+          </span>
+        </label>
 
         <div className="table-scroll">
           <table className="data-table report-table">
@@ -274,29 +287,43 @@ export default function ReportView({
               </tr>
               <tr>
                 <td className="col-name">(B) kWh당 기본요금 환산</td>
-                <td>{won1(r.baseCharge)}/kWh</td>
-                <td className="cell--muted">
-                  <NumInput
-                    value={g.contractKw}
-                    onChange={(v) => updGroup(which, { contractKw: v })}
-                    suffix="kW ×"
-                    width={70}
-                    linked={linkA}
-                  />{' '}
-                  <NumInput
-                    value={g.baseUnitPrice}
-                    onChange={(v) => updGroup(which, { baseUnitPrice: v })}
-                    suffix="원 ÷"
-                    width={70}
-                  />{' '}
-                  <NumInput
-                    value={g.monthlyKwh}
-                    onChange={(v) => updGroup(which, { monthlyKwh: v })}
-                    suffix="kWh"
-                    width={80}
-                    linked={linkA}
-                  />
-                </td>
+                <td>{sep ? `${won1(r.baseCharge)}/kWh` : '없음'}</td>
+                {sep ? (
+                  <td className="cell--muted">
+                    <NumInput
+                      value={g.contractKw}
+                      onChange={(v) => updGroup(which, { contractKw: v })}
+                      suffix="kW ×"
+                      width={70}
+                      linked={linkA}
+                    />{' '}
+                    <NumInput
+                      value={g.baseUnitPrice}
+                      onChange={(v) => updGroup(which, { baseUnitPrice: v })}
+                      suffix="원 ÷"
+                      width={70}
+                    />{' '}
+                    <NumInput
+                      value={g.monthlyKwh}
+                      onChange={(v) => updGroup(which, { monthlyKwh: v })}
+                      suffix="kWh"
+                      width={80}
+                      linked={linkA}
+                    />
+                  </td>
+                ) : (
+                  <td className="cell--muted">
+                    모자분리 미적용 — 공용부 기존 계약에 포함, 추가 기본요금 없음
+                    · 월 사용량{' '}
+                    <NumInput
+                      value={g.monthlyKwh}
+                      onChange={(v) => updGroup(which, { monthlyKwh: v })}
+                      suffix="kWh"
+                      width={80}
+                      linked={linkA}
+                    />
+                  </td>
+                )}
               </tr>
               <tr className="row--sub">
                 <td className="col-name">소계 (A)+(B)</td>

@@ -19,6 +19,12 @@ export interface ElecCostInput {
   currentRate: number
   /** 실효 전기원가(Lv1) 직접 입력값. 지정 시 계산값 대신 이 값을 사용 */
   lv1Override?: number | null
+  /**
+   * 모자분리 적용 여부. false면 EV 전용 계량기가 없어 아파트 기존
+   * 계약(공용부)에 얹히므로 (B) 계약전력 기반 기본요금이 발생하지 않는다.
+   * 미설정(undefined)은 true(모자분리 적용)로 간주.
+   */
+  separated?: boolean
 }
 
 export interface OpexRow {
@@ -125,8 +131,13 @@ export interface ElecCostResult {
 }
 
 export function computeElecCost(i: ElecCostInput): ElecCostResult {
+  // 모자분리 미적용(공용부·아파트 기존 계약)이면 추가 기본요금 없음 → (B)=0
   const baseCharge =
-    i.monthlyKwh > 0 ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh : 0
+    i.separated === false
+      ? 0
+      : i.monthlyKwh > 0
+        ? (i.contractKw * i.baseUnitPrice) / i.monthlyKwh
+        : 0
   const subtotal = i.powerRate + baseCharge
   const computedLv1 = (subtotal + i.climateFee) * i.taxMultiplier
   const overridden =
@@ -221,6 +232,7 @@ export function defaultReport(): ReportModel {
       climateFee: 9.0,
       taxMultiplier: 1.127,
       currentRate: 208.94,
+      separated: true,
     },
     groupB: {
       powerRate: 108.7,
@@ -230,6 +242,8 @@ export function defaultReport(): ReportModel {
       climateFee: 9.0,
       taxMultiplier: 1.127,
       currentRate: 200,
+      // 모자분리 미적용: 아파트 기존 계약(공용부)에 얹혀 추가 기본요금 없음
+      separated: false,
     },
     opex: [
       { id: rid(), name: '정기점검', yearCost: 360000, note: '1년 2회 기준' },

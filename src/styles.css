@@ -886,6 +886,12 @@ body {
 .report-sec-title-input--h4 {
   font-size: 1rem;
 }
+.report-moja {
+  margin: 0.25rem 0 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
 .report-block {
   margin-top: 1.5rem;
 }
