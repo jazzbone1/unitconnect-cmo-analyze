@@ -18,6 +18,8 @@ interface ReportViewProps {
   setModel: React.Dispatch<React.SetStateAction<ReportModel>>
   /** 앞 단계(요금구조·정산·단지정보) 값을 다시 끌어와 채우는 시드 생성기 */
   autoSeed?: () => ReportModel
+  /** 요금분석 '고지서 실측 입력'에 값이 있어 모자분리 실효원가가 실측 기반인지 */
+  billMeasured?: boolean
 }
 
 /* ---------- 포맷 ---------- */
@@ -131,6 +133,7 @@ export default function ReportView({
   model,
   setModel,
   autoSeed,
+  billMeasured,
 }: ReportViewProps) {
   /* ---------- 섹션 포함 여부(체크) ---------- */
   const secOn = (k: string) => model.visible?.[k] !== false
@@ -456,7 +459,20 @@ export default function ReportView({
                   />
                 </td>
                 <td className="cell--muted">
-                  {r.overridden ? (
+                  {sep && g.lv1Override != null ? (
+                    <>
+                      {billMeasured
+                        ? '요금분석 고지서 실측 실효원가 자동 반영'
+                        : '요금구조 추정 실효원가 자동 반영'}{' '}
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => upd({ lv1Override: null })}
+                      >
+                        자동계산으로
+                      </button>
+                    </>
+                  ) : r.overridden ? (
                     <>
                       직접입력 (계산값 {r.computedLv1.toFixed(1)}원){' '}
                       <button

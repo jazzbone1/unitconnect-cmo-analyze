@@ -17,9 +17,11 @@ import {
 } from '../lib/report'
 import {
   computeTariff,
+  computeBill,
   defaultTariff,
   properContractKwByUsage,
   type TariffInputs,
+  type BillInputs,
 } from '../lib/tariff'
 import { defaultStandby, computeStandby, type StandbyInputs } from '../lib/standby'
 import {
@@ -173,6 +175,13 @@ function seedReport(
           installedKw: config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
         }).selected.effCost
       : null
+  // 고지서 실측 입력(⑦)에 값이 있으면 실측 실효원가(VAT포함)를 우선 사용
+  const billHasData = (b?: BillInputs | null): boolean =>
+    !!b && b.usageKwh > 0 && (b.basic > 0 || b.energy > 0)
+  const billEffCost =
+    tariff && billHasData(tariff.bill)
+      ? computeBill(tariff.bill as BillInputs).effInclVat
+      : null
   d.elecGroups = active.map((c) => {
     const usageAvg = months.length
       ? Math.round((usageByType.get(c.id) ?? 0) / months.length)
@@ -192,9 +201,13 @@ function seedReport(
       currentRate: c.rate,
       standbyKwh,
     })
-    // 모자분리 종류는 요금구조 실효원가를 직접입력(Lv1)으로 자동 반영
-    if (sep && effCostSeed != null && Number.isFinite(effCostSeed)) {
-      g.lv1Override = Math.round(effCostSeed * 10) / 10
+    // 모자분리 종류 실효원가(Lv1) 자동 반영:
+    //  고지서 실측 입력(⑦)이 있으면 실측 실효원가, 없으면 요금구조 추정 실효원가
+    if (sep) {
+      const src = billEffCost != null ? billEffCost : effCostSeed
+      if (src != null && Number.isFinite(src)) {
+        g.lv1Override = Math.round(src * 10) / 10
+      }
     }
     // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력(요금구조①) × 기본단가(아파트요금)
     if (!sep && tariff && aptBill) {
@@ -307,7 +320,8 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
           apartmentBaseAlloc:
             prev.apartmentBaseAlloc ?? sg.apartmentBaseAlloc,
         }
-      return base
+      // 모자분리 그룹: 실효원가(Lv1)를 고지서 실측/요금구조에서 자동 반영
+      return { ...base, lv1Override: sg.lv1Override }
     }),
   }
 }
@@ -607,6 +621,11 @@ function ProjectDetail({
         <ReportView
           model={report}
           setModel={setReport}
+          billMeasured={
+            !!tariff.bill &&
+            tariff.bill.usageKwh > 0 &&
+            (tariff.bill.basic > 0 || tariff.bill.energy > 0)
+          }
           autoSeed={() =>
             seedReport(
               { ...project, name: site.name, households: site.households },
