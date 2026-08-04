@@ -132,7 +132,14 @@ export default function FeasibilityAnalysis({
       return next
     })
   const yearIdx = Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years))) - 1
-  const appliedBizFee = bizFeeByYear[yearIdx] ?? defaultBizFee(inputs.years)
+  // 공통 기준표 값(계약년수 기준)
+  const standardBizFee = bizFeeByYear[yearIdx] ?? defaultBizFee(inputs.years)
+  // 프로젝트별 override가 있으면 우선, 없으면 공통 기준표 값(일괄) 적용
+  const hasBizFeeOverride =
+    inputs.bizFeeOverride != null && Number.isFinite(inputs.bizFeeOverride)
+  const appliedBizFee = hasBizFeeOverride
+    ? (inputs.bizFeeOverride as number)
+    : standardBizFee
 
   // 대수는 단지 정보의 충전기 수량과 자동 연동 (읽기 전용)
   const countOf = (kw: number) =>
@@ -549,11 +556,28 @@ export default function FeasibilityAnalysis({
             <label className="var-field">
               <span className="var-field__label">
                 영업비 1대분 단가
-                <span className="var-field__unit">원/대 · 기준표 연동</span>
+                <span className="var-field__unit">원/대</span>
               </span>
-              <div className="var-field__auto">{formatNumber(appliedBizFee)}</div>
+              <DecimalInput
+                className="var-field__input"
+                value={appliedBizFee}
+                onValue={(n) => set({ bizFeeOverride: n })}
+              />
               <span className="var-field__std">
-                기준표(계약 {Math.round(inputs.years)}년)에서 일괄 적용
+                {hasBizFeeOverride ? (
+                  <>
+                    프로젝트 개별값 적용 중 ·{' '}
+                    <button
+                      type="button"
+                      className="btn-link"
+                      onClick={() => set({ bizFeeOverride: null })}
+                    >
+                      기준표({formatNumber(standardBizFee)}원)로 되돌리기
+                    </button>
+                  </>
+                ) : (
+                  `기준표(계약 ${Math.round(inputs.years)}년) ${formatNumber(standardBizFee)}원 일괄 적용`
+                )}
               </span>
             </label>
             <Field label="모자분리" unit="원/대" value={inputs.mojaBunri} onChange={(v) => set({ mojaBunri: v })} standard={`${formatNumber(STD.mojaBunri)}원`} />

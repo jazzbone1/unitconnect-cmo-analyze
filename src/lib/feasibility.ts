@@ -51,6 +51,8 @@ export interface FeasibilityInputs {
   standbyMonthlyKwhAll?: number
   /** 영업비 1대분 단가 (원/대) */
   bizFeePerUnit: number
+  /** 영업비 1대분 프로젝트별 override (원/대). null/미설정 시 공통 기준표 값 사용 */
+  bizFeeOverride?: number | null
   /** 영업비 차감/대 (충전단가 하락 검토용) */
   bizFeeDiscount: number
   /** 영업이익 포기율 (0~1) */
