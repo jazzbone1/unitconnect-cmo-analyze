@@ -1363,21 +1363,26 @@ body {
     background: transparent !important;
     border-color: transparent !important;
   }
+  /* Part 카드는 페이지 경계를 넘어 자유롭게 이어지도록(빈 공간 없이 당겨 채움) */
   .report-root .card {
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
-    margin: 0 0 10mm !important;
-    break-inside: avoid;
+    margin: 0 0 5mm !important;
+    break-inside: auto;
   }
   .report-root h2 {
     border-bottom: 2px solid #173b7a;
     color: #173b7a;
     padding-bottom: 4px;
-    margin-top: 8mm;
+    margin-top: 5mm;
     break-after: avoid;
   }
+  /* 블록은 이어지되, 표의 한 행이 페이지에서 잘리지 않도록만 방지 */
   .report-block {
+    break-inside: auto;
+  }
+  .report-root tr {
     break-inside: avoid;
   }
   /* 입력창을 값만 보이는 텍스트처럼 */
