@@ -1347,10 +1347,10 @@ body {
   .link-button--danger {
     display: none !important;
   }
-  /* 편집 카드(단지 정보 폼)와 상단 안내문은 인쇄 제외 */
+  /* 편집 카드(단지 정보 폼)와 상단 헤더(제목/안내문)는 인쇄 제외 */
   .report-root ~ *,
   .projects > .card:first-of-type,
-  .report-root .app__subtitle {
+  .report-root .report-topbar {
     display: none !important;
   }
   .report-root {
