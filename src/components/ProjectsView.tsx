@@ -10,7 +10,11 @@ import {
 } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
 import { parseUploadedFiles } from '../lib/ingest'
-import { defaultReport, type ReportModel } from '../lib/report'
+import {
+  defaultReport,
+  makeElecGroup,
+  type ReportModel,
+} from '../lib/report'
 import { computeTariff, defaultTariff, type TariffInputs } from '../lib/tariff'
 import { defaultStandby, computeStandby, type StandbyInputs } from '../lib/standby'
 import type { FileEntry } from '../types'
@@ -30,7 +34,7 @@ function seedReport(
   config: SettlementConfig,
   files: FileEntry[],
   tariff?: TariffInputs,
-  standbyKwhNonSep?: number,
+  standby?: StandbyInputs,
 ): ReportModel {
   const d = defaultReport()
   d.siteName = project.name
@@ -119,10 +123,45 @@ function seedReport(
     }
     if (slow.length) d.groupB.currentRate = slow[0].rate
   }
-  // 모자분리 미적용 종류의 월 대기전력량(공용부 부과 손실분) 자동 반영
-  if (standbyKwhNonSep != null && Number.isFinite(standbyKwhNonSep)) {
-    d.groupB = { ...d.groupB, standbyKwh: Math.round(standbyKwhNonSep) }
+  // 모자분리 미적용 종류의 월 대기전력량(공용부 부과 손실분) 자동 반영(하위호환 groupB)
+  if (standby) {
+    const nonSep = nonSepStandbyKwh(config.chargers, standby)
+    if (nonSep > 0) d.groupB = { ...d.groupB, standbyKwh: Math.round(nonSep) }
   }
+
+  // ── 등록 충전기 종류별 전기원가 분석 그룹 ──
+  const effCostSeed =
+    tariff != null
+      ? computeTariff({
+          ...tariff,
+          installedKw: config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
+        }).selected.effCost
+      : null
+  d.elecGroups = active.map((c) => {
+    const usageAvg = months.length
+      ? Math.round((usageByType.get(c.id) ?? 0) / months.length)
+      : 0
+    const sep = !!c.separated
+    const standbyKwh =
+      !sep && standby
+        ? Math.round(computeStandby([c], standby, 0).totalKwh)
+        : 0
+    const g = makeElecGroup({
+      id: c.id,
+      name: c.name,
+      kw: c.kw,
+      count: c.count,
+      separated: sep,
+      monthlyKwh: usageAvg,
+      currentRate: c.rate,
+      standbyKwh,
+    })
+    // 모자분리 종류는 요금구조 실효원가를 직접입력(Lv1)으로 자동 반영
+    if (sep && effCostSeed != null && Number.isFinite(effCostSeed)) {
+      g.lv1Override = Math.round(effCostSeed * 10) / 10
+    }
+    return g
+  })
   return d
 }
 
@@ -196,6 +235,22 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
       currentRate: s.groupB.currentRate,
       standbyKwh: s.groupB.standbyKwh,
     },
+    // 등록 종류별 그룹: 자동연동 필드(대수·사용량·현행요금·모자분리·대기전력)만
+    // 갱신, 직접입력 필드(전력량요금·기후·부가세·기본단가·계약전력·Lv1)는 보존.
+    elecGroups: (s.elecGroups ?? []).map((sg) => {
+      const prev = (m.elecGroups ?? []).find((g) => g.id === sg.id)
+      if (!prev) return sg
+      return {
+        ...prev,
+        name: sg.name,
+        kw: sg.kw,
+        count: sg.count,
+        separated: sg.separated,
+        monthlyKwh: sg.monthlyKwh,
+        currentRate: sg.currentRate,
+        standbyKwh: sg.standbyKwh,
+      }
+    }),
   }
 }
 
@@ -231,10 +286,7 @@ function ProjectDetail({
         { hours: project.hours, chargers: project.chargers.map((c) => ({ ...c })) },
         project.files ?? project.settlementFiles ?? [],
         deriveTariff(project),
-        nonSepStandbyKwh(
-          project.chargers.map((c) => ({ ...c })),
-          project.standby ?? defaultStandby(),
-        ),
+        project.standby ?? defaultStandby(),
       ),
   )
   const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
@@ -346,7 +398,7 @@ function ProjectDetail({
         config,
         files,
         tariff,
-        nonSepStandbyKwh(config.chargers, standby),
+        standby,
       ),
     [site.name, site.households, config, files, tariff, standby],
   )
@@ -484,7 +536,7 @@ function ProjectDetail({
               config,
               files,
               tariff,
-              nonSepStandbyKwh(config.chargers, standby),
+              standby,
             )
           }
         />

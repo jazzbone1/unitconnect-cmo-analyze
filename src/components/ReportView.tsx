@@ -8,8 +8,10 @@ import {
   newOpexRow,
   newRecommendRow,
   type ElecCostInput,
+  type ElecGroup,
   type ReportModel,
 } from '../lib/report'
+import { Fragment } from 'react'
 
 interface ReportViewProps {
   model: ReportModel
@@ -138,14 +140,6 @@ export default function ReportView({
       visible: { ...(m.visible ?? {}), [k]: !(m.visible?.[k] !== false) },
     }))
 
-  // 2-1/2-2에서 편집한 섹션 제목을 하한선 등 하위 표에 그대로 사용(번호 접두어 제거)
-  const SEC_DEFAULT: Record<string, string> = {
-    '2-1': '2-1. 모자분리 충전기 (7kW 완속 · DC 급속)',
-    '2-2': '2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)',
-  }
-  const groupTitle = (k: string) =>
-    (model.secTitle?.[k] ?? SEC_DEFAULT[k] ?? '').replace(/^\s*\d+-\d+\.\s*/, '')
-
   /* ---------- 앞 단계 값 자동 반영 ---------- */
   function autoFill() {
     if (!autoSeed) return
@@ -176,6 +170,22 @@ export default function ReportView({
         currentRate: s.groupB.currentRate,
         standbyKwh: s.groupB.standbyKwh,
       },
+      // 종류별 그룹: 자동연동 필드만 갱신, 직접입력(전력량요금·계약전력·Lv1 등)은 보존
+      elecGroups: (s.elecGroups ?? []).map((sg) => {
+        const prev = (m.elecGroups ?? []).find((g) => g.id === sg.id)
+        return prev
+          ? {
+              ...prev,
+              name: sg.name,
+              kw: sg.kw,
+              count: sg.count,
+              separated: sg.separated,
+              monthlyKwh: sg.monthlyKwh,
+              currentRate: sg.currentRate,
+              standbyKwh: sg.standbyKwh,
+            }
+          : sg
+      }),
     }))
   }
 
@@ -247,8 +257,20 @@ export default function ReportView({
   const opexRate = opexPerKwh(model.opex, model.opexBaseKwh)
   const opexMonth = opexMonthlyTotal(model.opex)
 
-  function updGroup(key: 'groupA' | 'groupB', patch: Partial<ElecCostInput>) {
-    setModel((m) => ({ ...m, [key]: { ...m[key], ...patch } }))
+  const groups = model.elecGroups ?? []
+  const groupKey = (id: string) => `elec:${id}`
+  const groupTitle2 = (g: ElecGroup, i: number) =>
+    (model.secTitle?.[groupKey(g.id)] ?? `${i + 1}. ${g.name} 전기원가`).replace(
+      /^\s*\d+[-.]\d*\.?\s*/,
+      '',
+    )
+  function updElecGroup(id: string, patch: Partial<ElecCostInput>) {
+    setModel((m) => ({
+      ...m,
+      elecGroups: (m.elecGroups ?? []).map((g) =>
+        g.id === id ? { ...g, ...patch } : g,
+      ),
+    }))
   }
   function updList<K extends keyof ReportModel>(
     key: K,
@@ -264,18 +286,13 @@ export default function ReportView({
   }
 
   /* ---------- 실효 전기원가 산출 블록 ---------- */
-  function ElecCostBlock({
-    which,
-    sub,
-  }: {
-    which: 'groupA' | 'groupB'
-    sub: string
-  }) {
-    const g = model[which]
+  function ElecCostBlock({ group, sub }: { group: ElecGroup; sub: string }) {
+    const g = group
+    const upd = (patch: Partial<ElecCostInput>) => updElecGroup(g.id, patch)
     const r = computeElecCost(g)
     const p = computeProfit(g, opexRate)
-    // 그룹 A(모자분리)만 요금구조 탭에서 계약전력·월사용량·실효원가 연동
-    const linkA = which === 'groupA'
+    // 모자분리 종류는 요금구조 탭에서 계약전력·월사용량·실효원가 연동
+    const linkA = g.separated !== false
     // 모자분리 적용 여부: 미적용이면 계약전력 기반 기본요금(B) 없음
     const sep = g.separated !== false
     return (
@@ -285,7 +302,7 @@ export default function ReportView({
           <input
             type="checkbox"
             checked={sep}
-            onChange={(e) => updGroup(which, { separated: e.target.checked })}
+            onChange={(e) => upd({ separated: e.target.checked })}
           />
           <span>
             모자분리 적용 (계약전력 기반 기본요금 별도 부과) — 미체크 시 아파트
@@ -308,7 +325,7 @@ export default function ReportView({
                 <td>
                   <NumInput
                     value={g.powerRate}
-                    onChange={(v) => updGroup(which, { powerRate: v })}
+                    onChange={(v) => upd({ powerRate: v })}
                     suffix="원/kWh"
                   />
                 </td>
@@ -321,20 +338,20 @@ export default function ReportView({
                   <td className="cell--muted">
                     <NumInput
                       value={g.contractKw}
-                      onChange={(v) => updGroup(which, { contractKw: v })}
+                      onChange={(v) => upd({ contractKw: v })}
                       suffix="kW ×"
                       width={70}
                       linked={linkA}
                     />{' '}
                     <NumInput
                       value={g.baseUnitPrice}
-                      onChange={(v) => updGroup(which, { baseUnitPrice: v })}
+                      onChange={(v) => upd({ baseUnitPrice: v })}
                       suffix="원 ÷"
                       width={70}
                     />{' '}
                     <NumInput
                       value={g.monthlyKwh}
-                      onChange={(v) => updGroup(which, { monthlyKwh: v })}
+                      onChange={(v) => upd({ monthlyKwh: v })}
                       suffix="kWh"
                       width={80}
                       linked={linkA}
@@ -346,7 +363,7 @@ export default function ReportView({
                     · 월 사용량{' '}
                     <NumInput
                       value={g.monthlyKwh}
-                      onChange={(v) => updGroup(which, { monthlyKwh: v })}
+                      onChange={(v) => upd({ monthlyKwh: v })}
                       suffix="kWh"
                       width={80}
                       linked={linkA}
@@ -364,7 +381,7 @@ export default function ReportView({
                 <td>
                   <NumInput
                     value={g.climateFee}
-                    onChange={(v) => updGroup(which, { climateFee: v })}
+                    onChange={(v) => upd({ climateFee: v })}
                     suffix="원"
                   />
                 </td>
@@ -376,7 +393,7 @@ export default function ReportView({
                   ×
                   <NumInput
                     value={g.taxMultiplier}
-                    onChange={(v) => updGroup(which, { taxMultiplier: v })}
+                    onChange={(v) => upd({ taxMultiplier: v })}
                     width={70}
                   />
                 </td>
@@ -387,11 +404,11 @@ export default function ReportView({
                 <td className="cell--strong">
                   <NumInput
                     value={g.lv1Override ?? 0}
-                    onChange={(v) => updGroup(which, { lv1Override: v })}
+                    onChange={(v) => upd({ lv1Override: v })}
                     suffix="원/kWh"
                     linked={linkA}
                     nullable
-                    onNull={() => updGroup(which, { lv1Override: null })}
+                    onNull={() => upd({ lv1Override: null })}
                     placeholder={r.computedLv1.toFixed(1)}
                   />
                 </td>
@@ -402,7 +419,7 @@ export default function ReportView({
                       <button
                         type="button"
                         className="link-button"
-                        onClick={() => updGroup(which, { lv1Override: null })}
+                        onClick={() => upd({ lv1Override: null })}
                       >
                         자동계산으로
                       </button>
@@ -435,7 +452,7 @@ export default function ReportView({
                 <td>
                   <NumInput
                     value={g.currentRate}
-                    onChange={(v) => updGroup(which, { currentRate: v })}
+                    onChange={(v) => upd({ currentRate: v })}
                     suffix="원"
                     linked
                   />
@@ -469,7 +486,7 @@ export default function ReportView({
                     </span>
                     <NumInput
                       value={g.standbyKwh ?? 0}
-                      onChange={(v) => updGroup(which, { standbyKwh: v })}
+                      onChange={(v) => upd({ standbyKwh: v })}
                       suffix="kWh"
                       width={80}
                       linked
@@ -496,14 +513,8 @@ export default function ReportView({
   }
 
   /* ---------- 요금 하한선 분석 ---------- */
-  function LowerBound({
-    which,
-    title,
-  }: {
-    which: 'groupA' | 'groupB'
-    title: string
-  }) {
-    const g = model[which]
+  function LowerBound({ group, title }: { group: ElecGroup; title: string }) {
+    const g = group
     const p = computeProfit(g, opexRate)
     return (
       <div className="report-block">
@@ -733,28 +744,44 @@ export default function ReportView({
         )}
 
         {/* Part 2 */}
-        {(secOn('2-1') || secOn('2-2') || secOn('2-3') || secOn('2-4') || secOn('2-5')) && (
+        {(groups.some((g) => secOn(groupKey(g.id))) ||
+          secOn('2-opex') ||
+          secOn('2-lb') ||
+          secOn('2-rec')) && (
         <section className="card">
           <h2>Part 2. 문제점 — 전기요금 구조 및 운영비</h2>
 
-          <SecHead k="2-1" tag="h4" label="2-1. 모자분리 충전기 (7kW 완속 · DC 급속)" editable />
-          {secOn('2-1') && (
-            <ElecCostBlock
-              which="groupA"
-              sub="일반용(을) 고압 요금 · 모자분리 적용"
-            />
-          )}
-          <SecHead k="2-2" tag="h4" label="2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)" editable />
-          {secOn('2-2') && (
-            <ElecCostBlock
-              which="groupB"
-              sub="주택용 전력 · 공용부 전기세 부과 (이용률 추정 기반)"
-            />
-          )}
+          {/* 등록 충전기 종류별 전기원가 분석 */}
+          {groups.map((g, i) => (
+            <Fragment key={g.id}>
+              <SecHead
+                k={groupKey(g.id)}
+                tag="h4"
+                label={`2-${i + 1}. ${g.name} 전기원가${
+                  g.separated !== false ? ' (모자분리)' : ' (공용부)'
+                }`}
+                editable
+              />
+              {secOn(groupKey(g.id)) && (
+                <ElecCostBlock
+                  group={g}
+                  sub={
+                    g.separated !== false
+                      ? '모자분리 적용 · 계약전력 기반 기본요금 부과'
+                      : '모자분리 미적용 · 공용부 전기세 부과 (기본요금 없음)'
+                  }
+                />
+              )}
+            </Fragment>
+          ))}
 
           {/* 운영비 내역 */}
-          <SecHead k="2-3" tag="h4" label="2-3. 운영비 내역 (예상)" />
-          {secOn('2-3') && (
+          <SecHead
+            k="2-opex"
+            tag="h4"
+            label={`2-${groups.length + 1}. 운영비 내역 (예상)`}
+          />
+          {secOn('2-opex') && (
           <div className="report-block">
             <div className="table-scroll">
               <table className="data-table report-table">
@@ -842,22 +869,27 @@ export default function ReportView({
           </div>
           )}
 
-          {/* 요금 하한선 분석 (자동 반영) — 제목·표출을 2-1/2-2 설정에 연동 */}
-          <SecHead k="2-4" tag="h4" label="2-4. 요금 하한선 분석" />
-          {secOn('2-4') && (
-            <>
-              {secOn('2-1') && (
-                <LowerBound which="groupA" title={groupTitle('2-1')} />
-              )}
-              {secOn('2-2') && (
-                <LowerBound which="groupB" title={groupTitle('2-2')} />
-              )}
-            </>
-          )}
+          {/* 요금 하한선 분석 — 종류별 (각 종류 체크 여부 연동) */}
+          <SecHead
+            k="2-lb"
+            tag="h4"
+            label={`2-${groups.length + 2}. 요금 하한선 분석`}
+          />
+          {secOn('2-lb') &&
+            groups.map(
+              (g, i) =>
+                secOn(groupKey(g.id)) && (
+                  <LowerBound key={g.id} group={g} title={groupTitle2(g, i)} />
+                ),
+            )}
 
           {/* 충전요금 인상 권고안 */}
-          <SecHead k="2-5" tag="h4" label="2-5. 충전요금 인상 권고안" />
-          {secOn('2-5') && (
+          <SecHead
+            k="2-rec"
+            tag="h4"
+            label={`2-${groups.length + 3}. 충전요금 인상 권고안`}
+          />
+          {secOn('2-rec') && (
           <div className="report-block">
             <div className="table-scroll">
               <table className="data-table report-table">

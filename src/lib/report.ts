@@ -32,6 +32,15 @@ export interface ElecCostInput {
   standbyKwh?: number
 }
 
+/** 등록 충전기 종류별 전기원가 분석 그룹 */
+export interface ElecGroup extends ElecCostInput {
+  id: string
+  /** 표시명 (예: "완속 7kW") */
+  name: string
+  kw: number
+  count: number
+}
+
 export interface OpexRow {
   id: string
   /** 구분(항목명) */
@@ -87,10 +96,12 @@ export interface ReportModel {
   }[]
   /** Part1 월별 추이 표 */
   monthly: { id: string; month: string; kwh: string; revenue: string; note: string }[]
-  /** 그룹 A: 모자분리 충전기 (7kW 완속 + DC 급속) */
+  /** 그룹 A: 모자분리 충전기 (7kW 완속 + DC 급속) — (하위호환) */
   groupA: ElecCostInput
-  /** 그룹 B: 모자분리 미적용 (3kW 완속, 공용부 부과) */
+  /** 그룹 B: 모자분리 미적용 (3kW 완속, 공용부 부과) — (하위호환) */
   groupB: ElecCostInput
+  /** 등록 충전기 종류별 전기원가 분석 그룹 (신규 구조) */
+  elecGroups?: ElecGroup[]
   /** 운영비 내역 (구분 고정 성격이나 추가/삭제 가능) */
   opex: OpexRow[]
   /** 운영비 원/kWh 산출 분모 (월 충전량, 전체 기준) */
@@ -359,4 +370,33 @@ export function newOpexRow(): OpexRow {
 
 export function newRecommendRow() {
   return { id: rid(), label: '', current: '', proposed: '', note: '' }
+}
+
+/** 충전기 종류로부터 전기원가 분석 그룹 기본값 생성 */
+export function makeElecGroup(opts: {
+  id: string
+  name: string
+  kw: number
+  count: number
+  separated: boolean
+  monthlyKwh?: number
+  currentRate?: number
+  standbyKwh?: number
+}): ElecGroup {
+  return {
+    id: opts.id,
+    name: opts.name,
+    kw: opts.kw,
+    count: opts.count,
+    powerRate: 108.7,
+    contractKw: Math.round(opts.kw * opts.count),
+    baseUnitPrice: 2580,
+    monthlyKwh: opts.monthlyKwh ?? 0,
+    climateFee: 9.0,
+    taxMultiplier: 1.127,
+    currentRate: opts.currentRate ?? 0,
+    separated: opts.separated,
+    standbyKwh: opts.standbyKwh ?? 0,
+    lv1Override: null,
+  }
 }
