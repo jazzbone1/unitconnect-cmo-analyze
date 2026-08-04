@@ -351,7 +351,7 @@ export default function ReportView({
 
         {billMode && (
           <div className="table-scroll">
-            <table className="data-table report-table">
+            <table className="data-table report-table report-table--calc">
               <thead>
                 <tr>
                   <th>고지서 청구 항목</th>
@@ -416,7 +416,7 @@ export default function ReportView({
 
         {!billMode && (
         <div className="table-scroll">
-          <table className="data-table report-table">
+          <table className="data-table report-table report-table--calc">
             <thead>
               <tr>
                 <th>산출 단계</th>
@@ -627,7 +627,7 @@ export default function ReportView({
           현행 월간 손익 ({Math.round(g.monthlyKwh).toLocaleString()} kWh/월)
         </h5>
         <div className="table-scroll">
-          <table className="data-table report-table">
+          <table className="data-table report-table report-table--calc">
             <thead>
               <tr>
                 <th>구분</th>
@@ -709,7 +709,7 @@ export default function ReportView({
       <div className="report-block">
         <h5 className="report-block__subtitle">{title}</h5>
         <div className="table-scroll">
-          <table className="data-table report-table">
+          <table className="data-table report-table report-table--calc">
             <thead>
               <tr>
                 <th>구분</th>

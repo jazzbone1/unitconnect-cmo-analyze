@@ -981,6 +981,32 @@ body {
   overflow-wrap: anywhere;
   vertical-align: top;
 }
+/*
+ * 산출/손익/하한선 등 3열 계산표는 열 너비를 고정해 블록 간(2-1·2-2 …) 정렬을
+ * 통일한다. PDF 출력 시 모든 종류별 블록의 열이 정확히 같은 위치에 놓인다.
+ */
+.report-table--calc {
+  table-layout: fixed;
+}
+.report-table--calc th:nth-child(1),
+.report-table--calc td:nth-child(1) {
+  width: 44%;
+}
+.report-table--calc th:nth-child(2),
+.report-table--calc td:nth-child(2) {
+  width: 22%;
+}
+.report-table--calc th:nth-child(3),
+.report-table--calc td:nth-child(3) {
+  width: 34%;
+}
+/* 고정폭에서 항목명이 잘리지 않도록 줄바꿈 허용(생략표 방지) */
+.report-table--calc .col-name {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
 .report-table .row--sub td {
   background: var(--surface-2);
 }
