@@ -17,6 +17,10 @@ import {
 } from '../lib/report'
 import { computeTariff, defaultTariff, type TariffInputs } from '../lib/tariff'
 import { defaultStandby, computeStandby, type StandbyInputs } from '../lib/standby'
+import {
+  defaultApartmentBill,
+  type ApartmentBillInputs,
+} from '../lib/apartmentBill'
 import type { FileEntry } from '../types'
 import SettlementAnalysis from './SettlementAnalysis'
 import RegistryAnalysis from './RegistryAnalysis'
@@ -24,6 +28,7 @@ import FeasibilityAnalysis from './FeasibilityAnalysis'
 import ReportView from './ReportView'
 import TariffAnalysis from './TariffAnalysis'
 import StandbyAnalysis from './StandbyAnalysis'
+import ApartmentBillAnalysis from './ApartmentBillAnalysis'
 import SiteConfigForm, { type SiteInfo } from './SiteConfigForm'
 import Dropzone from './Dropzone'
 import FileList from './FileList'
@@ -273,7 +278,7 @@ function ProjectDetail({
   onUpdate: (id: string, patch: Partial<SavedSite>) => void
 }) {
   const [subtab, setSubtab] = usePersistentState<
-    'usage' | 'feasibility' | 'report' | 'tariff' | 'standby'
+    'usage' | 'feasibility' | 'report' | 'tariff' | 'standby' | 'aptbill'
   >('projectSubtab', 'usage')
   const [feas, setFeas] = useState<FeasibilityInputs>(
     project.feas ?? DEFAULT_INPUTS(),
@@ -292,6 +297,9 @@ function ProjectDetail({
   const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
   const [standby, setStandby] = useState<StandbyInputs>(
     () => project.standby ?? defaultStandby(),
+  )
+  const [aptBill, setAptBill] = useState<ApartmentBillInputs>(
+    () => project.aptBill ?? defaultApartmentBill(),
   )
   const [site, setSite] = useState<SiteInfo>({
     name: project.name,
@@ -446,6 +454,7 @@ function ProjectDetail({
       report,
       tariff,
       standby,
+      aptBill,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
@@ -519,6 +528,14 @@ function ProjectDetail({
         <button
           type="button"
           role="tab"
+          className={`subtab${subtab === 'aptbill' ? ' subtab--active' : ''}`}
+          onClick={() => setSubtab('aptbill')}
+        >
+          아파트 요금 분석
+        </button>
+        <button
+          type="button"
+          role="tab"
           className={`subtab${subtab === 'report' ? ' subtab--active' : ''}`}
           onClick={() => setSubtab('report')}
         >
@@ -553,6 +570,8 @@ function ProjectDetail({
           setInputs={setStandby}
           effCost={autoElecCost}
         />
+      ) : subtab === 'aptbill' ? (
+        <ApartmentBillAnalysis inputs={aptBill} setInputs={setAptBill} />
       ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis
           inputs={feas}

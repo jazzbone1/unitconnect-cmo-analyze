@@ -4,6 +4,7 @@ import type { FeasibilityInputs } from './feasibility'
 import type { ReportModel } from './report'
 import type { TariffInputs } from './tariff'
 import type { StandbyInputs } from './standby'
+import type { ApartmentBillInputs } from './apartmentBill'
 import type { FileEntry } from '../types'
 
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
@@ -30,6 +31,8 @@ export interface SavedSite {
   tariff?: TariffInputs
   /** 대기전력 분석 입력값 */
   standby?: StandbyInputs
+  /** 아파트 요금(고지서) 분석 입력값 */
+  aptBill?: ApartmentBillInputs
   /** 저장 시각 (ISO) */
   savedAt?: string
 
