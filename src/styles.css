@@ -928,6 +928,11 @@ body {
 .report-table td {
   vertical-align: middle;
 }
+/* 보고서 표는 헤더·내용 모두 좌측 정렬로 통일(시인성) */
+.report-table th,
+.report-table td {
+  text-align: left;
+}
 .report-table .row--sub td {
   background: var(--surface-2);
 }
