@@ -158,7 +158,12 @@ export default function ReportView({
         lv1Override: s.groupA.lv1Override,
         currentRate: s.groupA.currentRate,
       },
-      groupB: { ...m.groupB, contractKw: s.groupB.contractKw, currentRate: s.groupB.currentRate },
+      groupB: {
+        ...m.groupB,
+        contractKw: s.groupB.contractKw,
+        currentRate: s.groupB.currentRate,
+        standbyKwh: s.groupB.standbyKwh,
+      },
     }))
   }
 
@@ -443,6 +448,25 @@ export default function ReportView({
                 <td>{won1(p.opexPerKwh)}</td>
                 <td>{manwon(p.opexMonth)}</td>
               </tr>
+              {!sep && (
+                <tr>
+                  <td className="col-name">
+                    − 대기전력 (공용전기세 부과 손실분)
+                    <span className="cell--muted" style={{ fontWeight: 400 }}>
+                      {' '}· 월{' '}
+                    </span>
+                    <NumInput
+                      value={g.standbyKwh ?? 0}
+                      onChange={(v) => updGroup(which, { standbyKwh: v })}
+                      suffix="kWh"
+                      width={80}
+                      linked
+                    />
+                  </td>
+                  <td>{won1(p.standbyPerKwh)}</td>
+                  <td>{manwon(p.standbyLossMonth)}</td>
+                </tr>
+              )}
               <tr className="row--total">
                 <td className="col-name">= 월 순손익</td>
                 <td className={p.netPerKwh >= 0 ? 'cell--up' : 'cell--down'}>

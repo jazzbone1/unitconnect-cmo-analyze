@@ -932,6 +932,11 @@ body {
 .report-table th,
 .report-table td {
   text-align: left;
+  /* 긴 비고 등은 줄바꿈되어 칸 밖으로 삐져나가지 않도록 */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
 }
 .report-table .row--sub td {
   background: var(--surface-2);

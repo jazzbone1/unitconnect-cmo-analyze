@@ -26,6 +26,7 @@ function seedReport(
   config: SettlementConfig,
   files: FileEntry[],
   tariff?: TariffInputs,
+  standbyKwhNonSep?: number,
 ): ReportModel {
   const d = defaultReport()
   d.siteName = project.name
@@ -114,7 +115,23 @@ function seedReport(
     }
     if (slow.length) d.groupB.currentRate = slow[0].rate
   }
+  // 모자분리 미적용 종류의 월 대기전력량(공용부 부과 손실분) 자동 반영
+  if (standbyKwhNonSep != null && Number.isFinite(standbyKwhNonSep)) {
+    d.groupB = { ...d.groupB, standbyKwh: Math.round(standbyKwhNonSep) }
+  }
   return d
+}
+
+/** 모자분리 미적용(비모자분리) 종류의 월 대기전력량 합계 (kWh) */
+function nonSepStandbyKwh(
+  chargers: SettlementConfig['chargers'],
+  standby: StandbyInputs,
+): number {
+  return computeStandby(
+    chargers.filter((c) => c.count > 0 && !c.separated),
+    standby,
+    0,
+  ).totalKwh
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
@@ -173,6 +190,7 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
       ...m.groupB,
       contractKw: s.groupB.contractKw,
       currentRate: s.groupB.currentRate,
+      standbyKwh: s.groupB.standbyKwh,
     },
   }
 }
@@ -209,6 +227,10 @@ function ProjectDetail({
         { hours: project.hours, chargers: project.chargers.map((c) => ({ ...c })) },
         project.files ?? project.settlementFiles ?? [],
         deriveTariff(project),
+        nonSepStandbyKwh(
+          project.chargers.map((c) => ({ ...c })),
+          project.standby ?? defaultStandby(),
+        ),
       ),
   )
   const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
@@ -244,8 +266,9 @@ function ProjectDetail({
         config,
         files,
         tariff,
+        nonSepStandbyKwh(config.chargers, standby),
       ),
-    [site.name, site.households, config, files, tariff],
+    [site.name, site.households, config, files, tariff, standby],
   )
   useEffect(() => {
     setReport((m) => mergeLinked(m, linkedSeed))
@@ -381,6 +404,7 @@ function ProjectDetail({
               config,
               files,
               tariff,
+              nonSepStandbyKwh(config.chargers, standby),
             )
           }
         />

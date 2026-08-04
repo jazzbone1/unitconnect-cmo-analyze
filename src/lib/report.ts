@@ -25,6 +25,11 @@ export interface ElecCostInput {
    * 미설정(undefined)은 true(모자분리 적용)로 간주.
    */
   separated?: boolean
+  /**
+   * 월 대기전력량 (kWh). 모자분리 미적용(separated=false)일 때 충전기 대기전력이
+   * 공용부 전기로 소비되어 공용전기세에 부과되는 손실분 계산에 사용.
+   */
+  standbyKwh?: number
 }
 
 export interface OpexRow {
@@ -171,6 +176,12 @@ export interface ProfitResult {
   netMonth: number
   /** Lv2 손익분기 (전기+운영) */
   lv2: number
+  /** 월 대기전력량 (kWh) — 모자분리 미적용 시 공용부 부과 손실분 */
+  standbyKwh: number
+  /** 대기전력 손실 kWh당 환산 (원/kWh) */
+  standbyPerKwh: number
+  /** 대기전력 손실 월간 (원) = 대기전력량 × 전기원가(공용부 단가) */
+  standbyLossMonth: number
 }
 
 export function computeProfit(
@@ -181,7 +192,11 @@ export function computeProfit(
   const q = input.monthlyKwh
   const revenuePerKwh = input.currentRate
   const marginPerKwh = revenuePerKwh - lv1
-  const netPerKwh = marginPerKwh - opexRate
+  // 모자분리 미적용: 충전기 대기전력이 공용부 전기로 소비 → 공용전기세 부과 손실
+  const standbyKwh = input.separated === false ? (input.standbyKwh ?? 0) : 0
+  const standbyLossMonth = standbyKwh * lv1
+  const standbyPerKwh = q > 0 ? standbyLossMonth / q : 0
+  const netPerKwh = marginPerKwh - opexRate - standbyPerKwh
   return {
     revenuePerKwh,
     elecPerKwh: lv1,
@@ -195,6 +210,9 @@ export function computeProfit(
     opexMonth: opexRate * q,
     netMonth: netPerKwh * q,
     lv2: lv1 + opexRate,
+    standbyKwh,
+    standbyPerKwh,
+    standbyLossMonth,
   }
 }
 
