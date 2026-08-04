@@ -398,6 +398,7 @@ export default function FeasibilityAnalysis({
                   <th>UC 기준 이용률</th>
                   <th>종류별 요금(원/kWh)</th>
                   <th>월 사용량(kWh)</th>
+                  <th>연 사용량(kWh)</th>
                 </tr>
               </thead>
               <tbody>
@@ -441,6 +442,17 @@ export default function FeasibilityAnalysis({
                         ),
                       )}
                     </td>
+                    <td className="std-cell" title="월 사용량 × 12">
+                      {formatNumber(
+                        Math.round(
+                          (inputs[row.utilKey] as number) *
+                            row.kw *
+                            720 *
+                            12 *
+                            countOf(row.kw),
+                        ),
+                      )}
+                    </td>
                   </tr>
                 ))}
                 <tr>
@@ -456,6 +468,22 @@ export default function FeasibilityAnalysis({
                             (inputs[row.utilKey] as number) *
                               row.kw *
                               720 *
+                              countOf(row.kw),
+                          0,
+                        ),
+                      ),
+                    )}
+                  </td>
+                  <td className="cell--strong">
+                    {formatNumber(
+                      Math.round(
+                        chargerRows.reduce(
+                          (a, row) =>
+                            a +
+                            (inputs[row.utilKey] as number) *
+                              row.kw *
+                              720 *
+                              12 *
                               countOf(row.kw),
                           0,
                         ),
@@ -574,6 +602,79 @@ export default function FeasibilityAnalysis({
           <p className="var-hint">
             각 종류의 연차 이용률 = 1년차 이용률 + (연차 7kW − 1년차 7kW) × (7 ÷
             정격). 계약년수({Math.round(inputs.years)}년)까지 표시합니다.
+          </p>
+
+          {/* 종류별·연차별 연 사용량 표 */}
+          <h5 className="report-block__subtitle" style={{ marginTop: '0.75rem' }}>
+            1~7년차 종류별 연 사용량 (kWh)
+          </h5>
+          <div className="table-scroll">
+            <table className="data-table charger-table">
+              <thead>
+                <tr>
+                  <th>종류</th>
+                  {Array.from(
+                    { length: Math.max(1, Math.min(7, Math.round(inputs.years))) },
+                    (_, i) => (
+                      <th key={i}>{i + 1}년차</th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {chargerRows.map((row) => {
+                  const sevenByYear = [
+                    inputs.utilSlow7,
+                    inputs.yearUtil2,
+                    inputs.yearUtil3,
+                    inputs.yearUtil4,
+                    inputs.yearUtil5,
+                    inputs.yearUtil6 ?? 0.12,
+                    inputs.yearUtil7 ?? 0.13,
+                  ]
+                  const cnt = countOf(row.kw)
+                  return (
+                    <tr key={row.kw}>
+                      <td className="col-name">{row.label}</td>
+                      {Array.from(
+                        {
+                          length: Math.max(
+                            1,
+                            Math.min(7, Math.round(inputs.years)),
+                          ),
+                        },
+                        (_, yi) => {
+                          const u =
+                            (inputs[row.utilKey] as number) +
+                            (sevenByYear[yi] - inputs.utilSlow7) * (7 / row.kw)
+                          const annual = u * row.kw * 720 * 12 * cnt
+                          return (
+                            <td key={yi}>
+                              {formatNumber(Math.round(annual))}
+                            </td>
+                          )
+                        },
+                      )}
+                    </tr>
+                  )
+                })}
+                <tr className="row--total">
+                  <td className="col-name">전체 합계</td>
+                  {Array.from(
+                    { length: Math.max(1, Math.min(7, Math.round(inputs.years))) },
+                    (_, yi) => (
+                      <td key={yi} className="cell--strong">
+                        {formatNumber(Math.round((r.yearlyW[yi] ?? 0) * 12))}
+                      </td>
+                    ),
+                  )}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="var-hint">
+            연 사용량 = 연차 이용률 × 정격(kW) × 720h × 12 × 대수. 전체 합계는
+            사업성 계산의 연차 사용량과 동일합니다.
           </p>
         </div>
 
