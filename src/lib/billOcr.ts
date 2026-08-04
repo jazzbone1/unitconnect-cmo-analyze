@@ -27,13 +27,26 @@ function findAmount(text: string, label: RegExp): number | undefined {
 
 export type BillFields = Partial<BillInputs>
 
+/** 계약종별 문자열에서 아파트 요금 분석용 계약 형태를 추정한다. */
+export function detectContractType(text: string): string | undefined {
+  const t = text.replace(/\s+/g, '')
+  const housing = /주택용/.test(t)
+  const general = /일반용/.test(t)
+  const high = /고압/.test(t)
+  const low = /저압/.test(t)
+  if (housing) return low && !high ? 'housing_low' : 'housing_high'
+  if (general) return low && !high ? 'general_low' : 'general_high'
+  return undefined
+}
+
 /** 청구서 텍스트에서 청구내역 항목을 파싱한다. */
 export function parseBill(text: string): {
   fields: BillFields
   recognized: string[]
   missing: string[]
+  contractType?: string
 } {
-  const t = text.replace(/ /g, ' ')
+  const t = text.replace(/\s+/g, '')
   const fields: BillFields = {}
   const recognized: string[] = []
   const missing: string[] = []
@@ -72,7 +85,10 @@ export function parseBill(text: string): {
   }
   put('contractKw', '계약전력', contract)
 
-  return { fields, recognized, missing }
+  const contractType = detectContractType(text)
+  if (contractType) recognized.push('계약종별')
+
+  return { fields, recognized, missing, contractType }
 }
 
 /** 이미지(JPG/PNG)를 OCR해 텍스트를 얻는다. */
@@ -87,6 +103,7 @@ export async function recognizeBill(file: File): Promise<{
   fields: BillFields
   recognized: string[]
   missing: string[]
+  contractType?: string
   source: 'pdf' | 'image'
 }> {
   const name = file.name.toLowerCase()

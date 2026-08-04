@@ -31,6 +31,10 @@ export interface RateTier {
   unit: number
   /** 누진 상한(kWh). 누진 자동배분에 사용. 무제한이면 null */
   cap: number | null
+  /** 이 단계 도달 시 적용되는 기본요금 (원). 누진 기본요금용, 없으면 무시 */
+  base?: number
+  /** TOU 시간대 사용량 비율(0~1). 총 사용량 자동배분에 사용 */
+  ratio?: number
 }
 
 export interface ApartmentBillInputs {
@@ -67,9 +71,9 @@ export function tierPreset(type: ContractType): {
         baseCharge: 910,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '1단계 (0~200kWh)', kwh: 0, unit: 120.0, cap: 200 },
-          { id: rid(), name: '2단계 (201~400kWh)', kwh: 0, unit: 214.6, cap: 200 },
-          { id: rid(), name: '3단계 (400kWh 초과)', kwh: 0, unit: 307.3, cap: null },
+          { id: rid(), name: '1단계 (0~200kWh)', kwh: 0, unit: 120.0, cap: 200, base: 910 },
+          { id: rid(), name: '2단계 (201~400kWh)', kwh: 0, unit: 214.6, cap: 200, base: 1600 },
+          { id: rid(), name: '3단계 (400kWh 초과)', kwh: 0, unit: 307.3, cap: null, base: 7300 },
         ],
       }
     case 'housing_high':
@@ -77,9 +81,9 @@ export function tierPreset(type: ContractType): {
         baseCharge: 730,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '1단계 (0~200kWh)', kwh: 0, unit: 105.0, cap: 200 },
-          { id: rid(), name: '2단계 (201~400kWh)', kwh: 0, unit: 174.0, cap: 200 },
-          { id: rid(), name: '3단계 (400kWh 초과)', kwh: 0, unit: 242.3, cap: null },
+          { id: rid(), name: '1단계 (0~200kWh)', kwh: 0, unit: 105.0, cap: 200, base: 730 },
+          { id: rid(), name: '2단계 (201~400kWh)', kwh: 0, unit: 174.0, cap: 200, base: 1260 },
+          { id: rid(), name: '3단계 (400kWh 초과)', kwh: 0, unit: 242.3, cap: null, base: 6060 },
         ],
       }
     case 'general_low':
@@ -87,9 +91,9 @@ export function tierPreset(type: ContractType): {
         baseCharge: 0,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '경부하', kwh: 0, unit: 92.0, cap: null },
-          { id: rid(), name: '중간부하', kwh: 0, unit: 120.0, cap: null },
-          { id: rid(), name: '최대부하', kwh: 0, unit: 150.0, cap: null },
+          { id: rid(), name: '경부하', kwh: 0, unit: 92.0, cap: null, ratio: APT_TOU_RATIO.light },
+          { id: rid(), name: '중간부하', kwh: 0, unit: 120.0, cap: null, ratio: APT_TOU_RATIO.mid },
+          { id: rid(), name: '최대부하', kwh: 0, unit: 150.0, cap: null, ratio: APT_TOU_RATIO.peak },
         ],
       }
     case 'general_high':
@@ -98,12 +102,28 @@ export function tierPreset(type: ContractType): {
         baseCharge: 0,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '경부하', kwh: 0, unit: 86.9, cap: null },
-          { id: rid(), name: '중간부하', kwh: 0, unit: 112.0, cap: null },
-          { id: rid(), name: '최대부하', kwh: 0, unit: 141.0, cap: null },
+          { id: rid(), name: '경부하', kwh: 0, unit: 86.9, cap: null, ratio: APT_TOU_RATIO.light },
+          { id: rid(), name: '중간부하', kwh: 0, unit: 112.0, cap: null, ratio: APT_TOU_RATIO.mid },
+          { id: rid(), name: '최대부하', kwh: 0, unit: 141.0, cap: null, ratio: APT_TOU_RATIO.peak },
         ],
       }
   }
+}
+
+/** 아파트 일반적 TOU 시간대 사용 비율 기본값 (경/중/최대) */
+export const APT_TOU_RATIO = { light: 0.3, mid: 0.4, peak: 0.3 }
+
+/** TOU 비율(ratio)이 있는 구간에 총 사용량을 비율대로 배분한다. */
+export function distributeByRatio(
+  tiers: RateTier[],
+  totalKwh: number,
+): RateTier[] {
+  const sum = tiers.reduce((a, t) => a + (t.ratio ?? 0), 0)
+  if (sum <= 0) return tiers
+  return tiers.map((t) => ({
+    ...t,
+    kwh: Math.round((totalKwh * (t.ratio ?? 0)) / sum),
+  }))
 }
 
 /** 주택용 등 누진(cap이 있는) 구간에 총 사용량을 자동 배분한다. */
@@ -122,6 +142,20 @@ export function distributeProgressive(
     remain -= k
     return { ...t, kwh: Math.round(k) }
   })
+}
+
+/** 누진 기본요금: 사용량이 도달한 최상위 단계의 기본요금. 단계 기본요금이 없으면 null */
+export function reachedBaseCharge(tiers: RateTier[]): number | null {
+  let base: number | null = null
+  for (const t of tiers) {
+    if ((t.kwh || 0) > 0 && t.base != null) base = t.base
+  }
+  // 사용량이 전혀 없으면 1단계 기본요금
+  if (base == null) {
+    const first = tiers.find((t) => t.base != null)
+    base = first?.base ?? null
+  }
+  return base
 }
 
 export interface TierResult extends RateTier {

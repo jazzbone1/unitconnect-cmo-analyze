@@ -3,6 +3,8 @@ import {
   computeApartmentBill,
   tierPreset,
   distributeProgressive,
+  distributeByRatio,
+  reachedBaseCharge,
   newTier,
   CONTRACT_LABELS,
   type ApartmentBillInputs,
@@ -75,16 +77,28 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
     setLoading(true)
     setMsg('')
     try {
-      const { fields, recognized, missing } = await recognizeBill(file)
+      const { fields, recognized, missing, contractType } =
+        await recognizeBill(file)
+      const usage = fields.usageKwh ?? inputs.usageKwh
+      // 계약종별이 인식되면 그 프리셋 구간을, 아니면 기존 구간을 사용
+      const ct = (contractType as ContractType) || inputs.contractType
+      const baseTiers =
+        contractType && contractType !== inputs.contractType
+          ? tierPreset(ct).tiers
+          : inputs.tiers
+      // 계약 형태에 맞춰 인식된 사용량을 구간에 자동배분
+      const { tiers, baseCharge } = distribute(baseTiers, usage)
       set({
-        baseCharge: fields.basic ?? inputs.baseCharge,
+        contractType: ct,
+        baseCharge: fields.basic ?? baseCharge ?? inputs.baseCharge,
         climate: fields.climate ?? inputs.climate,
         fuel: fields.fuel ?? inputs.fuel,
         vat: fields.vat ?? inputs.vat,
         fund: fields.fund ?? inputs.fund,
         round: fields.round ?? inputs.round,
-        usageKwh: fields.usageKwh ?? inputs.usageKwh,
+        usageKwh: usage,
         contractKw: fields.contractKw ?? inputs.contractKw,
+        tiers,
       })
       setMsg(
         `인식됨: ${recognized.join(', ') || '없음'}` +
@@ -97,17 +111,35 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
     }
   }
 
-  function applyPreset(type: ContractType) {
-    const p = tierPreset(type)
-    // 총 사용량이 있으면 누진 자동배분, 아니면 프리셋 그대로
-    const tiers =
-      inputs.usageKwh > 0 && p.tiers.some((t) => t.cap != null)
-        ? distributeProgressive(p.tiers, inputs.usageKwh)
-        : p.tiers
-    set({ contractType: type, tiers, baseCharge: inputs.baseCharge || p.baseCharge })
+  const isProgressive = inputs.tiers.some((t) => t.cap != null)
+  const isTou = inputs.tiers.some((t) => t.ratio != null)
+
+  // 계약 형태에 맞춰 총 사용량을 구간에 자동 배분 + 주택용 누진 기본요금 반영
+  function distribute(tiers: typeof inputs.tiers, usage: number) {
+    if (tiers.some((t) => t.cap != null)) {
+      const next = distributeProgressive(tiers, usage)
+      return { tiers: next, baseCharge: reachedBaseCharge(next) }
+    }
+    if (tiers.some((t) => t.ratio != null)) {
+      return { tiers: distributeByRatio(tiers, usage), baseCharge: null }
+    }
+    return { tiers, baseCharge: null }
   }
 
-  const isProgressive = inputs.tiers.some((t) => t.cap != null)
+  function applyPreset(type: ContractType) {
+    const p = tierPreset(type)
+    const { tiers, baseCharge } = distribute(p.tiers, inputs.usageKwh)
+    set({
+      contractType: type,
+      tiers,
+      baseCharge: baseCharge ?? p.baseCharge,
+    })
+  }
+
+  function setUsage(v: number) {
+    const { tiers, baseCharge } = distribute(inputs.tiers, v)
+    set({ usageKwh: v, tiers, baseCharge: baseCharge ?? inputs.baseCharge })
+  }
 
   return (
     <section className="card settlement">
@@ -158,21 +190,16 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             <span className="var-field__label">
               총 사용량<span className="var-field__unit">kWh</span>
             </span>
-            <NumCell
-              value={inputs.usageKwh}
-              onChange={(v) => set({ usageKwh: v })}
-            />
+            <NumCell value={inputs.usageKwh} onChange={setUsage} />
           </label>
-          {isProgressive && (
+          {(isProgressive || isTou) && (
             <button
               type="button"
               className="btn-secondary"
               style={{ alignSelf: 'flex-end' }}
-              onClick={() =>
-                set({ tiers: distributeProgressive(inputs.tiers, inputs.usageKwh) })
-              }
+              onClick={() => setUsage(inputs.usageKwh)}
             >
-              사용량 누진 자동배분
+              {isProgressive ? '사용량 누진 자동배분' : '시간대 비율 자동배분'}
             </button>
           )}
         </div>
@@ -195,7 +222,7 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
           </div>
           <p className="hint hint--tight">
             {inputs.contractType.startsWith('housing')
-              ? '주택용은 누진 단계별 기본요금 합계(고지서 기본요금)를 입력합니다.'
+              ? '주택용 누진: 총 사용량이 도달한 단계의 기본요금이 자동 적용됩니다(0~200:1단계 · 201~400:2단계 · 400 초과:3단계). 고지서 값과 다르면 직접 수정하세요.'
               : '일반용은 계약전력 × 기본단가(원/kW)로 부과됩니다. 고지서 기본요금을 입력하세요.'}
           </p>
         </div>
@@ -288,6 +315,14 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
         >
           + 구간 추가
         </button>
+        <p className="hint hint--tight">
+          {isProgressive
+            ? '주택용 누진: 총 사용량을 단계(0~200 / 201~400 / 400초과) 순서로 채워 각 단계 단가로 부과합니다. 단계별 사용량·단가는 직접 수정할 수 있습니다.'
+            : isTou
+              ? '일반용 TOU: 아파트 일반 사용 비율(경부하 30% · 중간부하 40% · 최대부하 30%)로 총 사용량을 자동 배분합니다. 실제 시간대 사용량을 알면 직접 수정하세요.'
+              : '구간별 사용량 × 단가로 부과 금액이 계산됩니다.'}{' '}
+          아래 ④에서 청구금액·유효단가(원/kWh)로 실제 적용 결과를 확인할 수 있습니다.
+        </p>
       </div>
 
       {/* 기타 요금 + 합계 */}
