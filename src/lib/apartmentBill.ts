@@ -381,3 +381,14 @@ export function baseUnitPerKw(a: ApartmentBillInputs): {
   if (std != null) return { value: std, source: 'standard' }
   return { value: 0, source: 'none' }
 }
+
+/**
+ * (A) 시간대·계절 가중 전력량요금 단가(원/kWh) — 선택된 계약형태/누진구간의
+ * 전력량요금 합계 ÷ 사용량. 기후·연료·기본·부가세는 제외한 순수 전력량요금 단가로,
+ * 보고서 (A) 항목에 그대로 연동한다. tierKwh가 0이면 0.
+ */
+export function aptEnergyRate(a: ApartmentBillInputs): number {
+  const r = computeApartmentBill(a)
+  const qty = r.tierKwh > 0 ? r.tierKwh : a.usageKwh
+  return qty > 0 ? r.energyTotal / qty : 0
+}

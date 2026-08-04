@@ -7,8 +7,11 @@ import {
   opexPerKwh,
   newOpexRow,
   newRecommendRow,
+  emptyGroupBill,
+  billEffCost,
   type ElecCostInput,
   type ElecGroup,
+  type GroupBill,
   type ReportModel,
 } from '../lib/report'
 import { Fragment } from 'react'
@@ -298,13 +301,33 @@ export default function ReportView({
     const linkA = g.separated !== false
     // 모자분리 적용 여부: 미적용이면 계약전력 기반 기본요금(B) 없음
     const sep = g.separated !== false
+    // 고지서 실측 항목 모드
+    const billMode = g.billMode === true
+    const bill = g.bill ?? emptyGroupBill()
+    const updBill = (patch: Partial<GroupBill>) =>
+      upd({ bill: { ...bill, ...patch } })
+    const be = billEffCost(bill)
     return (
       <div className="report-block">
         <p className="report-block__sub">{sub}</p>
         <label className="toggle report-moja no-print">
           <input
             type="checkbox"
+            checked={billMode}
+            onChange={(e) => upd({ billMode: e.target.checked })}
+          />
+          <span>
+            <b>고지서 실측 항목</b> — 기존 전기요금 고지서의 청구 항목(기본요금·
+            전력량요금·기후·연료·역률·부가세·기금·절사)을 그대로 입력하고{' '}
+            <b>실효원가 = 청구금액 ÷ 사용량</b>으로 산출 (아파트 기존 설치 충전기의
+            실제 전기요금)
+          </span>
+        </label>
+        <label className="toggle report-moja no-print">
+          <input
+            type="checkbox"
             checked={sep}
+            disabled={billMode}
             onChange={(e) => upd({ separated: e.target.checked })}
           />
           <span>
@@ -312,7 +335,7 @@ export default function ReportView({
             기존 계약(공용부)으로 기본요금 없음
           </span>
         </label>
-        {!sep && (
+        {!sep && !billMode && (
           <label className="toggle report-moja no-print">
             <input
               type="checkbox"
@@ -326,6 +349,72 @@ export default function ReportView({
           </label>
         )}
 
+        {billMode && (
+          <div className="table-scroll">
+            <table className="data-table report-table">
+              <thead>
+                <tr>
+                  <th>고지서 청구 항목</th>
+                  <th>금액 (원)</th>
+                  <th>비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(
+                  [
+                    ['basic', '기본요금', '계약전력 × 기본단가'],
+                    ['energy', '전력량요금', '시간대·계절별 사용량요금 합계'],
+                    ['climate', '기후환경요금', '고시 단가 × 사용량'],
+                    ['fuel', '연료비조정액', '분기 조정단가 × 사용량'],
+                    ['powerFactor', '역률요금', '감액이면 음수(−)로 입력'],
+                    ['vat', '부가가치세', '공급가액 × 10%'],
+                    ['fund', '전력산업기반기금', '요금계 × 3.7%'],
+                    ['round', '원단위절사', '절사분(음수)'],
+                  ] as [keyof GroupBill, string, string][]
+                ).map(([k, label, note]) => (
+                  <tr key={k}>
+                    <td className="col-name">{label}</td>
+                    <td>
+                      <NumInput
+                        value={bill[k]}
+                        onChange={(v) => updBill({ [k]: v })}
+                        suffix="원"
+                        width={110}
+                      />
+                    </td>
+                    <td className="cell--muted">{note}</td>
+                  </tr>
+                ))}
+                <tr className="row--sub">
+                  <td className="col-name">= 청구금액 합계</td>
+                  <td className="cell--strong">
+                    {Math.round(be.total).toLocaleString()}원
+                  </td>
+                  <td className="cell--muted">위 항목 합계</td>
+                </tr>
+                <tr>
+                  <td className="col-name">사용량</td>
+                  <td>
+                    <NumInput
+                      value={bill.usageKwh}
+                      onChange={(v) => updBill({ usageKwh: v })}
+                      suffix="kWh"
+                      width={110}
+                    />
+                  </td>
+                  <td className="cell--muted">고지서 청구 사용량(kWh)</td>
+                </tr>
+                <tr className="row--total">
+                  <td className="col-name">★ 실효 전기원가 (Lv1)</td>
+                  <td className="cell--strong">{won1(be.effPerKwh)}/kWh</td>
+                  <td className="cell--muted">청구금액 ÷ 사용량</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {!billMode && (
         <div className="table-scroll">
           <table className="data-table report-table">
             <thead>
@@ -343,9 +432,12 @@ export default function ReportView({
                     value={g.powerRate}
                     onChange={(v) => upd({ powerRate: v })}
                     suffix="원/kWh"
+                    linked
                   />
                 </td>
-                <td className="cell--muted">사용 패턴에 따라 변동</td>
+                <td className="cell--muted">
+                  아파트 요금분석 계약형태·누진구간 전력량요금 단가 연동
+                </td>
               </tr>
               <tr>
                 <td className="col-name">(B) kWh당 기본요금 환산</td>
@@ -497,6 +589,7 @@ export default function ReportView({
             </tbody>
           </table>
         </div>
+        )}
 
         {/* 현행 월간 손익 (자동 반영) */}
         <h5 className="report-block__subtitle">

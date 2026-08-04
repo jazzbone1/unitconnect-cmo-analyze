@@ -2,6 +2,40 @@
 // 실효 전기원가 산출·운영비 내역의 '구분'은 고정, 금액만 편집 가능하며,
 // 산출된 전기원가(Lv1)와 운영비(원/kWh)가 손익·요금 하한선 표에 자동 반영된다.
 
+/** 그룹의 고지서 실측 청구내역 (실제 전기요금 기반) */
+export interface GroupBill {
+  basic: number // 기본요금
+  energy: number // 전력량요금
+  climate: number // 기후환경요금
+  fuel: number // 연료비조정액
+  powerFactor: number // 역률요금(감액이면 음수)
+  vat: number // 부가가치세
+  fund: number // 전력기금
+  round: number // 원단위절사
+  usageKwh: number // 사용량(kWh)
+}
+
+export function emptyGroupBill(): GroupBill {
+  return {
+    basic: 0,
+    energy: 0,
+    climate: 0,
+    fuel: 0,
+    powerFactor: 0,
+    vat: 0,
+    fund: 0,
+    round: 0,
+    usageKwh: 0,
+  }
+}
+
+/** 고지서 실측 실효원가(원/kWh) = 청구금액 ÷ 사용량 */
+export function billEffCost(b: GroupBill): { total: number; effPerKwh: number } {
+  const total =
+    b.basic + b.energy + b.climate + b.fuel + b.powerFactor + b.vat + b.fund + b.round
+  return { total, effPerKwh: b.usageKwh > 0 ? total / b.usageKwh : 0 }
+}
+
 export interface ElecCostInput {
   /** (A) 시간대·계절 가중 전력량요금 (원/kWh) */
   powerRate: number
@@ -36,6 +70,15 @@ export interface ElecCostInput {
    * (계약전력=요금구조 ① 적정계약전력, 기본단가=아파트 요금분석 기본단가)
    */
   apartmentBaseAlloc?: boolean
+  /**
+   * 고지서 실측 항목 모드. true면 (A)/(B)/기후/배수 조립식이 아니라
+   * 기존 전기요금 고지서의 청구 항목(기본요금·전력량요금·기후·연료·역률·부가세·
+   * 기금·절사)을 그대로 입력하고, 실효원가(Lv1) = 청구금액 ÷ 사용량으로 산출한다.
+   * 아파트에 기존 설치된 충전기의 실제 전기요금/운영비 산정용.
+   */
+  billMode?: boolean
+  /** 고지서 실측 청구내역 (billMode=true일 때 사용) */
+  bill?: GroupBill
 }
 
 /** 등록 충전기 종류별 전기원가 분석 그룹 */
@@ -153,6 +196,23 @@ export interface ElecCostResult {
 }
 
 export function computeElecCost(i: ElecCostInput): ElecCostResult {
+  // 고지서 실측 항목 모드: 청구금액 ÷ 사용량 = 실효원가(Lv1).
+  //  조립식 (A)/(B)/기후/배수를 쓰지 않고 실제 고지 항목을 그대로 합산한다.
+  if (i.billMode && i.bill) {
+    const { total, effPerKwh } = billEffCost(i.bill)
+    const overridden = i.lv1Override != null && Number.isFinite(i.lv1Override)
+    // 기본요금(원)을 월사용량으로 나눈 (B) 환산값(참고 표시용)
+    const baseCharge = i.bill.usageKwh > 0 ? i.bill.basic / i.bill.usageKwh : 0
+    const subtotal = i.bill.usageKwh > 0 ? total / i.bill.usageKwh : 0
+    void subtotal
+    return {
+      baseCharge,
+      subtotal: effPerKwh,
+      computedLv1: effPerKwh,
+      lv1: overridden ? (i.lv1Override as number) : effPerKwh,
+      overridden,
+    }
+  }
   // 모자분리 미적용(공용부)은 추가 기본요금 없음 → (B)=0.
   //  단, 공용부 기본요금 배분(apartmentBaseAlloc)이 켜지면 (B)를 계산한다.
   const noBase = i.separated === false && i.apartmentBaseAlloc !== true

@@ -27,6 +27,7 @@ import { defaultStandby, computeStandby, type StandbyInputs } from '../lib/stand
 import {
   defaultApartmentBill,
   baseUnitPerKw,
+  aptEnergyRate,
   type ApartmentBillInputs,
 } from '../lib/apartmentBill'
 import type { FileEntry } from '../types'
@@ -224,6 +225,12 @@ function seedReport(
       g.baseUnitPrice = Math.round(baseUnitPerKw(aptBill).value)
       g.apartmentBaseAlloc = proper > 0
     }
+    // (A) 시간대·계절 가중 전력량요금: 아파트 요금분석에서 선택한 계약형태·누진구간의
+    // 전력량요금 단가(전력량요금 ÷ 사용량)를 연동. 고지서 실측 모드가 아닐 때 적용.
+    if (aptBill && !g.billMode) {
+      const er = aptEnergyRate(aptBill)
+      if (er > 0) g.powerRate = Math.round(er * 10) / 10
+    }
     return g
   })
   return d
@@ -313,6 +320,8 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
         monthlyKwh: sg.monthlyKwh,
         currentRate: sg.currentRate,
         standbyKwh: sg.standbyKwh,
+        // (A) 전력량요금: 고지서 실측 모드가 아니면 아파트 요금분석 단가로 자동 연동
+        powerRate: prev.billMode ? prev.powerRate : sg.powerRate,
       }
       // 미적용 그룹은 공용부 기본요금 배분값(계약전력·기본단가)도 자동 연동.
       // 배분 적용 여부(토글)는 사용자가 끈 경우 보존(undefined면 자동값 사용).
