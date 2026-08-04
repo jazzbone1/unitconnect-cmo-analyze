@@ -30,18 +30,22 @@ function NumInput({
   onChange,
   suffix,
   width = 90,
+  linked,
 }: {
   value: number
   onChange: (v: number) => void
   suffix?: string
   width?: number
+  /** 앞 단계 자동 연동 값이면 음영 표시 */
+  linked?: boolean
 }) {
   return (
     <span className="num-input">
       <input
-        className="cell-input"
+        className={`cell-input${linked ? ' cell-input--linked' : ''}`}
         type="number"
         style={{ width }}
+        title={linked ? '앞 단계 자동 연동 값' : undefined}
         value={Number.isFinite(value) ? value : ''}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
       />
@@ -54,16 +58,20 @@ function TextInput({
   value,
   onChange,
   wide,
+  linked,
 }: {
   value: string
   onChange: (v: string) => void
   wide?: boolean
+  /** 앞 단계 자동 연동 값이면 음영 표시 */
+  linked?: boolean
 }) {
   return (
     <input
-      className="cell-input"
+      className={`cell-input${linked ? ' cell-input--linked' : ''}`}
       type="text"
       style={{ width: wide ? '100%' : 140 }}
+      title={linked ? '앞 단계 자동 연동 값' : undefined}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -186,6 +194,8 @@ export default function ReportView({
     const g = model[which]
     const r = computeElecCost(g)
     const p = computeProfit(g, opexRate)
+    // 그룹 A(모자분리)만 요금구조 탭에서 계약전력·월사용량·실효원가 연동
+    const linkA = which === 'groupA'
     return (
       <div className="report-block">
         <p className="report-block__sub">{sub}</p>
@@ -220,6 +230,7 @@ export default function ReportView({
                     onChange={(v) => updGroup(which, { contractKw: v })}
                     suffix="kW ×"
                     width={70}
+                    linked={linkA}
                   />{' '}
                   <NumInput
                     value={g.baseUnitPrice}
@@ -232,6 +243,7 @@ export default function ReportView({
                     onChange={(v) => updGroup(which, { monthlyKwh: v })}
                     suffix="kWh"
                     width={80}
+                    linked={linkA}
                   />
                 </td>
               </tr>
@@ -268,9 +280,10 @@ export default function ReportView({
                 <td className="cell--strong">
                   <span className="num-input">
                     <input
-                      className="cell-input"
+                      className={`cell-input${linkA ? ' cell-input--linked' : ''}`}
                       type="number"
                       style={{ width: 90 }}
+                      title={linkA ? '앞 단계 자동 연동 값(요금구조 실효원가)' : undefined}
                       placeholder={r.computedLv1.toFixed(1)}
                       value={g.lv1Override ?? ''}
                       onChange={(e) =>
@@ -327,6 +340,7 @@ export default function ReportView({
                     value={g.currentRate}
                     onChange={(v) => updGroup(which, { currentRate: v })}
                     suffix="원"
+                    linked
                   />
                 </td>
                 <td>{manwon(p.revenueMonth)}</td>
@@ -434,6 +448,11 @@ export default function ReportView({
             <b>운영비 내역</b>의 금액을 수정하면 <b>현행 월간 손익</b>과{' '}
             <b>요금 하한선 분석</b>에 자동 반영됩니다.
           </p>
+          <p className="report-legend no-print">
+            <span className="report-legend__chip" /> 음영 칸 = 앞 단계(요금구조·정산·단지정보)
+            <b>자동 연동</b> 값 · 그 외 칸은 직접 입력.
+            <b>「🔄 앞 단계 값 자동 반영」</b>으로 음영 칸을 최신값으로 갱신합니다.
+          </p>
         </div>
         <div className="report-topbar__actions no-print">
           {autoSeed && (
@@ -464,6 +483,7 @@ export default function ReportView({
               value={model.siteName}
               onChange={(v) => setModel((m) => ({ ...m, siteName: v }))}
               wide
+              linked
             />
             <div className="report-cover__meta">
               <label>
@@ -508,6 +528,7 @@ export default function ReportView({
                       <TextInput
                         value={row.value}
                         onChange={(v) => updList('overview', row.id, { value: v })}
+                        linked={['세대수', '충전기', '현행 요금'].includes(row.label)}
                       />
                     </td>
                     <td>
@@ -546,6 +567,7 @@ export default function ReportView({
                         <TextInput
                           value={row[k]}
                           onChange={(v) => updList('perType', row.id, { [k]: v })}
+                          linked
                         />
                       </td>
                     ))}
@@ -576,6 +598,7 @@ export default function ReportView({
                         <TextInput
                           value={row[k]}
                           onChange={(v) => updList('monthly', row.id, { [k]: v })}
+                          linked={k !== 'note'}
                         />
                       </td>
                     ))}
@@ -677,6 +700,7 @@ export default function ReportView({
                         }
                         suffix="kWh"
                         width={90}
+                        linked
                       />{' '}
                       = <b>{won1(opexRate)}/kWh</b>
                     </td>
