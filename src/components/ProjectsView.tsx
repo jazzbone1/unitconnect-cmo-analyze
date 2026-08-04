@@ -40,6 +40,7 @@ function seedReport(
   files: FileEntry[],
   tariff?: TariffInputs,
   standby?: StandbyInputs,
+  feas?: FeasibilityInputs,
 ): ReportModel {
   const d = defaultReport()
   d.siteName = project.name
@@ -80,16 +81,39 @@ function seedReport(
     for (const t of m.types)
       usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
 
+  // 사업성 1년차 이용률(종류별) — 정산 데이터가 없을 때 대체값 산출용
+  const utilByKw = (kw: number): number => {
+    if (!feas) return 0
+    if (kw === 100) return feas.utilFast100 ?? 0
+    if (kw === 50) return feas.utilFast50 ?? 0
+    if (kw === 7) return feas.utilSlow7 ?? 0
+    if (kw === 3.5) return feas.utilSlow35 ?? 0
+    if (kw === 3) return feas.utilSlow3 ?? 0
+    return 0
+  }
   if (active.length) {
     d.perType = active.map((c) => {
-      const u = usageByType.get(c.id) ?? 0
+      const uSettle = usageByType.get(c.id) ?? 0
+      // 총 충전량·대당 월충전량: 정산값 우선, 없으면 사업성 1년차 기준(연간)
+      let kwhTotal = uSettle
+      let perUnitMonthly = c.count ? uSettle / c.count : 0
+      if (uSettle <= 0 && feas) {
+        perUnitMonthly = utilByKw(c.kw) * c.kw * 720 // 대당 월 충전량
+        kwhTotal = perUnitMonthly * c.count * 12 // 연간 총 충전량
+      }
+      // 매출: 충전량 × '충전기 종류별 수량 요금'(config.rate)
       return {
         id: c.id,
         type: c.name,
         count: `${c.count}대`,
-        kwh: u ? `${Math.round(u).toLocaleString()} kWh` : '',
-        revenue: u && c.rate ? `${Math.round((u * c.rate) / 10000).toLocaleString()}만원` : '',
-        perUnit: u && c.count ? `${Math.round(u / c.count).toLocaleString()} kWh` : '',
+        kwh: kwhTotal ? `${Math.round(kwhTotal).toLocaleString()} kWh` : '',
+        revenue:
+          kwhTotal && c.rate
+            ? `${Math.round((kwhTotal * c.rate) / 10000).toLocaleString()}만원`
+            : '',
+        perUnit: perUnitMonthly
+          ? `${Math.round(perUnitMonthly).toLocaleString()} kWh`
+          : '',
       }
     })
   }
@@ -292,6 +316,7 @@ function ProjectDetail({
         project.files ?? project.settlementFiles ?? [],
         deriveTariff(project),
         project.standby ?? defaultStandby(),
+        project.feas ?? DEFAULT_INPUTS(),
       ),
   )
   const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
@@ -407,8 +432,9 @@ function ProjectDetail({
         files,
         tariff,
         standby,
+        feas,
       ),
-    [site.name, site.households, config, files, tariff, standby],
+    [site.name, site.households, config, files, tariff, standby, feas],
   )
   useEffect(() => {
     setReport((m) => mergeLinked(m, linkedSeed))
@@ -554,6 +580,7 @@ function ProjectDetail({
               files,
               tariff,
               standby,
+              feas,
             )
           }
         />
