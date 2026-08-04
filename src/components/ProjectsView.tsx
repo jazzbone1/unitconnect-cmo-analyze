@@ -107,6 +107,8 @@ function seedReport(
       // 요금 구조 탭에서 산출된 실효원가를 직접입력(Lv1)으로 자동 반영
       lv1Override: Number.isFinite(effCost) ? Math.round(effCost * 10) / 10 : null,
     }
+    // 그룹 B(모자분리 미적용) 계약전력 = 전체 설비용량 합산값(installedKw) 자동 반영.
+    if (installedKw > 0) d.groupB = { ...d.groupB, contractKw: installedKw }
     if (fast.length || slow.length) {
       d.groupA.currentRate = (fast[0]?.rate ?? slow[0]?.rate ?? d.groupA.currentRate)
     }
