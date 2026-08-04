@@ -25,12 +25,21 @@ function seedReport(
   project: SavedSite,
   config: SettlementConfig,
   files: FileEntry[],
+  tariff?: TariffInputs,
 ): ReportModel {
   const d = defaultReport()
   d.siteName = project.name
   const total = config.chargers.reduce((a, c) => a + c.count, 0)
   const active = config.chargers.filter((c) => c.count > 0)
   const breakdown = active.map((c) => `${c.name} ${c.count}`).join(' + ')
+
+  // 현행 요금 문자열(완속/급속) 자동 구성
+  const slow = active.filter((c) => c.kw <= 7 && c.rate > 0)
+  const fast = active.filter((c) => c.kw >= 50 && c.rate > 0)
+  const rateParts: string[] = []
+  if (slow.length) rateParts.push(`완속 ${Math.round(slow[0].rate)}원`)
+  if (fast.length) rateParts.push(`급속 ${Math.round(fast[0].rate)}원`)
+  const currentRateText = rateParts.join(' / ')
 
   d.overview = d.overview.map((row) => {
     if (row.label === '세대수')
@@ -44,6 +53,8 @@ function seedReport(
         value: total ? `${total.toLocaleString()}대` : '',
         note: breakdown,
       }
+    if (row.label === '현행 요금' && currentRateText)
+      return { ...row, value: currentRateText }
     return row
   })
 
@@ -77,7 +88,53 @@ function seedReport(
       note: '',
     }))
   }
+
+  // 월 평균 총 충전량(운영비 원/kWh 산출 분모)
+  const avgMonthlyKwh = months.length
+    ? Math.round(months.reduce((a, m) => a + m.usageTotal, 0) / months.length)
+    : 0
+  if (avgMonthlyKwh > 0) d.opexBaseKwh = avgMonthlyKwh
+
+  // 요금 구조(요금 구조 탭) 값 자동반영 → 그룹 A(모자분리) 전기원가
+  if (tariff) {
+    const installedKw = config.chargers.reduce((a, c) => a + c.kw * c.count, 0)
+    const tr = computeTariff({ ...tariff, installedKw })
+    const effCost = tr.selected.effCost
+    d.groupA = {
+      ...d.groupA,
+      contractKw: tariff.contractKw || d.groupA.contractKw,
+      monthlyKwh: tariff.monthlyKwh || avgMonthlyKwh || d.groupA.monthlyKwh,
+      // 요금 구조 탭에서 산출된 실효원가를 직접입력(Lv1)으로 자동 반영
+      lv1Override: Number.isFinite(effCost) ? Math.round(effCost * 10) / 10 : null,
+    }
+    if (fast.length || slow.length) {
+      d.groupA.currentRate = (fast[0]?.rate ?? slow[0]?.rate ?? d.groupA.currentRate)
+    }
+    if (slow.length) d.groupB.currentRate = slow[0].rate
+  }
   return d
+}
+
+/** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
+function deriveTariff(project: SavedSite): TariffInputs {
+  if (project.tariff) return project.tariff
+  const t = defaultTariff()
+  const cap = project.chargers.reduce((a, c) => a + c.kw * c.count, 0)
+  t.installedKw = cap
+  t.contractRatio = 1
+  t.contractKw = cap
+  const files = project.files ?? project.settlementFiles ?? []
+  const months = files.length
+    ? computeAll(files, {
+        hours: project.hours,
+        chargers: project.chargers.map((c) => ({ ...c })),
+      }).filter((m) => m.periodType === 'month')
+    : []
+  if (months.length)
+    t.monthlyKwh = Math.round(
+      months.reduce((a, m) => a + m.usageTotal, 0) / months.length,
+    )
+  return t
 }
 
 interface ProjectsViewProps {
@@ -111,29 +168,10 @@ function ProjectDetail({
         project,
         { hours: project.hours, chargers: project.chargers.map((c) => ({ ...c })) },
         project.files ?? project.settlementFiles ?? [],
+        deriveTariff(project),
       ),
   )
-  const [tariff, setTariff] = useState<TariffInputs>(() => {
-    if (project.tariff) return project.tariff
-    // 계약전력·월충전량을 충전기 설정/정산 데이터로 자동 기입
-    const t = defaultTariff()
-    const cap = project.chargers.reduce((a, c) => a + c.kw * c.count, 0)
-    t.installedKw = cap
-    t.contractRatio = 1
-    t.contractKw = cap
-    const files = project.files ?? project.settlementFiles ?? []
-    const months = files.length
-      ? computeAll(files, {
-          hours: project.hours,
-          chargers: project.chargers.map((c) => ({ ...c })),
-        }).filter((m) => m.periodType === 'month')
-      : []
-    if (months.length)
-      t.monthlyKwh = Math.round(
-        months.reduce((a, m) => a + m.usageTotal, 0) / months.length,
-      )
-    return t
-  })
+  const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
   const [standby, setStandby] = useState<StandbyInputs>(
     () => project.standby ?? defaultStandby(),
   )
@@ -275,7 +313,18 @@ function ProjectDetail({
       </div>
 
       {subtab === 'report' ? (
-        <ReportView model={report} setModel={setReport} />
+        <ReportView
+          model={report}
+          setModel={setReport}
+          autoSeed={() =>
+            seedReport(
+              { ...project, name: site.name, households: site.households },
+              config,
+              files,
+              tariff,
+            )
+          }
+        />
       ) : subtab === 'tariff' ? (
         <TariffAnalysis
           inputs={{

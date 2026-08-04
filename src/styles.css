@@ -1240,6 +1240,37 @@ body {
   flex-shrink: 0;
   white-space: nowrap;
 }
+.report-topbar__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.report-autofill-btn {
+  white-space: nowrap;
+}
+/* 섹션 제목 + 포함 체크 */
+.report-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.report-sec-head .subsection__title,
+.report-sec-head .report-block__title {
+  margin: 0;
+}
+.report-sec-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.report-sec-toggle input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 .report-premise {
   display: flex;
   flex-direction: column;
@@ -1262,6 +1293,8 @@ body {
   .subtabs,
   .back-link,
   .report-pdf-btn,
+  .report-topbar__actions,
+  .no-print,
   .report-block .link-button,
   .link-button--danger {
     display: none !important;

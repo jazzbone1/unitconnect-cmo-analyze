@@ -13,6 +13,8 @@ import {
 interface ReportViewProps {
   model: ReportModel
   setModel: React.Dispatch<React.SetStateAction<ReportModel>>
+  /** 앞 단계(요금구조·정산·단지정보) 값을 다시 끌어와 채우는 시드 생성기 */
+  autoSeed?: () => ReportModel
 }
 
 /* ---------- 포맷 ---------- */
@@ -68,7 +70,74 @@ function TextInput({
   )
 }
 
-export default function ReportView({ model, setModel }: ReportViewProps) {
+export default function ReportView({
+  model,
+  setModel,
+  autoSeed,
+}: ReportViewProps) {
+  /* ---------- 섹션 포함 여부(체크) ---------- */
+  const secOn = (k: string) => model.visible?.[k] !== false
+  const toggleSec = (k: string) =>
+    setModel((m) => ({
+      ...m,
+      visible: { ...(m.visible ?? {}), [k]: !(m.visible?.[k] !== false) },
+    }))
+
+  /* ---------- 앞 단계 값 자동 반영 ---------- */
+  function autoFill() {
+    if (!autoSeed) return
+    if (
+      !window.confirm(
+        '앞 단계(요금구조·정산·단지정보)에서 끌어올 수 있는 항목을 다시 불러옵니다.\n개요·유형별 실적·월별 추이·전기원가(계약전력/월사용량/실효원가)·현행요금이 덮어써집니다.\n(운영비 항목·해결방안 서술·포함 체크는 유지)',
+      )
+    )
+      return
+    const s = autoSeed()
+    setModel((m) => ({
+      ...m,
+      siteName: s.siteName || m.siteName,
+      overview: s.overview,
+      perType: s.perType,
+      monthly: s.monthly,
+      opexBaseKwh: s.opexBaseKwh,
+      groupA: {
+        ...m.groupA,
+        contractKw: s.groupA.contractKw,
+        monthlyKwh: s.groupA.monthlyKwh,
+        lv1Override: s.groupA.lv1Override,
+        currentRate: s.groupA.currentRate,
+      },
+      groupB: { ...m.groupB, currentRate: s.groupB.currentRate },
+    }))
+  }
+
+  /* ---------- 섹션 제목 + 포함 체크 ---------- */
+  function SecHead({
+    k,
+    tag = 'h3',
+    label,
+  }: {
+    k: string
+    tag?: 'h3' | 'h4'
+    label: string
+  }) {
+    return (
+      <div className="report-sec-head">
+        <label className="report-sec-toggle no-print" title="보고서 포함 여부">
+          <input
+            type="checkbox"
+            checked={secOn(k)}
+            onChange={() => toggleSec(k)}
+          />
+        </label>
+        {tag === 'h3' ? (
+          <h3 className="subsection__title">{label}</h3>
+        ) : (
+          <h4 className="report-block__title">{label}</h4>
+        )}
+      </div>
+    )
+  }
   // 이전에 저장된 보고서에 Part3 필드가 없으면 기본값으로 보강(기존 편집 보존)
   useEffect(() => {
     setModel((m) => {
@@ -109,11 +178,9 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
   /* ---------- 실효 전기원가 산출 블록 ---------- */
   function ElecCostBlock({
     which,
-    title,
     sub,
   }: {
     which: 'groupA' | 'groupB'
-    title: string
     sub: string
   }) {
     const g = model[which]
@@ -121,7 +188,6 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
     const p = computeProfit(g, opexRate)
     return (
       <div className="report-block">
-        <h4 className="report-block__title">{title}</h4>
         <p className="report-block__sub">{sub}</p>
 
         <div className="table-scroll">
@@ -369,13 +435,24 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
             <b>요금 하한선 분석</b>에 자동 반영됩니다.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary report-pdf-btn"
-          onClick={() => window.print()}
-        >
-          🖨 PDF 출력
-        </button>
+        <div className="report-topbar__actions no-print">
+          {autoSeed && (
+            <button
+              type="button"
+              className="btn-secondary report-autofill-btn"
+              onClick={autoFill}
+            >
+              🔄 앞 단계 값 자동 반영
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-primary report-pdf-btn"
+            onClick={() => window.print()}
+          >
+            🖨 PDF 출력
+          </button>
+        </div>
       </header>
 
       <main className="app__main">
@@ -408,10 +485,12 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
         </section>
 
         {/* Part 1 */}
+        {(secOn('1-1') || secOn('1-2') || secOn('1-3')) && (
         <section className="card">
           <h2>Part 1. 충전 인프라 현황</h2>
 
-          <h3 className="subsection__title">1-1. 단지 개요</h3>
+          <SecHead k="1-1" label="1-1. 단지 개요" />
+          {secOn('1-1') && (
           <div className="table-scroll">
             <table className="data-table report-table">
               <thead>
@@ -443,8 +522,10 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </tbody>
             </table>
           </div>
+          )}
 
-          <h3 className="subsection__title">1-2. 충전기 유형별 실적</h3>
+          <SecHead k="1-2" label="1-2. 충전기 유형별 실적" />
+          {secOn('1-2') && (
           <div className="table-scroll">
             <table className="data-table report-table">
               <thead>
@@ -473,8 +554,10 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </tbody>
             </table>
           </div>
+          )}
 
-          <h3 className="subsection__title">1-3. 월별 충전 추이</h3>
+          <SecHead k="1-3" label="1-3. 월별 충전 추이" />
+          {secOn('1-3') && (
           <div className="table-scroll">
             <table className="data-table report-table">
               <thead>
@@ -501,26 +584,34 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </tbody>
             </table>
           </div>
+          )}
         </section>
+        )}
 
         {/* Part 2 */}
+        {(secOn('2-1') || secOn('2-2') || secOn('2-3') || secOn('2-4') || secOn('2-5')) && (
         <section className="card">
           <h2>Part 2. 문제점 — 전기요금 구조 및 운영비</h2>
 
-          <ElecCostBlock
-            which="groupA"
-            title="2-1. 모자분리 충전기 (7kW 완속 · DC 급속)"
-            sub="일반용(을) 고압 요금 · 모자분리 적용"
-          />
-          <ElecCostBlock
-            which="groupB"
-            title="2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)"
-            sub="주택용 전력 · 공용부 전기세 부과 (이용률 추정 기반)"
-          />
+          <SecHead k="2-1" tag="h4" label="2-1. 모자분리 충전기 (7kW 완속 · DC 급속)" />
+          {secOn('2-1') && (
+            <ElecCostBlock
+              which="groupA"
+              sub="일반용(을) 고압 요금 · 모자분리 적용"
+            />
+          )}
+          <SecHead k="2-2" tag="h4" label="2-2. 모자분리 미적용 충전기 (3kW 완속, 공용부 부과)" />
+          {secOn('2-2') && (
+            <ElecCostBlock
+              which="groupB"
+              sub="주택용 전력 · 공용부 전기세 부과 (이용률 추정 기반)"
+            />
+          )}
 
           {/* 운영비 내역 */}
+          <SecHead k="2-3" tag="h4" label="2-3. 운영비 내역 (예상)" />
+          {secOn('2-3') && (
           <div className="report-block">
-            <h4 className="report-block__title">2-3. 운영비 내역 (예상)</h4>
             <div className="table-scroll">
               <table className="data-table report-table">
                 <thead>
@@ -604,20 +695,27 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               + 운영비 항목 추가
             </button>
           </div>
+          )}
 
           {/* 요금 하한선 분석 (자동 반영) */}
-          <LowerBound
-            which="groupA"
-            title="요금 하한선 분석 — 모자분리 충전기 (7kW · DC)"
-          />
-          <LowerBound
-            which="groupB"
-            title="요금 하한선 분석 — 모자분리 미적용 (3kW)"
-          />
+          <SecHead k="2-4" tag="h4" label="2-4. 요금 하한선 분석" />
+          {secOn('2-4') && (
+            <>
+              <LowerBound
+                which="groupA"
+                title="모자분리 충전기 (7kW · DC)"
+              />
+              <LowerBound
+                which="groupB"
+                title="모자분리 미적용 (3kW)"
+              />
+            </>
+          )}
 
           {/* 충전요금 인상 권고안 */}
+          <SecHead k="2-5" tag="h4" label="2-5. 충전요금 인상 권고안" />
+          {secOn('2-5') && (
           <div className="report-block">
-            <h4 className="report-block__title">충전요금 인상 권고안</h4>
             <div className="table-scroll">
               <table className="data-table report-table">
                 <thead>
@@ -649,13 +747,17 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </table>
             </div>
           </div>
+          )}
         </section>
+        )}
 
         {/* Part 3 */}
+        {(secOn('3-0') || secOn('3-1') || secOn('3-2') || secOn('3-3') || secOn('3-4')) && (
         <section className="card">
           <h2>Part 3. 해결 방안</h2>
+          <SecHead k="3-0" tag="h4" label="3-0. 공통 전제" />
+          {secOn('3-0') && (
           <div className="report-premise">
-            <b>공통 전제</b>
             <textarea
               className="report-textarea"
               value={model.premise ?? ''}
@@ -665,9 +767,11 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               rows={2}
             />
           </div>
+          )}
 
+          <SecHead k="3-1" tag="h4" label="3-1. 방안 ① 자치운영 — 고려사항" />
+          {secOn('3-1') && (
           <div className="report-block">
-            <h4 className="report-block__title">방안 ① 자치운영 — 고려사항</h4>
             <div className="table-scroll">
               <table className="data-table report-table">
                 <thead>
@@ -700,9 +804,11 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </table>
             </div>
           </div>
+          )}
 
+          <SecHead k="3-2" tag="h4" label="3-2. 방안 ② CPO 위탁" />
+          {secOn('3-2') && (
           <div className="report-block">
-            <h4 className="report-block__title">방안 ② CPO 위탁</h4>
             <div className="table-scroll">
               <table className="data-table report-table">
                 <thead>
@@ -733,9 +839,11 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </table>
             </div>
           </div>
+          )}
 
+          <SecHead k="3-3" tag="h4" label="3-3. 방안 ③ CMO 위탁운영 (UNITCONNECT)" />
+          {secOn('3-3') && (
           <div className="report-block">
-            <h4 className="report-block__title">방안 ③ CMO 위탁운영 (UNITCONNECT)</h4>
             <div className="table-scroll">
               <table className="data-table report-table">
                 <thead>
@@ -766,9 +874,11 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </table>
             </div>
           </div>
+          )}
 
+          <SecHead k="3-4" tag="h4" label="3-4. 3가지 방안 비교" />
+          {secOn('3-4') && (
           <div className="report-block">
-            <h4 className="report-block__title">3가지 방안 비교</h4>
             <div className="table-scroll">
               <table className="data-table report-table">
                 <thead>
@@ -798,7 +908,9 @@ export default function ReportView({ model, setModel }: ReportViewProps) {
               </table>
             </div>
           </div>
+          )}
         </section>
+        )}
       </main>
     </div>
   )

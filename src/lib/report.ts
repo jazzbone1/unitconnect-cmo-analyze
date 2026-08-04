@@ -31,10 +31,36 @@ export interface OpexRow {
   note: string
 }
 
+/** 보고서에 포함할 섹션 키(체크박스 대상) */
+export const REPORT_SECTIONS: { key: string; label: string }[] = [
+  { key: '1-1', label: '1-1. 단지 개요' },
+  { key: '1-2', label: '1-2. 충전기 유형별 실적' },
+  { key: '1-3', label: '1-3. 월별 충전 추이' },
+  { key: '2-1', label: '2-1. 모자분리 충전기 전기원가' },
+  { key: '2-2', label: '2-2. 모자분리 미적용 전기원가' },
+  { key: '2-3', label: '2-3. 운영비 내역' },
+  { key: '2-4', label: '2-4. 요금 하한선 분석' },
+  { key: '2-5', label: '2-5. 충전요금 인상 권고안' },
+  { key: '3-0', label: '3-0. 공통 전제' },
+  { key: '3-1', label: '3-1. 자치운영' },
+  { key: '3-2', label: '3-2. CPO 위탁' },
+  { key: '3-3', label: '3-3. CMO 위탁운영' },
+  { key: '3-4', label: '3-4. 3가지 방안 비교' },
+]
+
+/** 전체 섹션 표시 기본값 (모두 포함) */
+export function defaultVisible(): Record<string, boolean> {
+  const v: Record<string, boolean> = {}
+  for (const s of REPORT_SECTIONS) v[s.key] = true
+  return v
+}
+
 export interface ReportModel {
   siteName: string
   period: string
   reportDate: string
+  /** 섹션별 보고서 포함 여부. 미설정 시 전체 포함 */
+  visible?: Record<string, boolean>
   /** Part1 개요 표 (자유 행) */
   overview: { id: string; label: string; value: string; note: string }[]
   /** Part1 유형별 실적 표 */
@@ -168,6 +194,7 @@ export function defaultReport(): ReportModel {
     siteName: '',
     period: '',
     reportDate: '',
+    visible: defaultVisible(),
     overview: [
       { id: rid(), label: '세대수', value: '', note: '' },
       { id: rid(), label: 'EV 등록', value: '', note: 'k-apt 기준 등록 수량' },
