@@ -19,7 +19,16 @@ interface ReportViewProps {
 }
 
 /* ---------- 포맷 ---------- */
-const won1 = (v: number) => `${v.toFixed(1)}원`
+/** 천단위 콤마 + 소수 유지 */
+const numFmt = (v: number, maxFrac = 6) =>
+  Number.isFinite(v)
+    ? v.toLocaleString('en-US', { maximumFractionDigits: maxFrac })
+    : ''
+const won1 = (v: number) =>
+  `${v.toLocaleString('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}원`
 const manwon = (v: number) =>
   `약 ${Math.round(v / 10000).toLocaleString()}만원`
 const signManwon = (v: number) =>
@@ -54,7 +63,10 @@ function NumInput({
 }) {
   const [focused, setFocused] = useState(false)
   const [text, setText] = useState('')
-  const modelText = Number.isFinite(value) && value !== 0 ? String(value) : ''
+  // 편집 중엔 원본 텍스트, 비활성 시 천단위 콤마 표시
+  const rawText = Number.isFinite(value) && value !== 0 ? String(value) : ''
+  const shownText =
+    Number.isFinite(value) && value !== 0 ? numFmt(value) : ''
   return (
     <span className="num-input">
       <input
@@ -64,9 +76,9 @@ function NumInput({
         style={{ width }}
         title={linked ? '앞 단계 자동 연동 값' : undefined}
         placeholder={placeholder}
-        value={focused ? text : modelText}
+        value={focused ? text : shownText}
         onFocus={() => {
-          setText(modelText)
+          setText(rawText)
           setFocused(true)
         }}
         onBlur={() => setFocused(false)}
