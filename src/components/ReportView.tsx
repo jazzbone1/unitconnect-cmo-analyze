@@ -782,7 +782,7 @@ export default function ReportView({
           )}
           <button
             type="button"
-            className="btn-primary report-pdf-btn"
+            className="btn-cta report-pdf-btn"
             onClick={() => window.print()}
           >
             🖨 PDF 출력
