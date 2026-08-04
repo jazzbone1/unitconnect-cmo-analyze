@@ -653,6 +653,26 @@ body {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
+.table-note--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.btn-link {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn-link:hover {
+  opacity: 0.8;
+}
 
 /* Error list */
 .error-list {

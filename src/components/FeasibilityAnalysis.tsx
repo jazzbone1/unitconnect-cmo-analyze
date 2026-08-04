@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { usePersistentState } from '../lib/persist'
 import type { SettlementConfig } from '../lib/settlement'
 import {
   computeFeasibility,
@@ -73,6 +74,20 @@ export default function FeasibilityAnalysis({
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
 
+  // 영업비 1대분(계약년수별) — 전 프로젝트 공통(일괄) 설정, 직접 기입 가능
+  const [bizFeeByYear, setBizFeeByYear] = usePersistentState<number[]>(
+    'feasibility.bizFeeByYear',
+    PROFIT_STANDARD.map((r) => r.bizFee),
+  )
+  const setBizFeeAt = (idx: number, v: number) =>
+    setBizFeeByYear((prev) => {
+      const next = [...prev]
+      next[idx] = v
+      return next
+    })
+  const yearIdx = Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years))) - 1
+  const appliedBizFee = bizFeeByYear[yearIdx] ?? defaultBizFee(inputs.years)
+
   // 대수는 단지 정보의 충전기 수량과 자동 연동 (읽기 전용)
   const countOf = (kw: number) =>
     config.chargers.find((c) => c.kw === kw)?.count ?? 0
@@ -85,6 +100,8 @@ export default function FeasibilityAnalysis({
     countSlow3: countOf(3),
     standbyMonthlyKwhSeparated,
     standbyMonthlyKwhAll,
+    // 영업비는 공통 기준표(계약년수별)에서 자동 적용
+    bizFeePerUnit: appliedBizFee,
   }
   const r = computeFeasibility(eff)
 
@@ -172,20 +189,29 @@ export default function FeasibilityAnalysis({
             <thead>
               <tr>
                 <th>계약기간</th>
-                <th>영업비 1대분(원/대)</th>
+                <th>영업비 1대분(원/대) · 직접기입</th>
                 <th>영업이익률 목표<br />(≥244원 · 249원)</th>
                 <th>영업이익률 목표<br />(&lt;244원 · 239원)</th>
               </tr>
             </thead>
             <tbody>
-              {PROFIT_STANDARD.map((row) => {
+              {PROFIT_STANDARD.map((row, i) => {
                 const isYear = row.years === Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))
                 const highActive = isYear && inputs.rateVat >= 244
                 const lowActive = isYear && inputs.rateVat < 244
                 return (
                   <tr key={row.years} className={isYear ? 'row--selected' : ''}>
                     <td className="col-name">{row.years}년</td>
-                    <td>{formatNumber(row.bizFee)}</td>
+                    <td>
+                      <input
+                        className="cell-input"
+                        type="number"
+                        step="any"
+                        min={0}
+                        value={bizFeeByYear[i] ?? ''}
+                        onChange={(e) => setBizFeeAt(i, Number(e.target.value) || 0)}
+                      />
+                    </td>
                     <td className={highActive ? 'cell--up' : ''}>
                       {(row.marginHigh * 100).toFixed(2)}%
                     </td>
@@ -198,11 +224,22 @@ export default function FeasibilityAnalysis({
             </tbody>
           </table>
         </div>
-        <p className="table-note">
-          계약년수·충전단가에 따라 영업비 1대분 단가와 영업이익률 목표가 위
-          기준표에서 자동 결정됩니다. (현재: {Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))}년 ·{' '}
-          {inputs.rateVat >= 244 ? '249원 기준' : '239원 기준'})
-        </p>
+        <div className="table-note table-note--row">
+          <span>
+            영업비 1대분은 <b>모든 프로젝트 공통(일괄)</b>으로 적용됩니다. 계약년수(
+            {Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))}년)에
+            해당하는 값이 손익의 영업비로 자동 반영됩니다. (현재 적용:{' '}
+            {formatNumber(appliedBizFee)}원 ·{' '}
+            {inputs.rateVat >= 244 ? '249원 기준' : '239원 기준'})
+          </span>
+          <button
+            type="button"
+            className="btn-link"
+            onClick={() => setBizFeeByYear(PROFIT_STANDARD.map((r) => r.bizFee))}
+          >
+            기본값 복원
+          </button>
+        </div>
       </div>
 
       <div className="var-panel">
@@ -470,7 +507,16 @@ export default function FeasibilityAnalysis({
         <div className="subsection">
           <h4 className="summary-block__title">영업비 · CAPEX</h4>
           <div className="var-row">
-            <Field label="영업비 1대분 단가" unit="원/대" value={inputs.bizFeePerUnit} onChange={(v) => set({ bizFeePerUnit: v })} standard={`${formatNumber(defaultBizFee(inputs.years))}원`} />
+            <label className="var-field">
+              <span className="var-field__label">
+                영업비 1대분 단가
+                <span className="var-field__unit">원/대 · 기준표 연동</span>
+              </span>
+              <div className="var-field__auto">{formatNumber(appliedBizFee)}</div>
+              <span className="var-field__std">
+                기준표(계약 {Math.round(inputs.years)}년)에서 일괄 적용
+              </span>
+            </label>
             <Field label="모자분리" unit="원/대" value={inputs.mojaBunri} onChange={(v) => set({ mojaBunri: v })} standard={`${formatNumber(STD.mojaBunri)}원`} />
             <Field label="미니PC" unit="원/단지" value={inputs.miniPc} onChange={(v) => set({ miniPc: v })} standard={`${formatNumber(STD.miniPc)}원`} />
           </div>
