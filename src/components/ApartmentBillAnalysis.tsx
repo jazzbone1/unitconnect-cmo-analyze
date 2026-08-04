@@ -123,6 +123,19 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
 
   const isProgressive = inputs.tiers.some((t) => t.cap != null)
   const isTou = inputs.tiers.some((t) => t.ratio != null)
+  const hhFactor =
+    inputs.perHousehold && inputs.households > 0 ? inputs.households : 1
+  // 현재 기본요금과 일치하는 누진 단계 index (없으면 -1=직접입력)
+  const selectedTierIdx = inputs.tiers.findIndex(
+    (t) =>
+      t.base != null &&
+      Math.round(t.base * hhFactor) === Math.round(inputs.baseCharge),
+  )
+  function selectTier(idx: number) {
+    if (idx < 0) return
+    const t = inputs.tiers[idx]
+    if (t?.base != null) set({ baseCharge: Math.round(t.base * hhFactor) })
+  }
 
   // 계약 형태에 맞춰 사용량을 구간에 자동 배분 + 주택용 누진 기본요금 반영.
   //  세대별 누진(perHousehold)이면 세대평균에 누진 적용, 기본요금은 세대당×세대수.
@@ -307,6 +320,29 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
       <div className="subsection">
         <h3 className="subsection__title">② 기본료</h3>
         <div className="target-box">
+          {isProgressive && (
+            <div className="target-row">
+              <span>누진 단계 선택</span>
+              <span>
+                <select
+                  className="cell-input"
+                  style={{ width: 300, textAlign: 'left' }}
+                  value={selectedTierIdx}
+                  onChange={(e) => selectTier(Number(e.target.value))}
+                >
+                  <option value={-1}>직접 입력 / 사용량 자동</option>
+                  {inputs.tiers.map((t, i) =>
+                    t.base != null ? (
+                      <option key={t.id} value={i}>
+                        {t.name} · 세대당 기본 {formatNumber(t.base)}원
+                        {hhFactor > 1 ? ` × ${hhFactor}세대` : ''}
+                      </option>
+                    ) : null,
+                  )}
+                </select>
+              </span>
+            </div>
+          )}
           <div className="target-row">
             <span>기본요금</span>
             <b>
@@ -319,11 +355,9 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
             </b>
           </div>
           <p className="hint hint--tight">
-            {r.perHousehold
-              ? `주택용 종합계약: 세대평균이 도달한 단계의 세대당 기본요금 × 세대수(${inputs.households})가 자동 적용됩니다. 고지서 값과 다르면 직접 수정하세요.`
-              : inputs.contractType.startsWith('housing')
-                ? '주택용 누진: 총 사용량이 도달한 단계의 기본요금이 자동 적용됩니다. 아파트 종합계약이면 위 「세대별 누진 적용」을 켜세요.'
-                : '일반용은 계약전력 × 기본단가(원/kW)로 부과됩니다. 고지서 기본요금을 입력하세요.'}
+            {isProgressive
+              ? `주택용 누진: 위에서 단계를 선택하면 그 단계의 세대당 기본요금${hhFactor > 1 ? ` × 세대수(${inputs.households})` : ''}가 기본요금으로 적용됩니다. 사용량을 넣으면 도달 단계로 자동 선택되며, 직접 수정도 가능합니다.`
+              : '일반용은 계약전력 × 기본단가(원/kW)로 부과됩니다. 고지서 기본요금을 입력하세요.'}
           </p>
         </div>
       </div>
