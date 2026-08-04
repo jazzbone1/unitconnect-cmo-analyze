@@ -4,11 +4,14 @@ import {
   tierPreset,
   distributeProgressive,
   distributeByRatio,
+  applySeasonTiers,
   reachedBaseCharge,
   newTier,
   CONTRACT_LABELS,
+  SEASON_LABELS,
   type ApartmentBillInputs,
   type ContractType,
+  type Season,
 } from '../lib/apartmentBill'
 import { recognizeBill } from '../lib/billOcr'
 import { formatNumber } from '../lib/stats'
@@ -84,7 +87,7 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
       const ct = (contractType as ContractType) || inputs.contractType
       const baseTiers =
         contractType && contractType !== inputs.contractType
-          ? tierPreset(ct).tiers
+          ? applySeasonTiers(tierPreset(ct).tiers, inputs.season)
           : inputs.tiers
       // 계약 형태에 맞춰 인식된 사용량을 구간에 자동배분
       const { tiers, baseCharge } = distribute(baseTiers, usage)
@@ -128,12 +131,19 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
 
   function applyPreset(type: ContractType) {
     const p = tierPreset(type)
-    const { tiers, baseCharge } = distribute(p.tiers, inputs.usageKwh)
+    const seasoned = applySeasonTiers(p.tiers, inputs.season)
+    const { tiers, baseCharge } = distribute(seasoned, inputs.usageKwh)
     set({
       contractType: type,
       tiers,
       baseCharge: baseCharge ?? p.baseCharge,
     })
+  }
+
+  function applySeason(season: Season) {
+    const seasoned = applySeasonTiers(inputs.tiers, season)
+    const { tiers, baseCharge } = distribute(seasoned, inputs.usageKwh)
+    set({ season, tiers, baseCharge: baseCharge ?? inputs.baseCharge })
   }
 
   function setUsage(v: number) {
@@ -173,6 +183,21 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
               {(Object.keys(CONTRACT_LABELS) as ContractType[]).map((t) => (
                 <option key={t} value={t}>
                   {CONTRACT_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="var-field">
+            <span className="var-field__label">계절 기준</span>
+            <select
+              className="cell-input"
+              style={{ width: 160, textAlign: 'left' }}
+              value={inputs.season}
+              onChange={(e) => applySeason(e.target.value as Season)}
+            >
+              {(Object.keys(SEASON_LABELS) as Season[]).map((s) => (
+                <option key={s} value={s}>
+                  {SEASON_LABELS[s]}
                 </option>
               ))}
             </select>
@@ -317,11 +342,17 @@ export default function ApartmentBillAnalysis({ inputs, setInputs }: Props) {
         </button>
         <p className="hint hint--tight">
           {isProgressive
-            ? '주택용 누진: 총 사용량을 단계(0~200 / 201~400 / 400초과) 순서로 채워 각 단계 단가로 부과합니다. 단계별 사용량·단가는 직접 수정할 수 있습니다.'
+            ? '주택용 누진: 총 사용량을 단계 순서로 채워 각 단계 단가로 부과합니다. 하계(7·8월)는 누진 구간이 확대(0~300 / 301~450)됩니다.'
             : isTou
-              ? '일반용 TOU: 아파트 일반 사용 비율(경부하 30% · 중간부하 40% · 최대부하 30%)로 총 사용량을 자동 배분합니다. 실제 시간대 사용량을 알면 직접 수정하세요.'
+              ? '일반용 TOU: 아파트 일반 사용 비율(경부하 30% · 중간부하 40% · 최대부하 30%)로 총 사용량을 자동 배분합니다.'
               : '구간별 사용량 × 단가로 부과 금액이 계산됩니다.'}{' '}
-          아래 ④에서 청구금액·유효단가(원/kWh)로 실제 적용 결과를 확인할 수 있습니다.
+          단가·구간은{' '}
+          <b>{SEASON_LABELS[inputs.season]}</b> 기준입니다
+          {inputs.season === 'annual'
+            ? ' (봄가을 5 · 여름 3 · 겨울 4개월 가중 평균)'
+            : ''}
+          . 계절 기준을 바꾸면 그 계절 단가·구간으로 재계산됩니다. 아래 ④에서
+          청구금액·유효단가(원/kWh)를 확인하세요.
         </p>
       </div>
 

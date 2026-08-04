@@ -3,8 +3,52 @@
 //  - 고지서 OCR(billOcr.recognizeBill)로 요약 금액을 자동 인식하고,
 //    구간별 사용량은 계약 형태 프리셋 + 누진 자동배분으로 구성한다.
 
+import type { SeasonRates } from './tariff'
+import { SEASON_MONTHS } from './tariff'
+
 let seq = 0
 const rid = () => `apt${(seq++).toString(36)}${Math.max(1, seq).toString(36)}`
+
+/** 계절 선택 (연간=가중 평균) */
+export type Season = 'annual' | 'spring' | 'summer' | 'winter'
+
+export const SEASON_LABELS: Record<Season, string> = {
+  annual: '연간(계절 가중)',
+  spring: '봄·가을',
+  summer: '여름(7·8월)',
+  winter: '겨울(11~2월)',
+}
+
+/** 계절 가중 평균 (봄가을5·여름3·겨울4 / 12) */
+export function seasonWeightedUnit(u: SeasonRates): number {
+  const { spring, summer, winter } = SEASON_MONTHS
+  return (
+    (u.spring * spring + u.summer * summer + u.winter * winter) /
+    (spring + summer + winter)
+  )
+}
+
+/** 구간의 해당 계절 단가 */
+export function effUnit(t: RateTier, season: Season): number {
+  if (t.units)
+    return season === 'annual' ? seasonWeightedUnit(t.units) : t.units[season]
+  return t.unit
+}
+
+/** 구간의 해당 계절 누진 상한(주택용). 하계는 확대, 연간은 월수 가중 */
+export function effCap(t: RateTier, season: Season): number | null {
+  if (t.caps) {
+    const { normal, summer } = t.caps
+    if (season === 'summer') return summer
+    if (season === 'annual') {
+      if (normal == null || summer == null) return null
+      // 하계 2개월 / 그 외 10개월 가중
+      return (normal * 10 + summer * 2) / 12
+    }
+    return normal // 봄가을·겨울 = 기타계절
+  }
+  return t.cap
+}
 
 /** 계약 종별 */
 export type ContractType =
@@ -35,6 +79,10 @@ export interface RateTier {
   base?: number
   /** TOU 시간대 사용량 비율(0~1). 총 사용량 자동배분에 사용 */
   ratio?: number
+  /** 계절별 단가 (봄가을/여름/겨울). 있으면 계절 가중/선택에 사용 */
+  units?: SeasonRates
+  /** 계절별 누진 상한 (기타계절/하계). 주택용 하계 확대 반영 */
+  caps?: { normal: number | null; summer: number | null }
 }
 
 export interface ApartmentBillInputs {
@@ -57,6 +105,20 @@ export interface ApartmentBillInputs {
   round: number
   /** 고지서 표기 총 사용량 (kWh) — 참고/누진 자동배분 기준 */
   usageKwh: number
+  /** 계절 기준 (annual=연간 가중, 또는 특정 계절) */
+  season: Season
+}
+
+/** 선택 계절에 맞춰 각 구간의 단가·누진상한을 설정한다. */
+export function applySeasonTiers(
+  tiers: RateTier[],
+  season: Season,
+): RateTier[] {
+  return tiers.map((t) => ({
+    ...t,
+    unit: Math.round(effUnit(t, season) * 10) / 10,
+    cap: effCap(t, season),
+  }))
 }
 
 /** 계약 종별 기본 구간 프리셋 (2024 기준 근사값, 편집 가능) */
@@ -66,47 +128,82 @@ export function tierPreset(type: ContractType): {
   tiers: RateTier[]
 } {
   switch (type) {
-    case 'housing_low':
+    case 'housing_low': {
+      // 주택용 단가는 계절 무관, 하계(7·8월) 누진 구간 확대(200→300, 200→150)
+      const u = (v: number): SeasonRates => ({ spring: v, summer: v, winter: v })
       return {
         baseCharge: 910,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '1단계 (0~200kWh)', kwh: 0, unit: 120.0, cap: 200, base: 910 },
-          { id: rid(), name: '2단계 (201~400kWh)', kwh: 0, unit: 214.6, cap: 200, base: 1600 },
-          { id: rid(), name: '3단계 (400kWh 초과)', kwh: 0, unit: 307.3, cap: null, base: 7300 },
+          mkTier('1단계 (0~200 / 하계 0~300)', 120.0, u(120.0), { normal: 200, summer: 300 }, 910),
+          mkTier('2단계 (201~400 / 하계 301~450)', 214.6, u(214.6), { normal: 200, summer: 150 }, 1600),
+          mkTier('3단계 (400 초과 / 하계 450 초과)', 307.3, u(307.3), { normal: null, summer: null }, 7300),
         ],
       }
-    case 'housing_high':
+    }
+    case 'housing_high': {
+      const u = (v: number): SeasonRates => ({ spring: v, summer: v, winter: v })
       return {
         baseCharge: 730,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '1단계 (0~200kWh)', kwh: 0, unit: 105.0, cap: 200, base: 730 },
-          { id: rid(), name: '2단계 (201~400kWh)', kwh: 0, unit: 174.0, cap: 200, base: 1260 },
-          { id: rid(), name: '3단계 (400kWh 초과)', kwh: 0, unit: 242.3, cap: null, base: 6060 },
+          mkTier('1단계 (0~200 / 하계 0~300)', 105.0, u(105.0), { normal: 200, summer: 300 }, 730),
+          mkTier('2단계 (201~400 / 하계 301~450)', 174.0, u(174.0), { normal: 200, summer: 150 }, 1260),
+          mkTier('3단계 (400 초과 / 하계 450 초과)', 242.3, u(242.3), { normal: null, summer: null }, 6060),
         ],
       }
+    }
     case 'general_low':
+      // 일반용(을) 저압 근사 — 계절 TOU (봄가을/여름/겨울)
       return {
         baseCharge: 0,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '경부하', kwh: 0, unit: 92.0, cap: null, ratio: APT_TOU_RATIO.light },
-          { id: rid(), name: '중간부하', kwh: 0, unit: 120.0, cap: null, ratio: APT_TOU_RATIO.mid },
-          { id: rid(), name: '최대부하', kwh: 0, unit: 150.0, cap: null, ratio: APT_TOU_RATIO.peak },
+          mkTouTier('경부하', { spring: 80.2, summer: 89.8, winter: 99.4 }, APT_TOU_RATIO.light),
+          mkTouTier('중간부하', { spring: 91, summer: 129.9, winter: 118.4 }, APT_TOU_RATIO.mid),
+          mkTouTier('최대부하', { spring: 94.9, summer: 151.2, winter: 132.4 }, APT_TOU_RATIO.peak),
         ],
       }
     case 'general_high':
     default:
+      // 일반용(을) 고압A 선택II 근사 — 계절 TOU
       return {
         baseCharge: 0,
         contractKw: 0,
         tiers: [
-          { id: rid(), name: '경부하', kwh: 0, unit: 86.9, cap: null, ratio: APT_TOU_RATIO.light },
-          { id: rid(), name: '중간부하', kwh: 0, unit: 112.0, cap: null, ratio: APT_TOU_RATIO.mid },
-          { id: rid(), name: '최대부하', kwh: 0, unit: 141.0, cap: null, ratio: APT_TOU_RATIO.peak },
+          mkTouTier('경부하', { spring: 80.2, summer: 78.2, winter: 95.2 }, APT_TOU_RATIO.light),
+          mkTouTier('중간부하', { spring: 91, summer: 113, winter: 105.5 }, APT_TOU_RATIO.mid),
+          mkTouTier('최대부하', { spring: 94.9, summer: 198.6, winter: 172.4 }, APT_TOU_RATIO.peak),
         ],
       }
+  }
+}
+
+/** 누진 단계 tier 생성 (연간 가중 단가·상한을 기본값으로) */
+function mkTier(
+  name: string,
+  unit: number,
+  units: SeasonRates,
+  caps: { normal: number | null; summer: number | null },
+  base: number,
+): RateTier {
+  const capAnnual =
+    caps.normal == null || caps.summer == null
+      ? null
+      : Math.round(((caps.normal * 10 + caps.summer * 2) / 12) * 10) / 10
+  return { id: rid(), name, kwh: 0, unit, cap: capAnnual, base, units, caps }
+}
+
+/** TOU tier 생성 (연간 가중 단가를 기본값으로) */
+function mkTouTier(name: string, units: SeasonRates, ratio: number): RateTier {
+  return {
+    id: rid(),
+    name,
+    kwh: 0,
+    unit: Math.round(seasonWeightedUnit(units) * 10) / 10,
+    cap: null,
+    ratio,
+    units,
   }
 }
 
@@ -223,6 +320,7 @@ export function defaultApartmentBill(): ApartmentBillInputs {
     fund: 0,
     round: 0,
     usageKwh: 0,
+    season: 'annual',
   }
 }
 
