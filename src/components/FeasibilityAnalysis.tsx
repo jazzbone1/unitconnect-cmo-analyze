@@ -397,6 +397,7 @@ export default function FeasibilityAnalysis({
                   <th>7kW 환산</th>
                   <th>UC 기준 이용률</th>
                   <th>종류별 요금(원/kWh)</th>
+                  <th>월 사용량(kWh)</th>
                 </tr>
               </thead>
               <tbody>
@@ -430,12 +431,37 @@ export default function FeasibilityAnalysis({
                         }
                       />
                     </td>
+                    <td className="std-cell" title="이용률 × 정격 × 720h × 대수">
+                      {formatNumber(
+                        Math.round(
+                          (inputs[row.utilKey] as number) *
+                            row.kw *
+                            720 *
+                            countOf(row.kw),
+                        ),
+                      )}
+                    </td>
                   </tr>
                 ))}
                 <tr>
                   <td className="col-name">합계</td>
                   <td>{r.totalUnits.toLocaleString()}대</td>
                   <td colSpan={4} />
+                  <td className="cell--strong">
+                    {formatNumber(
+                      Math.round(
+                        chargerRows.reduce(
+                          (a, row) =>
+                            a +
+                            (inputs[row.utilKey] as number) *
+                              row.kw *
+                              720 *
+                              countOf(row.kw),
+                          0,
+                        ),
+                      ),
+                    )}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -444,7 +470,8 @@ export default function FeasibilityAnalysis({
             종류별 요금을 비우면 전체 충전단가({inputs.rateVat}원)를 사용합니다.
             종류별로 입력하면 에너지 비중으로 가중해 매출에 반영됩니다. · 전체
             이용률(7kW 환산) <b>{(r.overallUtil7kw * 100).toFixed(2)}%</b>{' '}
-            (정격별 100/7·50/7·3.5/7·3/7 환산 반영)
+            (정격별 100/7·50/7·3.5/7·3/7 환산 반영) · <b>월 사용량</b> = 이용률 ×
+            정격(kW) × 720h × 대수 (연 사용량 = ×12)
           </p>
         </div>
 
