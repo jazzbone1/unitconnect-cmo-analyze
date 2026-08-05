@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { usePersistentState } from '../lib/persist'
 import type { FileEntry, Period } from '../types'
 import {
   computeAll,
@@ -123,10 +124,14 @@ function ComparisonSection({
   label,
   rows,
   chargers,
+  manual,
+  onManual,
 }: {
   label: string
   rows: SettlementMetrics[]
   chargers: ChargerType[]
+  manual: Record<string, Record<string, number>>
+  onManual: (fileId: string, typeId: string, v: number | null) => void
 }) {
   return (
     <div className="subsection">
@@ -223,16 +228,41 @@ function ComparisonSection({
                   <td>{m.months}</td>
                   <td>{m.users.toLocaleString()}</td>
                   <td>{formatNumber(m.usageTotal)}</td>
-                  {chargers.map((c, ci) => (
-                    <td
-                      key={`u-${c.id}`}
-                      className={`type-col${ci === 0 ? ' group-start' : ''}`}
-                    >
-                      {m.splitMode === 'none'
-                        ? '—'
-                        : formatNumber(typeById.get(c.id)?.usage ?? 0)}
-                    </td>
-                  ))}
+                  {chargers.map((c, ci) => {
+                    const manualV = manual[m.id]?.[c.id]
+                    const isManual = manualV != null
+                    return (
+                      <td
+                        key={`u-${c.id}`}
+                        className={`type-col${ci === 0 ? ' group-start' : ''}`}
+                      >
+                        <input
+                          className={`cell-input cell-input--usage${
+                            isManual ? ' cell-input--linked' : ''
+                          }`}
+                          type="number"
+                          title="직접 입력 시 자동/추정값을 덮어씁니다"
+                          placeholder={
+                            m.splitMode === 'none'
+                              ? '직접 입력'
+                              : formatNumber(
+                                  Math.round(typeById.get(c.id)?.usage ?? 0),
+                                )
+                          }
+                          value={isManual ? manualV : ''}
+                          onChange={(e) =>
+                            onManual(
+                              m.id,
+                              c.id,
+                              e.target.value === ''
+                                ? null
+                                : Number(e.target.value),
+                            )
+                          }
+                        />
+                      </td>
+                    )
+                  })}
                   <td>{formatNumber(Math.round(m.amountCalc))}</td>
                   {chargers.map((c, ci) => (
                     <td
@@ -288,9 +318,22 @@ export default function SettlementAnalysis({
   site,
   autoWeights,
 }: SettlementAnalysisProps) {
+  // 종류별 사용량 수동 입력(파일별·종류별). 있으면 자동/추정값을 덮어쓴다.
+  const [manualUsage, setManualUsage] = usePersistentState<
+    Record<string, Record<string, number>>
+  >(`settle.manualUsage.${site.name}`, {})
+  const setManual = (fileId: string, typeId: string, v: number | null) =>
+    setManualUsage((prev) => {
+      const file = { ...(prev[fileId] ?? {}) }
+      if (v == null || !Number.isFinite(v)) delete file[typeId]
+      else file[typeId] = v
+      const next = { ...prev, [fileId]: file }
+      if (Object.keys(file).length === 0) delete next[fileId]
+      return next
+    })
   const metrics = useMemo(
-    () => computeAll(files, config, {}, {}, autoWeights),
-    [files, config, autoWeights],
+    () => computeAll(files, config, {}, manualUsage, autoWeights),
+    [files, config, manualUsage, autoWeights],
   )
 
   const visibleChargers = useMemo(
@@ -324,10 +367,15 @@ export default function SettlementAnalysis({
       )}
       {anyNone && (
         <p className="status status--info">
-          요금이 같거나 종류별 가중치가 없어 종류별 사용량·이용률을 나눌 수 없는
-          파일은 —로 표시됩니다. (요금이 다른 2종류는 요금 역산 자동 계산)
+          요금이 같거나 종류별 가중치가 없어 자동으로 나눌 수 없는 파일은 종류별
+          사용량 칸에 <b>직접 입력</b>하면 이용률이 계산됩니다. (요금이 다른 2종류는
+          요금 역산 자동 계산)
         </p>
       )}
+      <p className="table-note">
+        종류별 사용량 칸에 값을 직접 입력하면 자동/추정값을 덮어씁니다(음영 표시).
+        비우면 다시 자동 계산.
+      </p>
 
       {PERIOD_SECTIONS.map(({ type, label }) => {
         const rows = metrics.filter((m) => m.periodType === type)
@@ -338,6 +386,8 @@ export default function SettlementAnalysis({
             label={label}
             rows={rows}
             chargers={visibleChargers}
+            manual={manualUsage}
+            onManual={setManual}
           />
         )
       })}
