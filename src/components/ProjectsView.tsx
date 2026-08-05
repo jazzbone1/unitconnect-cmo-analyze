@@ -282,24 +282,34 @@ function seedReport(
   // 운영비 원/kWh 분모: 사업성 분석 종류별 월 사용량 합계를 자동 반영.
   if (totalGroupMonthly > 0) d.opexBaseKwh = totalGroupMonthly
 
-  // 운영비 자동 산출(대수 기준, 수정 가능). CS 운영은 별도 기입(수동).
-  //  정기점검 대당 13,000원×연2회 / 긴급점검 대당 13,000원×연4회
-  //  보험 완속 4,000·급속 10,000 / 수선비 완속 5,000·급속 25,000 (대당)
+  // 운영비 모델(아파트 자치운영 기준, 대수·매출 기반 자동 산출·수정 가능).
+  //  · 정기 전기안전점검(연2회): 완속 13,000·급속 30,000원/회 (대당)
+  //  · 긴급·고장 대응 AS(연4회): 완속 13,000·급속 30,000원/회 (대당)
+  //  · 배상책임보험: 완속 4,000·급속 10,000원 (대당·연)
+  //  · 수선비·부품적립: 완속 30,000·급속 300,000원 (대당·연, 급속 파워모듈 적립)
+  //  · 결제(PG) 수수료: 연 충전매출 × 2%
+  //  · CS 운영/전기안전관리: 별도 기입(수동, 값 보존)
   if (active.length) {
-    const cnt = active.reduce((a, c) => a + c.count, 0)
     const slow = active
       .filter((c) => c.kw <= 7)
       .reduce((a, c) => a + c.count, 0)
     const fast = active
       .filter((c) => c.kw >= 50)
       .reduce((a, c) => a + c.count, 0)
+    // 연 충전매출(추정) = Σ 종류별 (사업성 월사용량 × 요금 × 12)
+    const annualRev = active.reduce(
+      (a, c) => a + utilByKw(c.kw) * c.kw * 720 * c.count * 12 * c.rate,
+      0,
+    )
     const csPrev = d.opex.find((r) => r.name.includes('CS'))
     d.opex = [
-      { id: 'opex-regular', name: '정기점검', yearCost: cnt * 13000 * 2, note: '대당 13,000원 · 연 2회' },
-      { id: 'opex-urgent', name: '긴급점검', yearCost: cnt * 13000 * 4, note: '대당 13,000원 · 연 4회' },
-      { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: csPrev?.yearCost ?? 0, note: '별도 기입' },
-      { id: 'opex-insurance', name: '보험가입비용', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당)' },
-      { id: 'opex-repair', name: '수선비', yearCost: slow * 5000 + fast * 25000, note: '완속 5,000 / 급속 25,000원 (대당)' },
+      { id: 'opex-regular', name: '정기 전기안전점검', yearCost: slow * 13000 * 2 + fast * 30000 * 2, note: '완속 13,000·급속 30,000원/회 × 연 2회' },
+      { id: 'opex-urgent', name: '긴급·고장 대응(AS)', yearCost: slow * 13000 * 4 + fast * 30000 * 4, note: '완속 13,000·급속 30,000원/회 × 연 4회' },
+      { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: csPrev?.yearCost ?? 42000000, note: '별도 기입(1명·월 350만원 기준)' },
+      { id: 'opex-safety', name: '전기안전관리(위탁)', yearCost: 3600000, note: '별도 기입 · 월 30만원 가정(용량별)' },
+      { id: 'opex-insurance', name: '배상책임보험', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당·연)' },
+      { id: 'opex-repair', name: '수선비·부품적립', yearCost: slow * 30000 + fast * 300000, note: '완속 30,000 / 급속 300,000원 (대당·연)' },
+      { id: 'opex-pg', name: '결제(PG) 수수료', yearCost: Math.round(annualRev * 0.02), note: '연 충전매출 × 2%' },
     ]
   }
 
@@ -435,7 +445,8 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
     // 운영비: 자동 산출 항목(정기·긴급점검·보험·수선)의 연비용만 대수 기준으로 연동.
     //  CS 운영(수동·별도 기입)과 사용자 추가 항목·비고는 보존.
     opex: (m.opex ?? []).map((r) => {
-      if (r.name.includes('CS')) return r
+      // CS 운영·전기안전관리는 별도 기입(수동) → 자동 산출 대상에서 제외
+      if (r.name.includes('CS') || r.name.includes('안전관리')) return r
       const sr =
         (s.opex ?? []).find((x) => x.id === r.id) ??
         (s.opex ?? []).find((x) => x.name === r.name)
