@@ -110,19 +110,22 @@ function seedReport(
     for (const t of m.types)
       usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
   if (active.length) {
+    const nMonths = months.length || 1
     d.perType = active.map((c) => {
       const uSettle = usageByType.get(c.id) ?? 0
-      // 총 충전량·대당 월충전량: 정산값 우선, 없으면 사업성 1년차 기준(연간)
-      let kwhTotal = uSettle
-      let perUnitMonthly = c.count ? uSettle / c.count : 0
+      // 충전량(월): 정산 총합을 개월수(nMonths)로 나눈 월 평균. 정산값이 없으면
+      //  사업성 1년차(이용률×정격×720) 기준. (uSettle는 여러 달 합계이므로 반드시
+      //  개월수로 나눠 월 값으로 환산해야 한다 — 이 나눗셈 누락이 년=월 동일 버그였음.)
+      let monthlyTotal = uSettle / nMonths
+      let perUnitMonthly = c.count ? monthlyTotal / c.count : 0
       if (uSettle <= 0 && feas) {
         perUnitMonthly = utilByKw(c.kw) * c.kw * 720 // 대당 월 충전량
-        kwhTotal = perUnitMonthly * c.count * 12 // 연간 총 충전량
+        monthlyTotal = perUnitMonthly * c.count // 종류별 월 충전량
       }
+      // 충전량(년) = 월 충전량 × 12
+      const kwhTotal = monthlyTotal * 12
       // 월 이용률 = 대당 월 충전량 ÷ (정격 × 720). 표시된 대당 월 충전량과 정합.
       const util = c.kw > 0 ? perUnitMonthly / (c.kw * 720) : 0
-      // 충전량(월) = 대당 월 충전량 × 대수 (사업성 분석 종류별 월 사용량)
-      const monthlyTotal = perUnitMonthly * c.count
       return {
         id: c.id,
         type: c.name,
@@ -196,6 +199,15 @@ function seedReport(
     tariff && billHasData(tariff.bill)
       ? computeBill(tariff.bill as BillInputs).effInclVat
       : null
+  // 모자분리 계약전력 재책정: 고지서 실측 입력(⑦)이 있으면 요금적용전력
+  //  (기본요금 ÷ 기본단가)을 모자분리 그룹 설비용량 비중으로 배분한다. 고지서가
+  //  없으면 각 그룹 설비용량 × 0.8을 계약전력 기준으로 사용(수용률 80% 가정).
+  const sepCapTotal = active
+    .filter((c) => c.separated)
+    .reduce((a, c) => a + c.kw * c.count, 0)
+  const sepBill = tariff?.bill
+  const sepAppliedKw =
+    sepBill && sepBill.basic > 0 ? computeBill(sepBill).appliedKw : null
   // 운영비 원/kWh 분모(전체 월 충전량) — 종류별 월 사용량 합계로 자동 산출.
   let totalGroupMonthly = 0
   d.elecGroups = active.map((c) => {
@@ -227,6 +239,12 @@ function seedReport(
     if (sep) {
       g.baseUnitPrice = EV_TARIFF.self.base
       if (aptBill) g.powerRate = evTouRate(aptBill, 'self')
+      // 계약전력 재책정: 고지서 실측 요금적용전력을 설비 비중으로 배분, 없으면 설비×0.8.
+      const groupCap = c.kw * c.count
+      g.contractKw =
+        sepAppliedKw != null && sepAppliedKw > 0 && sepCapTotal > 0
+          ? Math.max(1, Math.round(sepAppliedKw * (groupCap / sepCapTotal)))
+          : Math.round(groupCap * 0.8)
       // 실효원가(Lv1): 고지서 실측 입력(⑦)이 있으면 그 값(측정) 우선,
       //  없으면 자가소비용 (A)+(B) 조립식 계산값을 그대로 사용(override 없음).
       if (billEffCost != null && Number.isFinite(billEffCost)) {
@@ -435,8 +453,8 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
           // 대기전력 손실 단가: 아파트 요금제 단가로 자동 연동.
           standbyRate: sg.standbyRate,
         }
-      // 모자분리 그룹: 실효원가(Lv1)를 고지서 실측/요금구조에서 자동 반영
-      return { ...base, lv1Override: sg.lv1Override }
+      // 모자분리 그룹: 계약전력(고지서 재책정/설비×0.8)·실효원가(Lv1) 자동 반영
+      return { ...base, contractKw: sg.contractKw, lv1Override: sg.lv1Override }
     }),
     // 운영비: 자동 산출 항목(정기·긴급점검·보험·수선)의 연비용만 대수 기준으로 연동.
     //  CS 운영(수동·별도 기입)과 사용자 추가 항목·비고는 보존.

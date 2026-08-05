@@ -719,12 +719,13 @@ export default function TariffAnalysis({
 
       {/* 고지서 실측 입력 (독립·참고) */}
       <div className="subsection bill-panel">
-        <h3 className="subsection__title">⑦ 고지서 실측 입력 (참고 · 자동반영 안 함)</h3>
+        <h3 className="subsection__title">⑦ 모자분리 고지서 실측 입력 (계약전력 재책정)</h3>
         <p className="bill-panel__desc">
           한전 청구서를 <b>업로드하면 자동 인식</b>됩니다(PDF·JPG·PNG). 인식하지
-          못한 값만 직접 입력하세요. 이 값은 <b>다른 분석·항목에 자동 반영되지
-          않으며</b>, 한 현장에 모자분리/미적용이 섞인 경우를 위해{' '}
-          <b>계약전력 가이드</b>만 제공합니다.
+          못한 값만 직접 입력하세요. 이 값으로 <b>보고서 모자분리 그룹의 계약전력이
+          재책정</b>됩니다 — <b>요금적용전력(기본요금 ÷ 기본단가)</b>을 모자분리
+          설비용량 비중으로 배분합니다. 고지서가 없으면 <b>설비용량 × 0.8</b>을
+          기준으로 잡습니다.
         </p>
         <Dropzone
           onFiles={handleBillFile}
