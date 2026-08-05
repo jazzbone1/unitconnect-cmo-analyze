@@ -282,9 +282,9 @@ function seedReport(
   // 운영비 원/kWh 분모: 사업성 분석 종류별 월 사용량 합계를 자동 반영.
   if (totalGroupMonthly > 0) d.opexBaseKwh = totalGroupMonthly
 
-  // 운영비 모델(아파트 관리소 자치운영 기준, 대수 비례 자동 산출·수정 가능).
-  //  · 정기 전기안전점검(연2회): 완속 13,000·급속 30,000원/회 (대당)
-  //  · 긴급·고장 대응 AS(연4회): 완속 13,000·급속 30,000원/회 (대당)
+  // 운영비 모델(아파트 관리소 자치운영 기준, 자동 산출·수정 가능).
+  //  · 정기점검: 회당 30만원 × 연2회 + 정기점검 인건비(100대당 30만원, 회당)
+  //  · 긴급점검: 회당 30만원 × 연4회
   //  · CS 운영/정산: 관리인력 시간 배분 → 대당 60,000원/년(대수 비례)
   //  · 배상책임보험: 완속 4,000·급속 10,000원 (대당·연)
   //  · 수선비·부품적립: 완속 30,000·급속 300,000원 (대당·연, 급속 파워모듈 적립)
@@ -297,9 +297,12 @@ function seedReport(
     const fast = active
       .filter((c) => c.kw >= 50)
       .reduce((a, c) => a + c.count, 0)
+    const visitFee = 300000 // 점검 1회당 기준 비용
+    // 정기점검 1회 = 기본 30만원 + 인건비(100대당 30만원). 연 2회.
+    const regularPerVisit = visitFee + (cnt / 100) * 300000
     d.opex = [
-      { id: 'opex-regular', name: '정기 전기안전점검', yearCost: slow * 13000 * 2 + fast * 30000 * 2, note: '완속 13,000·급속 30,000원/회 × 연 2회' },
-      { id: 'opex-urgent', name: '긴급·고장 대응(AS)', yearCost: slow * 13000 * 4 + fast * 30000 * 4, note: '완속 13,000·급속 30,000원/회 × 연 4회' },
+      { id: 'opex-regular', name: '정기점검', yearCost: Math.round(regularPerVisit * 2), note: '회당 30만원 × 연 2회 + 인건비(충전기 100대당 30만원/회)' },
+      { id: 'opex-urgent', name: '긴급점검', yearCost: visitFee * 4, note: '회당 30만원 × 연 4회' },
       { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: cnt * 60000, note: '대당 60,000원/년 (관리인력 시간 배분·대수 비례)' },
       { id: 'opex-insurance', name: '배상책임보험', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당·연)' },
       { id: 'opex-repair', name: '수선비·부품적립', yearCost: slow * 30000 + fast * 300000, note: '완속 30,000 / 급속 300,000원 (대당·연)' },
