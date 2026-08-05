@@ -283,6 +283,17 @@ export default function ReportView({
     ).lv2
     return lv2 > 0 ? `${Math.round(lv2).toLocaleString()}원/kWh 이상` : ''
   }
+  // 월별 충전 추이 전월비(전월 대비 충전량 증감률) 자동 산출.
+  const parseNum = (s: string) =>
+    Number(String(s ?? '').replace(/[^0-9.-]/g, '')) || 0
+  const momDelta = (i: number): string => {
+    if (i <= 0) return '—'
+    const prev = parseNum(model.monthly[i - 1]?.kwh ?? '')
+    const cur = parseNum(model.monthly[i]?.kwh ?? '')
+    if (prev <= 0 || cur <= 0) return '—'
+    const d = ((cur - prev) / prev) * 100
+    return `${d >= 0 ? '+' : ''}${d.toFixed(1)}%`
+  }
   const groupTitle2 = (g: ElecGroup, i: number) =>
     (model.secTitle?.[groupKey(g.id)] ?? `${i + 1}. ${g.name} 전기원가`).replace(
       /^\s*\d+[-.]\d*\.?\s*/,
@@ -940,17 +951,27 @@ export default function ReportView({
                 </tr>
               </thead>
               <tbody>
-                {model.monthly.map((row) => (
+                {model.monthly.map((row, i) => (
                   <tr key={row.id}>
-                    {(['month', 'kwh', 'revenue', 'note'] as const).map((k) => (
+                    {(['month', 'kwh', 'revenue'] as const).map((k) => (
                       <td key={k} className={k === 'month' ? 'col-name' : ''}>
                         <TextInput
                           value={row[k]}
                           onChange={(v) => updList('monthly', row.id, { [k]: v })}
-                          linked={k !== 'note'}
+                          linked
                         />
                       </td>
                     ))}
+                    <td>
+                      <span
+                        className={`report-auto-value${
+                          momDelta(i).startsWith('-') ? ' cell--down' : ''
+                        }`}
+                        title="전월 대비 충전량 증감률(자동)"
+                      >
+                        {momDelta(i)}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
