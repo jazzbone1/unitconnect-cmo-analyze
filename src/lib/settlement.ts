@@ -79,7 +79,7 @@ export interface SettlementMetrics {
   /** 종류별 사용량 분리가 가능했는지 */
   splittable: boolean
   /** 분리 방식: auto=자동 역산/컬럼, manual=직접 입력, none=분리 불가 */
-  splitMode: 'auto' | 'manual' | 'none'
+  splitMode: 'auto' | 'manual' | 'estimate' | 'none'
 }
 
 function toNumber(value: CellValue): number | null {
@@ -144,6 +144,8 @@ export function computeFile(
   config: SettlementConfig,
   monthsOverride?: number,
   manualUsage?: Record<string, number>,
+  /** 종류별 자동 비례 배분 가중치(정격×대수×가정이용률 등). 3종류 이상에서 사용. */
+  autoWeights?: Record<string, number>,
 ): SettlementMetrics {
   const { dataset } = file
   const chargers = config.chargers
@@ -182,11 +184,17 @@ export function computeFile(
   const high = sorted[1]
   const denom = active.length === 2 ? high.rate - low.rate : 0
 
-  // 자동 분리 가능 여부: 종류별 명시 컬럼 전부 존재 > 활성 1종 전량 > 활성 2종 역산
-  const autoSplittable =
-    hasAllExplicit ||
-    active.length === 1 ||
-    (active.length === 2 && denom > 0)
+  // 자동 비례 배분 가중치 합(활성 종류 기준). 3종류 이상 등에서 사용.
+  const weightSum = autoWeights
+    ? active.reduce((a, t) => a + (autoWeights[t.id] ?? 0), 0)
+    : 0
+  // 자동 분리 가능 여부: 종류별 명시 컬럼 전부 존재 > 활성 1종 전량 >
+  //  활성 2종 요금역산 > (그 외) 가중치 비례 배분(3종류 이상 등)
+  const canProportion =
+    !hasAllExplicit &&
+    !(active.length === 1) &&
+    !(active.length === 2 && denom > 0) &&
+    weightSum > 0
 
   for (const row of dataset.rows) {
     const usage = usageCol ? toNumber(row[usageCol] ?? null) : null
@@ -209,6 +217,12 @@ export function computeFile(
         amount !== null ? clamp((amount - usage * low.rate) / denom, 0, usage) : 0
       usageByType.set(high.id, (usageByType.get(high.id) ?? 0) + uHigh)
       usageByType.set(low.id, (usageByType.get(low.id) ?? 0) + (usage - uHigh))
+    } else if (canProportion) {
+      // 총 사용량을 종류별 가중치 비중으로 배분(총량 보존)
+      for (const t of active) {
+        const share = (autoWeights![t.id] ?? 0) / weightSum
+        usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + usage * share)
+      }
     }
   }
 
@@ -222,11 +236,17 @@ export function computeFile(
       }
     }
   }
-  const splitMode: 'auto' | 'manual' | 'none' = manualApplied
+  const exactAuto =
+    hasAllExplicit ||
+    active.length === 1 ||
+    (active.length === 2 && denom > 0)
+  const splitMode: 'auto' | 'manual' | 'estimate' | 'none' = manualApplied
     ? 'manual'
-    : autoSplittable
+    : exactAuto
       ? 'auto'
-      : 'none'
+      : canProportion
+        ? 'estimate'
+        : 'none'
   const splittable = splitMode !== 'none'
 
   const types: TypeMetric[] = chargers.map((t) => {
@@ -273,9 +293,18 @@ export function computeAll(
   config: SettlementConfig,
   monthsById: Record<string, number> = {},
   manualUsageById: Record<string, Record<string, number>> = {},
+  autoWeights?: Record<string, number>,
 ): SettlementMetrics[] {
   return files
-    .map((f) => computeFile(f, config, monthsById[f.id], manualUsageById[f.id]))
+    .map((f) =>
+      computeFile(
+        f,
+        config,
+        monthsById[f.id],
+        manualUsageById[f.id],
+        autoWeights,
+      ),
+    )
     .sort((a, b) => {
       if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey
       return a.fileName.localeCompare(b.fileName)

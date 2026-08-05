@@ -85,15 +85,7 @@ function seedReport(
     return row
   })
 
-  // 정산 월간 데이터가 있으면 유형별 실적·월별 추이 자동 기입
-  const metrics = files.length ? computeAll(files, config) : []
-  const months = metrics.filter((m) => m.periodType === 'month')
-  const usageByType = new Map<string, number>()
-  for (const m of months)
-    for (const t of m.types)
-      usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
-
-  // 사업성 1년차 이용률(종류별) — 정산 데이터가 없을 때 대체값 산출용
+  // 사업성 1년차 이용률(종류별) — 정산 데이터가 없을 때 대체값·비례 배분 가중치 산출용
   const utilByKw = (kw: number): number => {
     if (!feas) return 0
     if (kw === 100) return feas.utilFast100 ?? 0
@@ -103,6 +95,20 @@ function seedReport(
     if (kw === 3) return feas.utilSlow3 ?? 0
     return 0
   }
+  // 3종류 이상 자동 비례 배분 가중치 = 정격 × 대수 × 가정 이용률
+  const autoWeights: Record<string, number> = {}
+  for (const c of config.chargers)
+    autoWeights[c.id] = c.kw * c.count * utilByKw(c.kw)
+
+  // 정산 월간 데이터가 있으면 유형별 실적·월별 추이 자동 기입
+  const metrics = files.length
+    ? computeAll(files, config, {}, {}, autoWeights)
+    : []
+  const months = metrics.filter((m) => m.periodType === 'month')
+  const usageByType = new Map<string, number>()
+  for (const m of months)
+    for (const t of m.types)
+      usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
   if (active.length) {
     d.perType = active.map((c) => {
       const uSettle = usageByType.get(c.id) ?? 0
@@ -546,6 +552,21 @@ function ProjectDetail({
       0,
     )
   }, [feas, effConfig])
+  // 정산 종류별 자동 비례 배분 가중치 = 정격 × 대수 × 사업성 가정 이용률.
+  //  요금 역산 불가(3종류 이상)일 때 총 사용량을 이 비중으로 배분해 이용률 추정.
+  const settleWeights = useMemo(() => {
+    const u = (kw: number) => {
+      if (kw === 100) return feas.utilFast100 ?? 0
+      if (kw === 50) return feas.utilFast50 ?? 0
+      if (kw === 7) return feas.utilSlow7 ?? 0
+      if (kw === 3.5) return feas.utilSlow35 ?? 0
+      if (kw === 3) return feas.utilSlow3 ?? 0
+      return 0
+    }
+    const w: Record<string, number> = {}
+    for (const c of config.chargers) w[c.id] = c.kw * c.count * u(c.kw)
+    return w
+  }, [config, feas])
   // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
   const effMonthlyKwh =
     tariff.monthlyKwhOverride != null &&
@@ -849,6 +870,7 @@ function ProjectDetail({
               files={settlementFiles}
               config={config}
               site={site}
+              autoWeights={settleWeights}
             />
           )}
           {registryResult && <RegistryAnalysis result={registryResult} />}

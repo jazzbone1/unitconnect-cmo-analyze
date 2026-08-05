@@ -106,6 +106,8 @@ interface SettlementAnalysisProps {
   files: FileEntry[]
   config: SettlementConfig
   site: SiteInfo
+  /** 종류별 자동 비례 배분 가중치(정격×대수×가정이용률). 3종류 이상 이용률 추정용. */
+  autoWeights?: Record<string, number>
 }
 
 // 기간 유형별 표시 순서/라벨
@@ -284,14 +286,19 @@ export default function SettlementAnalysis({
   files,
   config,
   site,
+  autoWeights,
 }: SettlementAnalysisProps) {
-  const metrics = useMemo(() => computeAll(files, config), [files, config])
+  const metrics = useMemo(
+    () => computeAll(files, config, {}, {}, autoWeights),
+    [files, config, autoWeights],
+  )
 
   const visibleChargers = useMemo(
     () => config.chargers.filter((c) => c.count > 0),
     [config],
   )
   const anyNone = metrics.some((m) => m.splitMode === 'none')
+  const anyEstimate = metrics.some((m) => m.splitMode === 'estimate')
 
   return (
     <section className="card settlement">
@@ -308,11 +315,17 @@ export default function SettlementAnalysis({
         </div>
       </div>
 
+      {anyEstimate && (
+        <p className="status status--info">
+          요금이 지정된 종류가 3개 이상이라 요금 역산으로는 나눌 수 없어,
+          <b> 종류별 (정격×대수×사업성 가정 이용률) 비중으로 총 사용량을 배분한
+          추정치</b>로 표시합니다. (총량은 보존)
+        </p>
+      )}
       {anyNone && (
         <p className="status status--info">
-          요금이 지정된 종류가 3개 이상이거나 요금이 같은 파일은 종류별
-          사용량·이용률을 자동으로 나눌 수 없어 —로 표시됩니다. (요금이 다른
-          2종류는 자동 계산)
+          요금이 같거나 종류별 가중치가 없어 종류별 사용량·이용률을 나눌 수 없는
+          파일은 —로 표시됩니다. (요금이 다른 2종류는 요금 역산 자동 계산)
         </p>
       )}
 
