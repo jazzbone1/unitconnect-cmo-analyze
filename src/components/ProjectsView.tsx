@@ -113,16 +113,16 @@ function seedReport(
       }
       // 월 이용률 = 대당 월 충전량 ÷ (정격 × 720). 표시된 대당 월 충전량과 정합.
       const util = c.kw > 0 ? perUnitMonthly / (c.kw * 720) : 0
-      // 매출: 충전량 × '충전기 종류별 수량 요금'(config.rate)
+      // 충전량(월) = 대당 월 충전량 × 대수 (사업성 분석 종류별 월 사용량)
+      const monthlyTotal = perUnitMonthly * c.count
       return {
         id: c.id,
         type: c.name,
         count: `${c.count}대`,
         kwh: kwhTotal ? `${Math.round(kwhTotal).toLocaleString()} kWh` : '',
-        revenue:
-          kwhTotal && c.rate
-            ? `${Math.round((kwhTotal * c.rate) / 10000).toLocaleString()}만원`
-            : '',
+        monthlyKwh: monthlyTotal
+          ? `${Math.round(monthlyTotal).toLocaleString()} kWh`
+          : '',
         perUnit: perUnitMonthly
           ? `${Math.round(perUnitMonthly).toLocaleString()} kWh`
           : '',

@@ -162,11 +162,17 @@ export interface ReportModel {
   perType: {
     id: string
     type: string
+    /** 대수 */
     count: string
+    /** 충전량(년) */
     kwh: string
-    revenue: string
+    /** (구) 매출 — 하위호환용, 더 이상 표시하지 않음 */
+    revenue?: string
+    /** 충전량(월) — 사업성 분석 종류별 월 사용량(kWh) */
+    monthlyKwh?: string
+    /** 대당 충전량(월) */
     perUnit: string
-    /** 월 이용률 (예: "9.15%") — 대당 월 충전량 옆 병기 */
+    /** 이용률(월) (예: "9.15%") */
     util?: string
   }[]
   /** Part1 월별 추이 표 */

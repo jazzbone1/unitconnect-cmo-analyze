@@ -971,10 +971,10 @@ export default function ReportView({
                 <tr>
                   {colHead('pt.type', '유형')}
                   {colHead('pt.count', '대수')}
-                  {colHead('pt.kwh', '충전량')}
-                  {colHead('pt.revenue', '매출')}
-                  {colHead('pt.perUnit', '대당 월 충전량')}
-                  {colHead('pt.util', '월 이용률')}
+                  {colHead('pt.kwh', '충전량(년)')}
+                  {colHead('pt.monthly', '충전량(월)')}
+                  {colHead('pt.perUnit', '대당 충전량(월)')}
+                  {colHead('pt.util', '이용률(월)')}
                 </tr>
               </thead>
               <tbody>
@@ -982,7 +982,7 @@ export default function ReportView({
                   <tr key={row.id}>
                     <td className="col-name">{row.type}</td>
                     {(
-                      ['count', 'kwh', 'revenue', 'perUnit', 'util'] as const
+                      ['count', 'kwh', 'monthlyKwh', 'perUnit', 'util'] as const
                     ).map((k) => (
                       <td key={k}>
                         <TextInput
