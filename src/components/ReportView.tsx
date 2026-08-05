@@ -1105,10 +1105,7 @@ export default function ReportView({
                           onChange={(v) => updList('opex', row.id, { yearCost: v })}
                           suffix="원"
                           width={110}
-                          linked={
-                            !row.name.includes('CS') &&
-                            !row.name.includes('안전관리')
-                          }
+                          linked
                         />
                       </td>
                       <td>{manwon(row.yearCost / 12)}</td>
