@@ -84,6 +84,12 @@ export interface ElecCostInput {
   /** 공용부 기본요금 배분 '고지서 역산' 계약전력(kW). 공용부 고지서 계약전력. */
   billContractKw?: number
   /**
+   * 기본단가가 주택용 누진 단계의 '세대당 기본료'(계약전력 무관)인지 여부.
+   * true면 고지서 역산(기본요금 ÷ 계약전력)을 적용하지 않고 baseUnitPrice(누진 단계
+   * 기본료)를 그대로 사용한다. (역산은 일반용 계약전력 기반에만 유효)
+   */
+  baseUnitTier?: boolean
+  /**
    * 고지서 실측 항목 모드. true면 (A)/(B)/기후/배수 조립식이 아니라
    * 기존 전기요금 고지서의 청구 항목(기본요금·전력량요금·기후·연료·역률·부가세·
    * 기금·절사)을 그대로 입력하고, 실효원가(Lv1) = 청구금액 ÷ 사용량으로 산출한다.
@@ -175,8 +181,18 @@ export interface ReportModel {
     /** 이용률(월) (예: "9.15%") */
     util?: string
   }[]
-  /** Part1 월별 추이 표 */
-  monthly: { id: string; month: string; kwh: string; revenue: string; note: string }[]
+  /** Part1 월별 추이 표. kwh=전체 충전량. types=충전기 종류별 충전량·이용률. */
+  monthly: {
+    id: string
+    month: string
+    /** 전체 충전량(kWh) */
+    kwh: string
+    /** (구) 매출 — 더 이상 표시하지 않음 */
+    revenue?: string
+    note?: string
+    /** 충전기 종류별 충전량·이용률 */
+    types?: { id: string; name: string; kwh: string; util: string }[]
+  }[]
   /** 그룹 A: 모자분리 충전기 (7kW 완속 + DC 급속) — (하위호환) */
   groupA: ElecCostInput
   /** 그룹 B: 모자분리 미적용 (3kW 완속, 공용부 부과) — (하위호환) */
@@ -256,8 +272,11 @@ export function computeElecCost(i: ElecCostInput): ElecCostResult {
   //  단, 공용부 기본요금 배분(apartmentBaseAlloc)이 켜지면 (B)를 계산한다.
   const noBase = i.separated === false && i.apartmentBaseAlloc !== true
   // 기본단가: 고지서 역산(기본요금 ÷ 계약전력)이 가능하면 우선, 없으면 표준/누진값.
+  //  단, 주택용 누진(세대당 기본료·계약전력 무관)은 역산을 적용하지 않는다.
   const canReverse =
-    (i.billBase ?? 0) > 0 && (i.billContractKw ?? 0) > 0
+    i.baseUnitTier !== true &&
+    (i.billBase ?? 0) > 0 &&
+    (i.billContractKw ?? 0) > 0
   const baseUnitUsed = canReverse
     ? (i.billBase as number) / (i.billContractKw as number)
     : i.baseUnitPrice

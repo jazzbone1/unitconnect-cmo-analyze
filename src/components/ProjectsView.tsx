@@ -133,12 +133,21 @@ function seedReport(
     })
   }
   if (months.length) {
+    const activeIds = new Set(active.map((c) => c.id))
     d.monthly = months.map((m) => ({
       id: m.id,
       month: m.periodLabel,
+      // 전체 충전량
       kwh: Math.round(m.usageTotal).toLocaleString(),
-      revenue: Math.round(m.amountCalc).toLocaleString(),
-      note: '',
+      // 충전기 종류별 충전량·이용률(제외 종류는 빼고 활성 종류만)
+      types: m.types
+        .filter((t) => activeIds.has(t.id))
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          kwh: `${Math.round(t.usage).toLocaleString()} kWh`,
+          util: `${t.utilization.toFixed(2)}%`,
+        })),
     }))
   }
 
@@ -228,13 +237,23 @@ function seedReport(
     if (!sep && tariff && aptBill) {
       const contractKw = c.kw * c.count * contractRatioEff
       g.contractKw = Math.round(contractKw)
-      g.baseUnitPrice = Math.round(baseUnitPerKw(aptBill).value)
+      const bu = baseUnitPerKw(aptBill)
+      g.baseUnitPrice = Math.round(bu.value)
       g.apartmentBaseAlloc = contractKw > 0
-      // 고지서 역산: 공용부 고지서에 기본요금·계약전력이 있으면(주로 일반용) 시드.
-      // 있으면 기본단가 = 기본요금 ÷ 계약전력으로 역산, 없으면 표준/누진 폴백.
-      if (aptBill.baseCharge > 0 && aptBill.contractKw > 0) {
+      // 주택용 누진은 '세대당 기본료'(계약전력 무관) → 고지서 역산 미적용.
+      g.baseUnitTier = bu.source === 'tier'
+      // 고지서 역산: 일반용(계약전력 기반)에서 공용부 고지서 기본요금·계약전력이
+      //  있으면 기본단가 = 기본요금 ÷ 계약전력으로 역산. 주택용은 시드하지 않음.
+      if (
+        bu.source !== 'tier' &&
+        aptBill.baseCharge > 0 &&
+        aptBill.contractKw > 0
+      ) {
         g.billBase = Math.round(aptBill.baseCharge)
         g.billContractKw = Math.round(aptBill.contractKw)
+      } else {
+        g.billBase = undefined
+        g.billContractKw = undefined
       }
     }
     // (A) 시간대·계절 가중 전력량요금(모자분리 미적용): 아파트 요금분석에서 선택한
@@ -393,10 +412,13 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
           baseUnitPrice: sg.baseUnitPrice,
           apartmentBaseAlloc:
             prev.apartmentBaseAlloc ?? sg.apartmentBaseAlloc,
-          // 고지서 역산값(공용부 기본요금·계약전력)은 사용자가 직접 입력한 경우
-          // 보존, 미입력이면 아파트요금분석 시드값 반영.
-          billBase: prev.billBase ?? sg.billBase,
-          billContractKw: prev.billContractKw ?? sg.billContractKw,
+          // 주택용 누진(baseUnitTier)이면 세대당 기본료 사용 → 고지서 역산값 제거.
+          //  일반용은 사용자 직접 입력 보존, 미입력이면 아파트요금분석 시드값 반영.
+          baseUnitTier: sg.baseUnitTier,
+          billBase: sg.baseUnitTier ? undefined : prev.billBase ?? sg.billBase,
+          billContractKw: sg.baseUnitTier
+            ? undefined
+            : prev.billContractKw ?? sg.billContractKw,
           // 대기전력 손실 단가: 아파트 요금제 단가로 자동 연동.
           standbyRate: sg.standbyRate,
         }

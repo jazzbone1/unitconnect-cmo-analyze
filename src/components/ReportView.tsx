@@ -268,6 +268,8 @@ export default function ReportView({
   const opexMonth = opexMonthlyTotal(model.opex)
 
   const groups = model.elecGroups ?? []
+  // 월별 추이 표의 종류별 열(등록 충전기 종류 기준)
+  const monthTypes = groups.map((g) => ({ id: g.id, name: g.name }))
   const groupKey = (id: string) => `elec:${id}`
   // 권고안 최소 인상안 = 해당 종류의 Lv2 손익분기(2-4 하한선과 동일 값) 자동 산출.
   //  라벨의 정격(kW)으로 전기원가 그룹을 매칭, 없으면 빈 문자열.
@@ -464,7 +466,14 @@ export default function ReportView({
                       fit
                       linked={linkA}
                     />
-                    {/* 고지서 역산: 있으면 기본단가 = 기본요금 ÷ 계약전력, 없으면 표준/누진 */}
+                    {g.baseUnitTier && (
+                      <div className="report-reverse no-print">
+                        주택용 누진: 기본단가 = 선택 누진 단계의 세대당 기본료(계약전력
+                        무관). 고지서 역산 미적용.
+                      </div>
+                    )}
+                    {/* 고지서 역산(일반용): 기본단가 = 기본요금 ÷ 계약전력 */}
+                    {!g.baseUnitTier && (
                     <div className="report-reverse no-print">
                       고지서 역산: 기본요금{' '}
                       <NumInput
@@ -489,6 +498,7 @@ export default function ReportView({
                         <span>→ 미입력 시 표준/누진 기본단가 사용</span>
                       )}
                     </div>
+                    )}
                     {!r.baseUnitReversed && g.baseUnitPrice <= 0 && (
                       <div
                         className="no-print"
@@ -945,29 +955,58 @@ export default function ReportView({
               <thead>
                 <tr>
                   <th>월</th>
-                  <th>충전량(kWh)</th>
-                  <th>매출(원)</th>
+                  <th>전체 충전량(kWh)</th>
+                  {monthTypes.map((t) => (
+                    <Fragment key={t.id}>
+                      <th>{t.name} 충전량</th>
+                      <th>{t.name} 이용률</th>
+                    </Fragment>
+                  ))}
                   <th>전월비</th>
                 </tr>
               </thead>
               <tbody>
                 {model.monthly.map((row, i) => (
                   <tr key={row.id}>
-                    {(['month', 'kwh', 'revenue'] as const).map((k) => (
-                      <td key={k} className={k === 'month' ? 'col-name' : ''}>
-                        <TextInput
-                          value={row[k]}
-                          onChange={(v) => updList('monthly', row.id, { [k]: v })}
-                          linked
-                        />
-                      </td>
-                    ))}
+                    <td className="col-name">
+                      <TextInput
+                        value={row.month}
+                        onChange={(v) =>
+                          updList('monthly', row.id, { month: v })
+                        }
+                        linked
+                      />
+                    </td>
+                    <td>
+                      <TextInput
+                        value={row.kwh}
+                        onChange={(v) => updList('monthly', row.id, { kwh: v })}
+                        linked
+                      />
+                    </td>
+                    {monthTypes.map((t) => {
+                      const rt = row.types?.find((x) => x.id === t.id)
+                      return (
+                        <Fragment key={t.id}>
+                          <td>
+                            <span className="report-auto-value">
+                              {rt?.kwh ?? '—'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="report-auto-value">
+                              {rt?.util ?? '—'}
+                            </span>
+                          </td>
+                        </Fragment>
+                      )
+                    })}
                     <td>
                       <span
                         className={`report-auto-value${
                           momDelta(i).startsWith('-') ? ' cell--down' : ''
                         }`}
-                        title="전월 대비 충전량 증감률(자동)"
+                        title="전월 대비 전체 충전량 증감률(자동)"
                       >
                         {momDelta(i)}
                       </span>
