@@ -18,6 +18,8 @@ interface FeasibilityAnalysisProps {
   inputs: FeasibilityInputs
   setInputs: (i: FeasibilityInputs) => void
   config: SettlementConfig
+  /** 종류 제외(체크박스) 토글용 — 설정(config)에 excluded 반영 */
+  setConfig?: (c: SettlementConfig) => void
   /** 모자분리 종류 월 대기전력량 (kWh) — 대기전력 탭 자동연동 */
   standbyMonthlyKwhSeparated?: number
   /** 전체 종류 월 대기전력량 (kWh) — 대기전력 탭 자동연동 */
@@ -123,6 +125,7 @@ export default function FeasibilityAnalysis({
   inputs,
   setInputs,
   config,
+  setConfig,
   standbyMonthlyKwhSeparated = 0,
   standbyMonthlyKwhAll = 0,
   autoElecCost,
@@ -130,6 +133,18 @@ export default function FeasibilityAnalysis({
 }: FeasibilityAnalysisProps) {
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
+  // 종류 제외 토글: 해당 kw 충전기의 excluded 플래그를 뒤집는다.
+  const toggleExcluded = (kw: number, excluded: boolean) => {
+    if (!setConfig) return
+    setConfig({
+      ...config,
+      chargers: config.chargers.map((c) =>
+        c.kw === kw ? { ...c, excluded } : c,
+      ),
+    })
+  }
+  const isExcluded = (kw: number) =>
+    config.chargers.find((c) => c.kw === kw)?.excluded === true
   // 연차별 실효원가 배열(부하율 고정 모델). override 사용 시 단일값 우선.
   const useYearModel =
     !!elecYearModel && elecYearModel.length > 0 && !inputs.elecCostOverride
@@ -167,9 +182,12 @@ export default function FeasibilityAnalysis({
     ? (inputs.bizFeeOverride as number)
     : standardBizFee
 
-  // 대수·요금은 단지 정보의 '충전기 종류별 수량·요금'과 자동 연동 (읽기 전용)
-  const countOf = (kw: number) =>
-    config.chargers.find((c) => c.kw === kw)?.count ?? 0
+  // 대수·요금은 단지 정보의 '충전기 종류별 수량·요금'과 자동 연동 (읽기 전용).
+  //  제외(excluded) 종류는 대수 0으로 취급하여 사업성 전체에서 빠진다.
+  const countOf = (kw: number) => {
+    const c = config.chargers.find((c) => c.kw === kw)
+    return c && !c.excluded ? c.count : 0
+  }
   const rateOf = (kw: number) =>
     config.chargers.find((c) => c.kw === kw)?.rate ?? 0
   const eff: FeasibilityInputs = {
@@ -483,6 +501,9 @@ export default function FeasibilityAnalysis({
             <table className="data-table charger-table">
               <thead>
                 <tr>
+                  <th title="체크 해제 시 사업성·전기원가 등 모든 분석에서 제외">
+                    포함
+                  </th>
                   <th>종류</th>
                   <th>대수(자동)</th>
                   <th>이용률(%)</th>
@@ -494,8 +515,30 @@ export default function FeasibilityAnalysis({
                 </tr>
               </thead>
               <tbody>
-                {chargerRows.map((row) => (
-                  <tr key={row.kw}>
+                {chargerRows.map((row) => {
+                  const cfgCount =
+                    config.chargers.find((c) => c.kw === row.kw)?.count ?? 0
+                  const excluded = isExcluded(row.kw)
+                  return (
+                  <tr
+                    key={row.kw}
+                    className={excluded ? 'row--excluded' : undefined}
+                  >
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={!excluded}
+                        disabled={cfgCount <= 0 || !setConfig}
+                        title={
+                          excluded
+                            ? '분석에서 제외됨 — 체크 시 포함'
+                            : '분석에 포함됨 — 해제 시 제외'
+                        }
+                        onChange={(e) =>
+                          toggleExcluded(row.kw, !e.target.checked)
+                        }
+                      />
+                    </td>
                     <td className="col-name">{row.label}</td>
                     <td>{countOf(row.kw).toLocaleString()}</td>
                     <td>
@@ -544,8 +587,10 @@ export default function FeasibilityAnalysis({
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
                 <tr>
+                  <td />
                   <td className="col-name">합계</td>
                   <td>{r.totalUnits.toLocaleString()}대</td>
                   <td colSpan={4} />

@@ -455,6 +455,17 @@ function ProjectDetail({
     hours: project.hours,
     chargers: project.chargers.map((c) => ({ ...c })),
   })
+  // 제외(excluded) 처리된 종류를 대수 0으로 취급한 '유효 설정'.
+  //  사업성·요금구조·전기원가·대기전력 등 모든 계산은 이 값을 기준으로 한다.
+  const effConfig = useMemo<SettlementConfig>(
+    () => ({
+      ...config,
+      chargers: config.chargers.map((c) =>
+        c.excluded ? { ...c, count: 0 } : c,
+      ),
+    }),
+    [config],
+  )
   const [files, setFiles] = useState<FileEntry[]>(
     project.files ?? project.settlementFiles ?? [],
   )
@@ -462,15 +473,15 @@ function ProjectDetail({
   const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
 
-  // 총 설비용량(kW)
+  // 총 설비용량(kW) — 제외 종류 반영(effConfig)
   const installedKw = useMemo(
-    () => config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
-    [config],
+    () => effConfig.chargers.reduce((a, c) => a + c.kw * c.count, 0),
+    [effConfig],
   )
   // 사업성 분석 월 사용량 합산치 = Σ(종류 이용률 × 정격 × 720 × 대수)
   const feasMonthlyKwh = useMemo(() => {
     const countOf = (kw: number) =>
-      config.chargers.find((c) => c.kw === kw)?.count ?? 0
+      effConfig.chargers.find((c) => c.kw === kw)?.count ?? 0
     const rows: [number, keyof FeasibilityInputs][] = [
       [100, 'utilFast100'],
       [50, 'utilFast50'],
@@ -483,7 +494,7 @@ function ProjectDetail({
         a + ((feas[key] as number) || 0) * kw * 720 * countOf(kw),
       0,
     )
-  }, [feas, config])
+  }, [feas, effConfig])
   // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
   const effMonthlyKwh =
     tariff.monthlyKwhOverride != null &&
@@ -503,7 +514,7 @@ function ProjectDetail({
   //  - 실효원가_N = 요금구조 재산정(계약전력_N, 월충전량_N)
   const elecYearModel = useMemo(() => {
     const countOf = (kw: number) =>
-      config.chargers.find((c) => c.kw === kw)?.count ?? 0
+      effConfig.chargers.find((c) => c.kw === kw)?.count ?? 0
     const effFeas: FeasibilityInputs = {
       ...feas,
       countFast100: countOf(100),
@@ -536,7 +547,7 @@ function ProjectDetail({
       }).selected.effCost
       return { monthlyKwh: mk, contractKw, effCost, loadFactor: loadFactorN }
     })
-  }, [feas, config, tariff, tariffEff, effMonthlyKwh])
+  }, [feas, effConfig, tariff, tariffEff, effMonthlyKwh])
 
   // 앞 단계(단지정보·충전기 요금·요금구조·정산) 변경 시 보고서의 자동 연동(음영)
   // 필드를 실시간 반영한다. 직접입력 필드는 보존.
@@ -547,14 +558,14 @@ function ProjectDetail({
           name: site.name,
           households: site.households,
         } as SavedSite,
-        config,
+        effConfig,
         files,
         tariff,
         standby,
         feas,
         aptBill,
       ),
-    [site.name, site.households, config, files, tariff, standby, feas, aptBill],
+    [site.name, site.households, effConfig, files, tariff, standby, feas, aptBill],
   )
   useEffect(() => {
     setReport((m) => mergeLinked(m, linkedSeed))
@@ -701,7 +712,7 @@ function ProjectDetail({
           autoSeed={() =>
             seedReport(
               { ...project, name: site.name, households: site.households },
-              config,
+              effConfig,
               files,
               tariff,
               standby,
@@ -718,7 +729,7 @@ function ProjectDetail({
         />
       ) : subtab === 'standby' ? (
         <StandbyAnalysis
-          chargers={config.chargers}
+          chargers={effConfig.chargers}
           inputs={standby}
           setInputs={setStandby}
           effCost={autoElecCost}
@@ -731,13 +742,14 @@ function ProjectDetail({
           inputs={feas}
           setInputs={setFeas}
           config={config}
+          setConfig={setConfig}
           standbyMonthlyKwhSeparated={computeStandby(
-            config.chargers.filter((c) => c.separated),
+            effConfig.chargers.filter((c) => c.separated),
             standby,
             0,
           ).totalKwh}
           standbyMonthlyKwhAll={
-            computeStandby(config.chargers, standby, 0).totalKwh
+            computeStandby(effConfig.chargers, standby, 0).totalKwh
           }
           autoElecCost={autoElecCost}
           elecYearModel={elecYearModel}

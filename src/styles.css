@@ -1062,6 +1062,15 @@ body {
   padding: 0.2rem 0.3rem;
 }
 /* 상세 산식/부연 한 줄 표기 (대기전력 상세·운영비 합계 산식 등) */
+/* 사업성 분석에서 제외된 충전기 종류 행 (흐리게) */
+tr.row--excluded td {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+tr.row--excluded td:first-child {
+  opacity: 1;
+  text-decoration: none;
+}
 .report-detail-line {
   display: inline-block;
   white-space: nowrap;
