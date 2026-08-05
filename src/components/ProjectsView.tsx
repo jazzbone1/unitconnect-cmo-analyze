@@ -298,12 +298,13 @@ function seedReport(
       .filter((c) => c.kw >= 50)
       .reduce((a, c) => a + c.count, 0)
     const visitFee = 300000 // 점검 1회당 기준 비용
-    // 정기점검 1회 = 기본 30만원 + 인건비(100대당 30만원). 연 2회.
-    const regularPerVisit = visitFee + (cnt / 100) * 300000
+    // 정기점검: 100대 단위(올림)로 점검 1세트(회당 30만원 × 연 2회) 필요.
+    //  100대→×1, 150대→×2, 200대→×2, 201~300대→×3 …
+    const inspectSets = Math.max(1, Math.ceil(cnt / 100))
     d.opex = [
-      { id: 'opex-regular', name: '정기점검', yearCost: Math.round(regularPerVisit * 2), note: '회당 30만원 × 연 2회 + 인건비(충전기 100대당 30만원/회)' },
+      { id: 'opex-regular', name: '정기점검', yearCost: visitFee * 2 * inspectSets, note: '회당 30만원 × 연 2회 × (충전기 100대당 1세트, 올림)' },
       { id: 'opex-urgent', name: '긴급점검', yearCost: visitFee * 4, note: '회당 30만원 × 연 4회' },
-      { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: cnt * 60000, note: '대당 60,000원/년 (관리인력 시간 배분·대수 비례)' },
+      { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: cnt * 60000, note: '' },
       { id: 'opex-insurance', name: '배상책임보험', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당·연)' },
       { id: 'opex-repair', name: '수선비·부품적립', yearCost: slow * 30000 + fast * 300000, note: '완속 30,000 / 급속 300,000원 (대당·연)' },
     ]
