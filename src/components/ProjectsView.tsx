@@ -28,6 +28,8 @@ import {
   defaultApartmentBill,
   baseUnitPerKw,
   aptEnergyRate,
+  evTouRate,
+  EV_TARIFF,
   type ApartmentBillInputs,
 } from '../lib/apartmentBill'
 import type { FileEntry } from '../types'
@@ -172,13 +174,6 @@ function seedReport(
   }
 
   // ── 등록 충전기 종류별 전기원가 분석 그룹 ──
-  const effCostSeed =
-    tariff != null
-      ? computeTariff({
-          ...tariff,
-          installedKw: config.chargers.reduce((a, c) => a + c.kw * c.count, 0),
-        }).selected.effCost
-      : null
   // 고지서 실측 입력(⑦)에 값이 있으면 실측 실효원가(VAT포함)를 우선 사용
   const billHasData = (b?: BillInputs | null): boolean =>
     !!b && b.usageKwh > 0 && (b.basic > 0 || b.energy > 0)
@@ -216,13 +211,16 @@ function seedReport(
       currentRate: c.rate,
       standbyKwh,
     })
-    // 모자분리 종류(전용 계량기) = 전기차 충전전력 요금 기본단가(저압 2,390/고압 2,580)
+    // 모자분리 종류(EV 전용 계량기): 전력량요금·기본요금을 '전기차 충전전력 자가소비용'
+    //  요금표 기준으로 반영. 기본요금 2,580원/kW, (A) 전력량요금은 자가소비용 TOU
+    //  단가를 '아파트 요금분석' TOU 비중으로 가중한 값.
     if (sep) {
-      g.baseUnitPrice = c.kw >= 50 ? 2580 : 2390
-      // 실효원가(Lv1): 고지서 실측 입력(⑦) 있으면 실측, 없으면 요금구조 추정
-      const src = billEffCost != null ? billEffCost : effCostSeed
-      if (src != null && Number.isFinite(src)) {
-        g.lv1Override = Math.round(src * 10) / 10
+      g.baseUnitPrice = EV_TARIFF.self.base
+      if (aptBill) g.powerRate = evTouRate(aptBill, 'self')
+      // 실효원가(Lv1): 고지서 실측 입력(⑦)이 있으면 그 값(측정) 우선,
+      //  없으면 자가소비용 (A)+(B) 조립식 계산값을 그대로 사용(override 없음).
+      if (billEffCost != null && Number.isFinite(billEffCost)) {
+        g.lv1Override = Math.round(billEffCost * 10) / 10
       }
     }
     // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력 × 기본단가(아파트요금)
@@ -239,9 +237,10 @@ function seedReport(
         g.billContractKw = Math.round(aptBill.contractKw)
       }
     }
-    // (A) 시간대·계절 가중 전력량요금: 아파트 요금분석에서 선택한 계약형태·누진구간의
-    // 전력량요금 단가(전력량요금 ÷ 사용량)를 연동. 고지서 실측 모드가 아닐 때 적용.
-    if (aptBill && !g.billMode) {
+    // (A) 시간대·계절 가중 전력량요금(모자분리 미적용): 아파트 요금분석에서 선택한
+    // 계약형태·누진구간의 전력량요금 단가를 연동. (모자분리 그룹은 위에서 EV 자가소비용
+    // TOU 단가를 이미 반영.)
+    if (!sep && aptBill && !g.billMode) {
       const er = aptEnergyRate(aptBill)
       if (er > 0) g.powerRate = Math.round(er * 10) / 10
     }
@@ -256,6 +255,27 @@ function seedReport(
 
   // 운영비 원/kWh 분모: 사업성 분석 종류별 월 사용량 합계를 자동 반영.
   if (totalGroupMonthly > 0) d.opexBaseKwh = totalGroupMonthly
+
+  // 운영비 자동 산출(대수 기준, 수정 가능). CS 운영은 별도 기입(수동).
+  //  정기점검 대당 13,000원×연2회 / 긴급점검 대당 13,000원×연4회
+  //  보험 완속 4,000·급속 10,000 / 수선비 완속 5,000·급속 25,000 (대당)
+  if (active.length) {
+    const cnt = active.reduce((a, c) => a + c.count, 0)
+    const slow = active
+      .filter((c) => c.kw <= 7)
+      .reduce((a, c) => a + c.count, 0)
+    const fast = active
+      .filter((c) => c.kw >= 50)
+      .reduce((a, c) => a + c.count, 0)
+    const csPrev = d.opex.find((r) => r.name.includes('CS'))
+    d.opex = [
+      { id: 'opex-regular', name: '정기점검', yearCost: cnt * 13000 * 2, note: '대당 13,000원 · 연 2회' },
+      { id: 'opex-urgent', name: '긴급점검', yearCost: cnt * 13000 * 4, note: '대당 13,000원 · 연 4회' },
+      { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: csPrev?.yearCost ?? 0, note: '별도 기입' },
+      { id: 'opex-insurance', name: '보험가입비용', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당)' },
+      { id: 'opex-repair', name: '수선비', yearCost: slow * 5000 + fast * 25000, note: '완속 5,000 / 급속 25,000원 (대당)' },
+    ]
+  }
 
   // 충전요금 인상 권고안: 현행 요금을 '충전기 종류별 수량·요금'의 요금으로 자동 반영.
   //  (현행 요금은 편집 가능하되 기본값은 config.rate를 따라간다.)
@@ -382,6 +402,15 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
         }
       // 모자분리 그룹: 실효원가(Lv1)를 고지서 실측/요금구조에서 자동 반영
       return { ...base, lv1Override: sg.lv1Override }
+    }),
+    // 운영비: 자동 산출 항목(정기·긴급점검·보험·수선)의 연비용만 대수 기준으로 연동.
+    //  CS 운영(수동·별도 기입)과 사용자 추가 항목·비고는 보존.
+    opex: (m.opex ?? []).map((r) => {
+      if (r.name.includes('CS')) return r
+      const sr =
+        (s.opex ?? []).find((x) => x.id === r.id) ??
+        (s.opex ?? []).find((x) => x.name === r.name)
+      return sr ? { ...r, yearCost: sr.yearCost } : r
     }),
     // 인상 권고안: 현행 요금(current)만 '충전기 종류별 요금'에서 자동 연동.
     //  행 id 또는 라벨의 정격(kW)으로 시드 행을 매칭. 나머지 열(최소 인상안·비고)은 보존.

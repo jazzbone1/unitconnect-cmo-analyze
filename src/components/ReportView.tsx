@@ -387,7 +387,9 @@ export default function ReportView({
                 </td>
                 <td className="cell--muted">
                   <span className="no-print">
-                    아파트 요금분석 계약형태·누진구간 전력량요금 단가 연동
+                    {sep
+                      ? '전기차 충전전력 자가소비용 TOU 단가 (아파트 요금분석 TOU 비중 반영)'
+                      : '아파트 요금분석 계약형태·누진구간 전력량요금 단가 연동'}
                   </span>
                 </td>
               </tr>
@@ -1043,6 +1045,7 @@ export default function ReportView({
                           onChange={(v) => updList('opex', row.id, { yearCost: v })}
                           suffix="원"
                           width={110}
+                          linked={!row.name.includes('CS')}
                         />
                       </td>
                       <td>{manwon(row.yearCost / 12)}</td>

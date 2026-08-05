@@ -413,3 +413,71 @@ export function aptEnergyRate(a: ApartmentBillInputs): number {
   )
   return effUnit(sel ?? tiers[tiers.length - 1], a.season)
 }
+
+/**
+ * 전기차 충전전력 요금표(원/kWh). 모자분리(EV 전용 계량기) 그룹 단가 기준.
+ *  - base: 기본요금(원/kW)
+ *  - 계절별 TOU(경/중/최대부하) 단가.
+ * 봄가을(spring) 값은 자료 미제공 시 여름·겨울 평균으로 근사(편집 대상).
+ */
+export const EV_TARIFF = {
+  self: {
+    // 자가소비용
+    base: 2580,
+    summer: { light: 79.2, mid: 137.4, peak: 190.4 },
+    spring: { light: 87.9, mid: 132.55, peak: 177.95 },
+    winter: { light: 96.6, mid: 127.7, peak: 165.5 },
+  },
+  business: {
+    // 사업자용 아파트형
+    base: 2580,
+    summer: { light: 78.2, mid: 113.0, peak: 198.6 },
+    spring: { light: 86.7, mid: 109.25, peak: 185.5 },
+    winter: { light: 95.2, mid: 105.5, peak: 172.4 },
+  },
+} as const
+
+export type EvTariffKind = keyof typeof EV_TARIFF
+
+/**
+ * 전기차 충전전력 TOU 가중 전력량요금 단가(원/kWh).
+ *  - 단가: EV_TARIFF[kind]의 계절별 경/중/최대부하 단가.
+ *  - TOU 비중(경/중/최대): 아파트 요금분석에서 설정된 TOU 구간 비율을 사용,
+ *    없으면(주택용 등) 표준 아파트 비율(경30·중40·최대30).
+ *  - 계절 가중: 봄가을·여름·겨울 월수(SEASON_MONTHS) 가중.
+ */
+export function evTouRate(
+  a: ApartmentBillInputs,
+  kind: EvTariffKind = 'self',
+): number {
+  // 아파트 요금분석 TOU 구간 비율 추출(구간명에 경/중/최대 포함)
+  const w = { light: 0, mid: 0, peak: 0 }
+  for (const t of a.tiers ?? []) {
+    const r = t.ratio ?? 0
+    if (r <= 0) continue
+    const tou = t.name.includes('최대')
+      ? 'peak'
+      : t.name.includes('중')
+        ? 'mid'
+        : t.name.includes('경')
+          ? 'light'
+          : null
+    if (tou) w[tou] += r
+  }
+  if (w.light + w.mid + w.peak <= 0) {
+    w.light = APT_TOU_RATIO.light
+    w.mid = APT_TOU_RATIO.mid
+    w.peak = APT_TOU_RATIO.peak
+  }
+  const rsum = w.light + w.mid + w.peak
+  const ev = EV_TARIFF[kind]
+  const { spring, summer, winter } = SEASON_MONTHS
+  const mTot = spring + summer + winter
+  const seasonRate = (s: { light: number; mid: number; peak: number }) =>
+    (s.light * w.light + s.mid * w.mid + s.peak * w.peak) / rsum
+  const acc =
+    seasonRate(ev.spring) * (spring / mTot) +
+    seasonRate(ev.summer) * (summer / mTot) +
+    seasonRate(ev.winter) * (winter / mTot)
+  return Math.round(acc * 10) / 10
+}
