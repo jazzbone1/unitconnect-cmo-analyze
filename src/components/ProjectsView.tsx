@@ -20,6 +20,7 @@ import {
   computeBill,
   defaultTariff,
   effectiveContractKw,
+  properContractKwByUsage,
   type TariffInputs,
   type BillInputs,
 } from '../lib/tariff'
@@ -573,10 +574,32 @@ function ProjectDetail({
     Number.isFinite(tariff.monthlyKwhOverride)
       ? (tariff.monthlyKwhOverride as number)
       : Math.round(feasMonthlyKwh)
+  // 충전기 제외가 있으면 요금 구조 계약전력을 '권장 적정 계약전력'(실사용량 기반)으로
+  //  자동 전환하여 실효원가에 반영한다(수용률을 적정계약전력/설비용량으로 대체).
+  const hasExclusion = config.chargers.some((c) => c.excluded && c.count > 0)
+  const properKw = properContractKwByUsage(
+    effMonthlyKwh,
+    tariff.targetLoadFactor ?? 0.18,
+    tariff.contractMargin ?? 0.15,
+  )
+  const contractRatioAuto =
+    hasExclusion && installedKw > 0 && properKw > 0
+      ? properKw / installedKw
+      : undefined
+  // 요금 구조 입력(제외 시 적정계약전력 반영). 탭·실효원가 공통 사용.
+  const tariffInputsEff = useMemo(
+    () => ({
+      ...tariff,
+      installedKw,
+      monthlyKwh: effMonthlyKwh,
+      ...(contractRatioAuto != null ? { contractRatio: contractRatioAuto } : {}),
+    }),
+    [tariff, installedKw, effMonthlyKwh, contractRatioAuto],
+  )
   // 요금 구조 결과(실효원가·계약전력)
   const tariffEff = useMemo(
-    () => computeTariff({ ...tariff, installedKw, monthlyKwh: effMonthlyKwh }),
-    [tariff, installedKw, effMonthlyKwh],
+    () => computeTariff(tariffInputsEff),
+    [tariffInputsEff],
   )
   const autoElecCost = tariffEff.selected.effCost
 
@@ -795,7 +818,7 @@ function ProjectDetail({
         />
       ) : subtab === 'tariff' ? (
         <TariffAnalysis
-          inputs={{ ...tariff, installedKw, monthlyKwh: effMonthlyKwh }}
+          inputs={tariffInputsEff}
           setInputs={setTariff}
           autoMonthlyKwh={Math.round(feasMonthlyKwh)}
         />
