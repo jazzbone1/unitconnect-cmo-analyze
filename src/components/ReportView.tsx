@@ -7,11 +7,8 @@ import {
   opexPerKwh,
   newOpexRow,
   newRecommendRow,
-  emptyGroupBill,
-  billEffCost,
   type ElecCostInput,
   type ElecGroup,
-  type GroupBill,
   type ReportModel,
 } from '../lib/report'
 import { Fragment } from 'react'
@@ -272,6 +269,20 @@ export default function ReportView({
 
   const groups = model.elecGroups ?? []
   const groupKey = (id: string) => `elec:${id}`
+  // 권고안 최소 인상안 = 해당 종류의 Lv2 손익분기(2-4 하한선과 동일 값) 자동 산출.
+  //  라벨의 정격(kW)으로 전기원가 그룹을 매칭, 없으면 빈 문자열.
+  const lv2ForLabel = (label: string): string => {
+    const m = label.match(/(\d+(?:\.\d+)?)\s*kW/i)
+    if (!m) return ''
+    const kw = Number(m[1])
+    const g = (model.elecGroups ?? []).find((x) => x.kw === kw)
+    if (!g) return ''
+    const lv2 = computeProfit(
+      { ...g, vatDeduct: model.vatDeduct },
+      opexPerKwh(model.opex, model.opexBaseKwh),
+    ).lv2
+    return lv2 > 0 ? `${Math.round(lv2).toLocaleString()}원/kWh 이상` : ''
+  }
   const groupTitle2 = (g: ElecGroup, i: number) =>
     (model.secTitle?.[groupKey(g.id)] ?? `${i + 1}. ${g.name} 전기원가`).replace(
       /^\s*\d+[-.]\d*\.?\s*/,
@@ -315,7 +326,7 @@ export default function ReportView({
 
   /* ---------- 실효 전기원가 산출 블록 ---------- */
   function ElecCostBlock({ group, sub }: { group: ElecGroup; sub: string }) {
-    const g = { ...group, vatDeduct: model.vatDeduct }
+    const g = { ...group, vatDeduct: model.vatDeduct, billMode: false }
     const upd = (patch: Partial<ElecCostInput>) => updElecGroup(group.id, patch)
     const r = computeElecCost(g)
     const p = computeProfit(g, opexRate)
@@ -323,33 +334,15 @@ export default function ReportView({
     const linkA = g.separated !== false
     // 모자분리 적용 여부: 미적용이면 계약전력 기반 기본요금(B) 없음
     const sep = g.separated !== false
-    // 고지서 실측 항목 모드
-    const billMode = g.billMode === true
-    const bill = g.bill ?? emptyGroupBill()
-    const updBill = (patch: Partial<GroupBill>) =>
-      upd({ bill: { ...bill, ...patch } })
-    const be = billEffCost(bill)
+    // '고지서 실측 항목' 기능은 제거됨 — 항상 조립식 산출 사용.
+    const billMode = false
     return (
       <div className="report-block">
         <p className="report-block__sub">{sub}</p>
         <label className="toggle report-moja no-print">
           <input
             type="checkbox"
-            checked={billMode}
-            onChange={(e) => upd({ billMode: e.target.checked })}
-          />
-          <span>
-            <b>고지서 실측 항목</b> — 기존 전기요금 고지서의 청구 항목(기본요금·
-            전력량요금·기후·연료·역률·부가세·기금·절사)을 그대로 입력하고{' '}
-            <b>실효원가 = 청구금액 ÷ 사용량</b>으로 산출 (아파트 기존 설치 충전기의
-            실제 전기요금)
-          </span>
-        </label>
-        <label className="toggle report-moja no-print">
-          <input
-            type="checkbox"
             checked={sep}
-            disabled={billMode}
             onChange={(e) => upd({ separated: e.target.checked })}
           />
           <span>
@@ -371,72 +364,6 @@ export default function ReportView({
           </label>
         )}
 
-        {billMode && (
-          <div className="table-scroll">
-            <table className="data-table report-table report-table--calc">
-              <thead>
-                <tr>
-                  <th>고지서 청구 항목</th>
-                  <th>금액 (원)</th>
-                  <th>비고</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(
-                  [
-                    ['basic', '기본요금', '계약전력 × 기본단가'],
-                    ['energy', '전력량요금', '시간대·계절별 사용량요금 합계'],
-                    ['climate', '기후환경요금', '고시 단가 × 사용량'],
-                    ['fuel', '연료비조정액', '분기 조정단가 × 사용량'],
-                    ['powerFactor', '역률요금', '감액이면 음수(−)로 입력'],
-                    ['vat', '부가가치세', '공급가액 × 10%'],
-                    ['fund', '전력산업기반기금', '요금계 × 3.7%'],
-                    ['round', '원단위절사', '절사분(음수)'],
-                  ] as [keyof GroupBill, string, string][]
-                ).map(([k, label, note]) => (
-                  <tr key={k}>
-                    <td className="col-name">{label}</td>
-                    <td>
-                      <NumInput
-                        value={bill[k]}
-                        onChange={(v) => updBill({ [k]: v })}
-                        suffix="원"
-                        width={110}
-                      />
-                    </td>
-                    <td className="cell--muted">{note}</td>
-                  </tr>
-                ))}
-                <tr className="row--sub">
-                  <td className="col-name">= 청구금액 합계</td>
-                  <td className="cell--strong">
-                    {Math.round(be.total).toLocaleString()}원
-                  </td>
-                  <td className="cell--muted">위 항목 합계</td>
-                </tr>
-                <tr>
-                  <td className="col-name">사용량</td>
-                  <td>
-                    <NumInput
-                      value={bill.usageKwh}
-                      onChange={(v) => updBill({ usageKwh: v })}
-                      suffix="kWh"
-                      width={110}
-                    />
-                  </td>
-                  <td className="cell--muted">고지서 청구 사용량(kWh)</td>
-                </tr>
-                <tr className="row--total">
-                  <td className="col-name">★ 실효 전기원가 (Lv1)</td>
-                  <td className="cell--strong">{won1(be.effPerKwh)}/kWh</td>
-                  <td className="cell--muted">청구금액 ÷ 사용량</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!billMode && (
         <div className="table-scroll">
           <table className="data-table report-table report-table--calc">
             <thead>
@@ -658,7 +585,6 @@ export default function ReportView({
             </tbody>
           </table>
         </div>
-        )}
 
         {/* 현행 월간 손익 (자동 반영) */}
         <h5 className="report-block__subtitle">
@@ -1224,18 +1150,41 @@ export default function ReportView({
                           }
                         />
                       </td>
-                      {(['current', 'proposed', 'note'] as const).map((k) => (
-                        <td key={k}>
+                      <td>
+                        <TextInput
+                          value={row.current}
+                          onChange={(v) =>
+                            updList('recommend', row.id, { current: v })
+                          }
+                          linked
+                        />
+                      </td>
+                      <td>
+                        {lv2ForLabel(row.label) ? (
+                          <span
+                            className="report-auto-value"
+                            title="Lv2 손익분기 자동 반영(요금 하한선 분석)"
+                          >
+                            {lv2ForLabel(row.label)}
+                          </span>
+                        ) : (
                           <TextInput
-                            value={row[k]}
+                            value={row.proposed ?? ''}
                             onChange={(v) =>
-                              updList('recommend', row.id, { [k]: v })
+                              updList('recommend', row.id, { proposed: v })
                             }
-                            wide={k === 'note'}
-                            linked={k === 'current'}
                           />
-                        </td>
-                      ))}
+                        )}
+                      </td>
+                      <td>
+                        <TextInput
+                          value={row.note}
+                          onChange={(v) =>
+                            updList('recommend', row.id, { note: v })
+                          }
+                          wide
+                        />
+                      </td>
                       <td>
                         <button
                           type="button"

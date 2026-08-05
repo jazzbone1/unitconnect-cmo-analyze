@@ -1071,6 +1071,16 @@ tr.row--excluded td:first-child {
   opacity: 1;
   text-decoration: none;
 }
+/* 자동 반영(연동) 값 표시 — 입력칸과 같은 음영, 편집 불가 */
+.report-auto-value {
+  display: inline-block;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
 .report-detail-line {
   display: inline-block;
   white-space: nowrap;
