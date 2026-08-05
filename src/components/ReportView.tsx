@@ -451,7 +451,9 @@ export default function ReportView({
                   />
                 </td>
                 <td className="cell--muted">
-                  아파트 요금분석 계약형태·누진구간 전력량요금 단가 연동
+                  <span className="no-print">
+                    아파트 요금분석 계약형태·누진구간 전력량요금 단가 연동
+                  </span>
                 </td>
               </tr>
               <tr>
@@ -540,7 +542,10 @@ export default function ReportView({
                       )}
                     </div>
                     {!r.baseUnitReversed && g.baseUnitPrice <= 0 && (
-                      <div style={{ color: 'var(--warn, #b45309)' }}>
+                      <div
+                        className="no-print"
+                        style={{ color: 'var(--warn, #b45309)' }}
+                      >
                         기본단가 0 — 아파트 요금분석에서 계약종별·누진 단계(주택용)
                         또는 계약전력(일반용)을 설정하거나, 위 고지서 역산에
                         기본요금·계약전력을 입력하세요.
@@ -607,33 +612,35 @@ export default function ReportView({
                   />
                 </td>
                 <td className="cell--muted">
-                  {sep && g.lv1Override != null ? (
-                    <>
-                      {billMeasured
-                        ? '요금분석 고지서 실측 실효원가 자동 반영'
-                        : '요금구조 추정 실효원가 자동 반영'}{' '}
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => upd({ lv1Override: null })}
-                      >
-                        자동계산으로
-                      </button>
-                    </>
-                  ) : r.overridden ? (
-                    <>
-                      직접입력 (계산값 {r.computedLv1.toFixed(1)}원){' '}
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => upd({ lv1Override: null })}
-                      >
-                        자동계산으로
-                      </button>
-                    </>
-                  ) : (
-                    '비우면 자동 계산값 사용'
-                  )}
+                  <span className="no-print">
+                    {sep && g.lv1Override != null ? (
+                      <>
+                        {billMeasured
+                          ? '요금분석 고지서 실측 실효원가 자동 반영'
+                          : '요금구조 추정 실효원가 자동 반영'}{' '}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => upd({ lv1Override: null })}
+                        >
+                          자동계산으로
+                        </button>
+                      </>
+                    ) : r.overridden ? (
+                      <>
+                        직접입력 (계산값 {r.computedLv1.toFixed(1)}원){' '}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => upd({ lv1Override: null })}
+                        >
+                          자동계산으로
+                        </button>
+                      </>
+                    ) : (
+                      '비우면 자동 계산값 사용'
+                    )}
+                  </span>
                 </td>
               </tr>
             </tbody>

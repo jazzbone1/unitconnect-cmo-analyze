@@ -1559,6 +1559,40 @@ body {
   .report-root input {
     max-width: 100% !important;
   }
+  /* 제출용 PDF: 3열 계산표 열폭 재조정 — 비고(3열)를 넓혀 산식이 줄바꿈으로
+     흩어지지 않게 하고, 항목/금액은 좁게. */
+  .report-root .report-table--calc th:nth-child(1),
+  .report-root .report-table--calc td:nth-child(1) {
+    width: 33% !important;
+  }
+  .report-root .report-table--calc th:nth-child(2),
+  .report-root .report-table--calc td:nth-child(2) {
+    width: 16% !important;
+  }
+  .report-root .report-table--calc th:nth-child(3),
+  .report-root .report-table--calc td:nth-child(3) {
+    width: 51% !important;
+    font-size: 9px;
+    line-height: 1.5;
+  }
+  /* 비고 칸의 산식(입력 위젯 포함)은 인라인으로 이어붙여 표기 */
+  .report-root .report-table--calc td:nth-child(3) .num-input {
+    display: inline !important;
+    white-space: normal;
+  }
+  .report-root .report-table--calc td:nth-child(3) .num-suffix {
+    white-space: nowrap;
+  }
+  /* 비고·항목 칸의 인라인 산식 입력값은 좁고 왼쪽정렬로 붙여 표기(공백 벌어짐 방지).
+     금액 열(2열)은 우측정렬 유지하므로 제외. */
+  .report-root .report-table--calc td:nth-child(3) .cell-input,
+  .report-root .report-table--calc td.col-name .cell-input {
+    width: 5ch !important;
+    min-width: 0 !important;
+    text-align: left !important;
+    padding: 0 1px !important;
+    display: inline !important;
+  }
   /* 표지: PDF 첫 페이지 한 장을 꽉 채워 중앙 정렬, 이후는 다음 페이지 */
   .report-root .report-cover-card {
     min-height: 248mm;
