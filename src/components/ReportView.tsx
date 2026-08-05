@@ -52,6 +52,7 @@ function NumInput({
   onChange,
   suffix,
   width = 90,
+  fit,
   linked,
   nullable,
   onNull,
@@ -61,6 +62,8 @@ function NumInput({
   onChange: (v: number) => void
   suffix?: string
   width?: number
+  /** 값 길이에 맞춰 입력칸 폭을 콘텐츠에 밀착(숫자 간격 벌어짐·정렬 어긋남 방지) */
+  fit?: boolean
   /** 앞 단계 자동 연동 값이면 음영 표시 */
   linked?: boolean
   /** 빈 값 허용(빈 값 시 onNull 호출) */
@@ -74,13 +77,17 @@ function NumInput({
   const rawText = Number.isFinite(value) && value !== 0 ? String(value) : ''
   const shownText =
     Number.isFinite(value) && value !== 0 ? numFmt(value) : ''
+  // fit 모드: 표시 문자열 길이에 맞춰 size로 폭을 콘텐츠에 밀착(HTML size 속성).
+  const shownLen = (focused ? text : shownText || placeholder || '').length
+  const fitSize = Math.max(2, shownLen + (focused ? 1 : 0))
   return (
-    <span className="num-input">
+    <span className={`num-input${fit ? ' num-input--fit' : ''}`}>
       <input
         className={`cell-input${linked ? ' cell-input--linked' : ''}`}
         type="text"
         inputMode="decimal"
-        style={{ width }}
+        style={fit ? undefined : { width }}
+        size={fit ? fitSize : undefined}
         title={linked ? '앞 단계 자동 연동 값' : undefined}
         placeholder={placeholder}
         value={focused ? text : shownText}
@@ -447,6 +454,7 @@ export default function ReportView({
                     value={g.powerRate}
                     onChange={(v) => upd({ powerRate: v })}
                     suffix="원/kWh"
+                    fit
                     linked
                   />
                 </td>
@@ -469,20 +477,20 @@ export default function ReportView({
                       value={g.contractKw}
                       onChange={(v) => upd({ contractKw: v })}
                       suffix="kW ×"
-                      width={70}
+                      fit
                       linked={linkA}
                     />{' '}
                     <NumInput
                       value={g.baseUnitPrice}
                       onChange={(v) => upd({ baseUnitPrice: v })}
                       suffix="원 ÷"
-                      width={70}
+                      fit
                     />{' '}
                     <NumInput
                       value={g.monthlyKwh}
                       onChange={(v) => upd({ monthlyKwh: v })}
                       suffix="kWh"
-                      width={80}
+                      fit
                       linked={linkA}
                     />
                   </td>
@@ -493,7 +501,7 @@ export default function ReportView({
                       value={g.contractKw}
                       onChange={(v) => upd({ contractKw: v })}
                       suffix="kW ×"
-                      width={64}
+                      fit
                       linked
                     />{' '}
                     기본단가{' '}
@@ -504,7 +512,7 @@ export default function ReportView({
                         value={g.baseUnitPrice}
                         onChange={(v) => upd({ baseUnitPrice: v })}
                         suffix="원"
-                        width={64}
+                        fit
                         linked
                       />
                     )}{' '}
@@ -513,7 +521,7 @@ export default function ReportView({
                       value={g.monthlyKwh}
                       onChange={(v) => upd({ monthlyKwh: v })}
                       suffix="kWh"
-                      width={80}
+                      fit
                       linked={linkA}
                     />
                     {/* 고지서 역산: 있으면 기본단가 = 기본요금 ÷ 계약전력, 없으면 표준/누진 */}
@@ -578,6 +586,7 @@ export default function ReportView({
                     value={g.climateFee}
                     onChange={(v) => upd({ climateFee: v })}
                     suffix="원"
+                    fit
                   />
                 </td>
                 <td className="cell--muted">고시값</td>
@@ -585,12 +594,14 @@ export default function ReportView({
               <tr>
                 <td className="col-name">× 부가세·기금</td>
                 <td>
-                  ×
-                  <NumInput
-                    value={g.taxMultiplier}
-                    onChange={(v) => upd({ taxMultiplier: v })}
-                    width={70}
-                  />
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    ×{' '}
+                    <NumInput
+                      value={g.taxMultiplier}
+                      onChange={(v) => upd({ taxMultiplier: v })}
+                      fit
+                    />
+                  </span>
                 </td>
                 <td className="cell--muted">
                   {model.vatDeduct
@@ -605,6 +616,7 @@ export default function ReportView({
                     value={g.lv1Override ?? 0}
                     onChange={(v) => upd({ lv1Override: v })}
                     suffix="원/kWh"
+                    fit
                     linked={linkA}
                     nullable
                     onNull={() => upd({ lv1Override: null })}
@@ -676,6 +688,7 @@ export default function ReportView({
                     value={g.currentRate}
                     onChange={(v) => upd({ currentRate: v })}
                     suffix="원"
+                    fit
                     linked
                   />
                 </td>
@@ -700,33 +713,37 @@ export default function ReportView({
                 <td>{manwon(p.opexMonth)}</td>
               </tr>
               {!sep && (
-                <tr>
-                  <td className="col-name">
-                    − 대기전력 (공용전기세 부과 손실분)
-                    <span className="cell--muted" style={{ fontWeight: 400 }}>
-                      {' '}· 월{' '}
-                    </span>
-                    <NumInput
-                      value={g.standbyKwh ?? 0}
-                      onChange={(v) => upd({ standbyKwh: v })}
-                      suffix="kWh"
-                      width={80}
-                      linked
-                    />
-                    <span className="cell--muted" style={{ fontWeight: 400 }}>
-                      {' '}× 아파트 요금제{' '}
-                    </span>
-                    <NumInput
-                      value={g.standbyRate ?? 0}
-                      onChange={(v) => upd({ standbyRate: v })}
-                      suffix="원/kWh"
-                      width={80}
-                      linked
-                    />
-                  </td>
-                  <td>{won1(p.standbyPerKwh)}</td>
-                  <td>{manwon(p.standbyLossMonth)}</td>
-                </tr>
+                <>
+                  <tr>
+                    <td className="col-name">
+                      − 대기전력 (공용전기세 부과 손실분)
+                    </td>
+                    <td>{won1(p.standbyPerKwh)}</td>
+                    <td>{manwon(p.standbyLossMonth)}</td>
+                  </tr>
+                  <tr className="row--detail">
+                    <td className="col-name" colSpan={3}>
+                      <span className="report-detail-line">
+                        월{' '}
+                        <NumInput
+                          value={g.standbyKwh ?? 0}
+                          onChange={(v) => upd({ standbyKwh: v })}
+                          suffix="kWh"
+                          fit
+                          linked
+                        />{' '}
+                        × 아파트 요금제{' '}
+                        <NumInput
+                          value={g.standbyRate ?? 0}
+                          onChange={(v) => upd({ standbyRate: v })}
+                          suffix="원/kWh"
+                          fit
+                          linked
+                        />
+                      </span>
+                    </td>
+                  </tr>
+                </>
               )}
               <tr className="row--total">
                 <td className="col-name">= 월 순손익</td>
@@ -1131,17 +1148,19 @@ export default function ReportView({
                     <td>{manwon(opexMonth * 12)}</td>
                     <td>{manwon(opexMonth)}</td>
                     <td className="cell--muted">
-                      ÷{' '}
-                      <NumInput
-                        value={model.opexBaseKwh}
-                        onChange={(v) =>
-                          setModel((m) => ({ ...m, opexBaseKwh: v }))
-                        }
-                        suffix="kWh"
-                        width={90}
-                        linked
-                      />{' '}
-                      = <b>{won1(opexRate)}/kWh</b>
+                      <span className="report-detail-line">
+                        ÷{' '}
+                        <NumInput
+                          value={model.opexBaseKwh}
+                          onChange={(v) =>
+                            setModel((m) => ({ ...m, opexBaseKwh: v }))
+                          }
+                          suffix="kWh"
+                          fit
+                          linked
+                        />{' '}
+                        = <b>{won1(opexRate)}/kWh</b>
+                      </span>
                     </td>
                     <td></td>
                   </tr>

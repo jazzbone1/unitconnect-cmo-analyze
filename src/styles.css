@@ -1052,6 +1052,31 @@ body {
   gap: 0.25rem;
   white-space: nowrap;
 }
+/* 콘텐츠 밀착 모드: 입력칸이 값 길이에 맞춰 좁아져 숫자·단위가 붙어 정렬된다. */
+.num-input--fit {
+  gap: 0.15rem;
+}
+.num-input--fit .cell-input {
+  width: auto !important;
+  text-align: right;
+  padding: 0.2rem 0.3rem;
+}
+/* 상세 산식/부연 한 줄 표기 (대기전력 상세·운영비 합계 산식 등) */
+.report-detail-line {
+  display: inline-block;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.9em;
+}
+tr.row--detail td {
+  padding-top: 0 !important;
+  border-top: none;
+}
+tr.row--detail .col-name {
+  padding-left: 1.6rem;
+  font-weight: 400;
+}
 .num-suffix {
   color: var(--text-muted);
   font-size: 0.8em;
@@ -1583,13 +1608,9 @@ body {
   .report-root .report-table--calc td:nth-child(3) .num-suffix {
     white-space: nowrap;
   }
-  /* 비고·항목 칸의 인라인 산식 입력값은 좁고 왼쪽정렬로 붙여 표기(공백 벌어짐 방지).
-     금액 열(2열)은 우측정렬 유지하므로 제외. */
-  .report-root .report-table--calc td:nth-child(3) .cell-input,
-  .report-root .report-table--calc td.col-name .cell-input {
-    width: 5ch !important;
+  /* 비고 칸 산식은 인라인으로 이어붙여 표기(폭은 fit 인라인 스타일이 콘텐츠에 밀착). */
+  .report-root .report-table--calc td:nth-child(3) .cell-input {
     min-width: 0 !important;
-    text-align: left !important;
     padding: 0 1px !important;
     display: inline !important;
   }
