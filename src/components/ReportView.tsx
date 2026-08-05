@@ -371,8 +371,8 @@ export default function ReportView({
               onChange={(e) => upd({ apartmentBaseAlloc: e.target.checked })}
             />
             <span>
-              공용부 기본요금 배분 — (B)를 <b>적정계약전력(요금구조①) × 기본단가
-              (아파트 요금분석) ÷ 월사용량</b>으로 자동 계산
+              공용부 기본요금 배분 — (B)를 <b>적정계약전력(이 종류 실사용량 기반) ×
+              기본단가(아파트 요금분석) ÷ 월사용량</b>으로 자동 계산
             </span>
           </label>
         )}

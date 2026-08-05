@@ -19,7 +19,6 @@ import {
   computeTariff,
   computeBill,
   defaultTariff,
-  effectiveContractKw,
   properContractKwByUsage,
   type TariffInputs,
   type BillInputs,
@@ -197,11 +196,6 @@ function seedReport(
     tariff && billHasData(tariff.bill)
       ? computeBill(tariff.bill as BillInputs).effInclVat
       : null
-  // 공용부 적정계약전력을 충전기 비중(설비용량=정격×대수)에 맞춰 분배하기 위한 수용률.
-  //  각 종류 적정계약전력 = (정격×대수) × 수용률.  Σ(종류) = 요금구조 현재 계약전력.
-  const totalCapKw = active.reduce((a, c) => a + c.kw * c.count, 0)
-  const contractRatioEff =
-    tariff && totalCapKw > 0 ? effectiveContractKw(tariff) / totalCapKw : 0
   // 운영비 원/kWh 분모(전체 월 충전량) — 종류별 월 사용량 합계로 자동 산출.
   let totalGroupMonthly = 0
   d.elecGroups = active.map((c) => {
@@ -240,9 +234,14 @@ function seedReport(
       }
     }
     // 모자분리 미적용: 공용부 기본요금 배분 = 적정계약전력 × 기본단가(아파트요금)
-    //  적정계약전력 = 요금 구조 현재 계약전력을 충전기 비중(정격×대수)으로 분배한 값.
+    //  적정계약전력 = 그 종류의 실사용량 기반 = 월사용량 ÷ (목표부하율×720) × (1+마진).
+    //  종류별 독립 산정이라 모자분리 충전기와 섞이지 않는다(공용부 계약과 EV 전용 계약 분리).
     if (!sep && tariff && aptBill) {
-      const contractKw = c.kw * c.count * contractRatioEff
+      const contractKw = properContractKwByUsage(
+        groupMonthly,
+        tariff.targetLoadFactor ?? 0.18,
+        tariff.contractMargin ?? 0.15,
+      )
       g.contractKw = Math.round(contractKw)
       const bu = baseUnitPerKw(aptBill)
       g.baseUnitPrice = Math.round(bu.value)
