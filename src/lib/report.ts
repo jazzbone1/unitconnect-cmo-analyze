@@ -92,6 +92,12 @@ export interface ElecCostInput {
   billMode?: boolean
   /** 고지서 실측 청구내역 (billMode=true일 때 사용) */
   bill?: GroupBill
+  /**
+   * 부가세 공제(위탁운영·사업자) 기준. true면 실효원가에서 부가세(10%)를 제외하고
+   * (계산식 배수 −0.10 / 고지서 부가세 차감), 매출(현행요금)도 부가세 제외(÷1.10)로
+   * 평가한다. 모자분리 실효원가(요금구조 seed)는 이미 부가세 제외이므로 그대로 둔다.
+   */
+  vatDeduct?: boolean
 }
 
 /** 등록 충전기 종류별 전기원가 분석 그룹 */
@@ -145,6 +151,11 @@ export interface ReportModel {
   visible?: Record<string, boolean>
   /** 섹션 제목 사용자 편집값(키→제목). 미설정 시 기본 제목 사용 */
   secTitle?: Record<string, string>
+  /**
+   * 부가세 공제(위탁운영·사업자) 기준으로 손익 보기. 기본 false(부가세 포함, 현행).
+   * true면 전기원가·매출을 부가세 제외 기준으로 환산해 위탁운영 실질 마진을 표시.
+   */
+  vatDeduct?: boolean
   /** Part1 개요 표 (자유 행) */
   overview: { id: string; label: string; value: string; note: string }[]
   /** Part1 유형별 실적 표 */
@@ -218,12 +229,13 @@ export function computeElecCost(i: ElecCostInput): ElecCostResult {
   // 고지서 실측 항목 모드: 청구금액 ÷ 사용량 = 실효원가(Lv1).
   //  조립식 (A)/(B)/기후/배수를 쓰지 않고 실제 고지 항목을 그대로 합산한다.
   if (i.billMode && i.bill) {
-    const { total, effPerKwh } = billEffCost(i.bill)
+    const { total } = billEffCost(i.bill)
+    // 부가세 공제 시 고지서 부가세 항목을 청구금액에서 차감
+    const total2 = i.vatDeduct ? total - (i.bill.vat || 0) : total
+    const effPerKwh = i.bill.usageKwh > 0 ? total2 / i.bill.usageKwh : 0
     const overridden = i.lv1Override != null && Number.isFinite(i.lv1Override)
     // 기본요금(원)을 월사용량으로 나눈 (B) 환산값(참고 표시용)
     const baseCharge = i.bill.usageKwh > 0 ? i.bill.basic / i.bill.usageKwh : 0
-    const subtotal = i.bill.usageKwh > 0 ? total / i.bill.usageKwh : 0
-    void subtotal
     return {
       baseCharge,
       subtotal: effPerKwh,
@@ -249,7 +261,11 @@ export function computeElecCost(i: ElecCostInput): ElecCostResult {
       ? (i.contractKw * baseUnitUsed) / i.monthlyKwh
       : 0
   const subtotal = i.powerRate + baseCharge
-  const computedLv1 = (subtotal + i.climateFee) * i.taxMultiplier
+  // 부가세 공제 시 배수에서 부가세(10%p) 제외 → 기금만 반영
+  const effMult = i.vatDeduct
+    ? Math.max(1, i.taxMultiplier - 0.1)
+    : i.taxMultiplier
+  const computedLv1 = (subtotal + i.climateFee) * effMult
   const overridden =
     i.lv1Override != null && Number.isFinite(i.lv1Override)
   const lv1 = overridden ? (i.lv1Override as number) : computedLv1
@@ -303,7 +319,10 @@ export function computeProfit(
 ): ProfitResult {
   const { lv1 } = computeElecCost(input)
   const q = input.monthlyKwh
-  const revenuePerKwh = input.currentRate
+  // 부가세 공제(위탁운영·사업자): 매출(충전요금)도 부가세 제외로 환산(÷1.10)
+  const revenuePerKwh = input.vatDeduct
+    ? input.currentRate / 1.1
+    : input.currentRate
   const marginPerKwh = revenuePerKwh - lv1
   // 모자분리 미적용: 충전기 대기전력이 공용부 전기로 소비 → 공용전기세 부과 손실.
   //  손실 단가는 아파트 요금제 단가(standbyRate)로 평가, 없으면 그룹 실효원가(lv1).

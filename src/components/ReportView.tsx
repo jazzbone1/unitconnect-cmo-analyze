@@ -308,8 +308,8 @@ export default function ReportView({
 
   /* ---------- 실효 전기원가 산출 블록 ---------- */
   function ElecCostBlock({ group, sub }: { group: ElecGroup; sub: string }) {
-    const g = group
-    const upd = (patch: Partial<ElecCostInput>) => updElecGroup(g.id, patch)
+    const g = { ...group, vatDeduct: model.vatDeduct }
+    const upd = (patch: Partial<ElecCostInput>) => updElecGroup(group.id, patch)
     const r = computeElecCost(g)
     const p = computeProfit(g, opexRate)
     // 모자분리 종류는 요금구조 탭에서 계약전력·월사용량·실효원가 연동
@@ -587,7 +587,11 @@ export default function ReportView({
                     width={70}
                   />
                 </td>
-                <td className="cell--muted">부가세 10% + 기금 2.7% = 1.127</td>
+                <td className="cell--muted">
+                  {model.vatDeduct
+                    ? `부가세 공제 → 적용 배수 ${(g.taxMultiplier - 0.1).toFixed(3)} (기금만)`
+                    : '부가세 10% + 기금 2.7% = 1.127'}
+                </td>
               </tr>
               <tr className="row--total">
                 <td className="col-name">★ 실효 전기원가 (Lv1)</td>
@@ -652,7 +656,14 @@ export default function ReportView({
             </thead>
             <tbody>
               <tr>
-                <td className="col-name">매출 (현행 부과요금)</td>
+                <td className="col-name">
+                  매출 (현행 부과요금)
+                  {model.vatDeduct && (
+                    <span className="cell--muted" style={{ fontWeight: 400 }}>
+                      {' '}· 부가세 제외 {won1(p.revenuePerKwh)}
+                    </span>
+                  )}
+                </td>
                 <td>
                   <NumInput
                     value={g.currentRate}
@@ -728,7 +739,7 @@ export default function ReportView({
 
   /* ---------- 요금 하한선 분석 ---------- */
   function LowerBound({ group, title }: { group: ElecGroup; title: string }) {
-    const g = group
+    const g = { ...group, vatDeduct: model.vatDeduct }
     const p = computeProfit(g, opexRate)
     return (
       <div className="report-block">
@@ -1004,6 +1015,27 @@ export default function ReportView({
           secOn('2-rec')) && (
         <section className="card">
           <h2>Part 2. 문제점 — 전기요금 구조 및 운영비</h2>
+
+          <label className="toggle report-moja no-print">
+            <input
+              type="checkbox"
+              checked={model.vatDeduct === true}
+              onChange={(e) =>
+                setModel((m) => ({ ...m, vatDeduct: e.target.checked }))
+              }
+            />
+            <span>
+              <b>위탁운영(부가세 공제) 기준으로 보기</b> — 사업자는 매입 부가세를
+              공제받으므로 <b>전기원가·매출을 부가세 제외 기준</b>으로 환산해 실질
+              마진을 표시합니다. 미체크 시 현행(부가세 포함) 기준.
+            </span>
+          </label>
+          {model.vatDeduct && (
+            <p className="report-vat-note">
+              부가세 공제 기준 적용 중: 실효원가 배수 −0.10(기금만), 매출 ÷1.10.
+              (요금구조 seed 실효원가는 이미 부가세 제외)
+            </p>
+          )}
 
           {/* 등록 충전기 종류별 전기원가 분석 */}
           {groups.map((g, i) => (

@@ -943,6 +943,14 @@ body {
   font-weight: 600;
   color: var(--text);
 }
+.report-vat-note {
+  margin: 0.4rem 0 0.8rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
 .report-reverse {
   margin-top: 0.4rem;
   padding: 0.35rem 0.5rem;
