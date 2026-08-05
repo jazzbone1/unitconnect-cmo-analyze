@@ -857,6 +857,7 @@ export default function ReportView({
 
           {SecHead({ k: '1-1', label: '1-1. 단지 개요' })}
           {secOn('1-1') && (
+          <>
           <div className="table-scroll">
             <table className="data-table report-table">
               <thead>
@@ -864,12 +865,18 @@ export default function ReportView({
                   <th>항목</th>
                   <th>수치</th>
                   <th>비고</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {model.overview.map((row) => (
                   <tr key={row.id}>
-                    <td className="col-name">{row.label}</td>
+                    <td className="col-name">
+                      <TextInput
+                        value={row.label}
+                        onChange={(v) => updList('overview', row.id, { label: v })}
+                      />
+                    </td>
                     <td>
                       <TextInput
                         value={row.value}
@@ -884,11 +891,41 @@ export default function ReportView({
                         wide
                       />
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link-button link-button--danger no-print"
+                        onClick={() =>
+                          setModel((m) => ({
+                            ...m,
+                            overview: m.overview.filter((r) => r.id !== row.id),
+                          }))
+                        }
+                      >
+                        삭제
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <button
+            type="button"
+            className="link-button no-print"
+            onClick={() =>
+              setModel((m) => ({
+                ...m,
+                overview: [
+                  ...m.overview,
+                  { id: `ov${Date.now().toString(36)}`, label: '', value: '', note: '' },
+                ],
+              }))
+            }
+          >
+            + 항목 추가
+          </button>
+          </>
           )}
 
           {SecHead({ k: '1-2', label: '1-2. 충전기 유형별 실적' })}
