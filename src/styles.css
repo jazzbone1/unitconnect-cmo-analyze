@@ -272,7 +272,23 @@ body {
   align-items: stretch;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1.25rem;
+  /* 스크롤해도 상단 고정: 카드 좌우 패딩만큼 확장해 한 줄 띠처럼 붙는다. */
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--surface);
+  margin: 0 -1.25rem 1.25rem;
+  padding: 0.6rem 1.25rem;
+  box-shadow: 0 3px 8px -5px rgba(10, 10, 10, 0.35);
+}
+/* 인쇄 시에는 고정 해제(문서 흐름대로). */
+@media print {
+  .verdict-row {
+    position: static;
+    box-shadow: none;
+    margin: 0 0 1.25rem;
+    padding: 0;
+  }
 }
 .verdict-badge {
   display: flex;
