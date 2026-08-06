@@ -804,9 +804,15 @@ export default function ReportView({
                 <td className="cell--muted">이 이하 = 전기요금 적자</td>
               </tr>
               <tr>
-                <td className="col-name">Lv2 손익분기 (전기+운영+수선)</td>
+                <td className="col-name">
+                  Lv2 손익분기 (전기+운영+수선
+                  {p.standbyPerKwh > 0 ? '+대기전력' : ''})
+                </td>
                 <td className="cell--strong">{won1(p.lv2)}</td>
-                <td className="cell--muted">이 이하 = 운영비·수선비 포함 적자</td>
+                <td className="cell--muted">
+                  이 이하 = 운영비·수선비
+                  {p.standbyPerKwh > 0 ? '·대기전력' : ''} 포함 적자
+                </td>
               </tr>
               <tr>
                 <td className="col-name">현행 평균 부과 요금</td>

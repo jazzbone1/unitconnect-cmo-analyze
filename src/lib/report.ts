@@ -406,7 +406,7 @@ export interface ProfitResult {
   marginMonth: number
   opexMonth: number
   netMonth: number
-  /** Lv2 손익분기 (전기+운영) */
+  /** Lv2 손익분기 (전기+운영+대기전력 손실) */
   lv2: number
   /** 월 대기전력량 (kWh) — 모자분리 미적용 시 공용부 부과 손실분 */
   standbyKwh: number
@@ -449,7 +449,9 @@ export function computeProfit(
     marginMonth: marginPerKwh * q,
     opexMonth: opexRate * q,
     netMonth: netPerKwh * q,
-    lv2: lv1 + opexRate,
+    // Lv2 손익분기 = 전기원가 + 운영비 + 대기전력 손실(공용부 부과분).
+    //  대기전력은 모자분리 미적용 그룹만 발생(standbyPerKwh), 모자분리는 0.
+    lv2: lv1 + opexRate + standbyPerKwh,
     standbyKwh,
     standbyPerKwh,
     standbyLossMonth,
