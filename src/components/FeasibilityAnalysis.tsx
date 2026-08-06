@@ -234,9 +234,6 @@ export default function FeasibilityAnalysis({
   // 목표 영업이익률 직접입력 → 목표달성 충전단가 자동계산
   // 최초값은 UC 기준 목표이익률(r.targetMargin, %)로 시작
   const [customMarginPct, setCustomMarginPct] = useState<string>('')
-  // P&L 펼치기: 충전기별 / 연간 상세
-  const [showPerCharger, setShowPerCharger] = useState(false)
-  const [showPerYear, setShowPerYear] = useState(false)
   const customMargin =
     customMarginPct.trim() === ''
       ? r.targetMargin
@@ -1340,16 +1337,9 @@ export default function FeasibilityAnalysis({
           {won(-r.bizCost)} = {won(investment)}.
         </p>
 
-        {/* 충전기별 손익 상세 (펼치기) */}
-        <button
-          type="button"
-          className="link-button"
-          onClick={() => setShowPerCharger((v) => !v)}
-        >
-          {showPerCharger ? '▾' : '▸'} 충전기별 손익 상세
-        </button>
-        {showPerCharger && (
-          <div className="table-scroll">
+        {/* 충전기별 손익 상세 (항상 표시) */}
+        <h4 className="subsection__subtitle">충전기별 손익 상세</h4>
+        <div className="table-scroll">
             <table className="data-table pnl-table">
               <thead>
                 <tr>
@@ -1387,19 +1377,11 @@ export default function FeasibilityAnalysis({
               대분 환산(콘센트·3.5kW 1/4대분 · 7kW 1대분 · 급속 0) 비중으로
               배분한 값입니다. (전기원가 칸은 PG 수수료 포함)
             </p>
-          </div>
-        )}
+        </div>
 
-        {/* 연간 상세 P&L (펼치기) */}
-        <button
-          type="button"
-          className="link-button"
-          onClick={() => setShowPerYear((v) => !v)}
-        >
-          {showPerYear ? '▾' : '▸'} 연간 손익 상세
-        </button>
-        {showPerYear && (
-          <div className="table-scroll">
+        {/* 연간 손익 상세 (항상 표시) */}
+        <h4 className="subsection__subtitle">연간 손익 상세</h4>
+        <div className="table-scroll">
             <table className="data-table pnl-table">
               <thead>
                 <tr>
@@ -1443,8 +1425,7 @@ export default function FeasibilityAnalysis({
               도달한 연차는 <b>초록색</b>으로 표시됩니다. 매출·충전 전기원가는
               연차별 이용률(사용량) 증가를 반영합니다.
             </p>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* 목표 달성 충전단가 */}

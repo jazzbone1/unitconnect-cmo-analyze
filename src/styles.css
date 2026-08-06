@@ -649,6 +649,12 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+.subsection__subtitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 1rem 0 0.4rem;
+}
 
 /* Tables */
 .table-scroll {
