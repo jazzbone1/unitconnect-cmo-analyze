@@ -5,6 +5,7 @@ import {
   defaultReport,
   opexMonthlyTotal,
   opexPerKwh,
+  opexRateByGroup,
   newOpexRow,
   newRecommendRow,
   type ElecCostInput,
@@ -277,6 +278,18 @@ export default function ReportView({
   const opexMonth = opexMonthlyTotal(model.opex)
 
   const groups = model.elecGroups ?? []
+  // 종류별 운영비 배분 원/kWh(보험·수선비는 완속/급속 단가 비중, 그 외 대당 균등).
+  //  각 충전기 종류의 원가·손익분기(Lv2)에 그 종류 몫의 운영비만 실린다.
+  const opexRateMap = opexRateByGroup(
+    model.opex,
+    groups.map((g) => ({
+      id: g.id,
+      kw: g.kw,
+      count: g.count,
+      monthlyKwh: g.monthlyKwh,
+    })),
+  )
+  const opexRateOf = (g: ElecGroup) => opexRateMap.get(g.id) ?? opexRate
   // 월별 추이 표의 종류별 열(등록 충전기 종류 기준)
   const monthTypes = groups.map((g) => ({ id: g.id, name: g.name }))
   const groupKey = (id: string) => `elec:${id}`
@@ -290,7 +303,7 @@ export default function ReportView({
     if (!g) return ''
     const lv2 = computeProfit(
       { ...g, vatDeduct: model.vatDeduct },
-      opexPerKwh(model.opex, model.opexBaseKwh),
+      opexRateOf(g),
     ).lv2
     return lv2 > 0 ? `${Math.round(lv2).toLocaleString()}원/kWh 이상` : ''
   }
@@ -391,7 +404,7 @@ export default function ReportView({
     const g = { ...group, vatDeduct: model.vatDeduct, billMode: false }
     const upd = (patch: Partial<ElecCostInput>) => updElecGroup(group.id, patch)
     const r = computeElecCost(g)
-    const p = computeProfit(g, opexRate)
+    const p = computeProfit(g, opexRateOf(group))
     // 모자분리 종류는 요금구조 탭에서 계약전력·월사용량·실효원가 연동
     const linkA = g.separated !== false
     // 모자분리 적용 여부: 미적용이면 계약전력 기반 기본요금(B) 없음
@@ -762,7 +775,7 @@ export default function ReportView({
   /* ---------- 요금 하한선 분석 ---------- */
   function LowerBound({ group, title }: { group: ElecGroup; title: string }) {
     const g = { ...group, vatDeduct: model.vatDeduct }
-    const p = computeProfit(g, opexRate)
+    const p = computeProfit(g, opexRateOf(group))
     return (
       <div className="report-block">
         <h5 className="report-block__subtitle">{title}</h5>
@@ -1258,6 +1271,14 @@ export default function ReportView({
                 </Fragment>
               ) : null,
             )}
+          {secOn('2-lb') && (
+            <p className="table-note no-print">
+              운영비는 종류별로 배분해 각 충전기 원가에 반영합니다: 보험·수선비는
+              완속/급속 대당 단가 비중(급속이 큼), 그 외 항목은 대당 균등으로
+              나눈 뒤 그 종류의 월충전량으로 나눠 원/kWh로 환산합니다. (표에는
+              합계 운영비만 표기)
+            </p>
+          )}
 
           {/* 충전요금 인상 권고안 */}
           {SecHead({

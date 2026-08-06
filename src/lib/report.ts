@@ -328,6 +328,52 @@ export function opexPerKwh(rows: OpexRow[], baseKwh: number): number {
   return baseKwh > 0 ? opexMonthlyTotal(rows) / baseKwh : 0
 }
 
+/**
+ * 종류별(충전기 그룹별) 운영비 배분 → 그룹별 운영비 원/kWh.
+ *  · 배분 가중치: 보험·수선비는 완속/급속 대당 단가 비중(급속이 큼), 그 외 항목
+ *    (정기·긴급점검·CS 등)은 대당 균등(대수 비례).
+ *  · 각 그룹의 배분 연비용 ÷ (그 그룹 월충전량 × 12) = 그 종류의 운영비 원/kWh.
+ *  → 급속처럼 수선비가 큰 종류는 원가에 더 많은 운영비가 실린다.
+ */
+export function opexRateByGroup(
+  rows: OpexRow[],
+  groups: { id: string; kw: number; count: number; monthlyKwh: number }[],
+): Map<string, number> {
+  const rate = new Map<string, number>()
+  if (!groups.length) return rate
+  // 항목별 대당 배분 가중치(완속/급속 단가 반영). 그 외 항목은 1(대당 균등).
+  const unitWeight = (name: string, kw: number): number => {
+    const n = (name || '').replace(/\s/g, '')
+    if (n.includes('보험')) return kw >= 50 ? 10000 : 4000
+    if (n.includes('수선')) return kw >= 50 ? 300000 : 30000
+    return 1
+  }
+  const yearByGroup = new Map<string, number>()
+  for (const g of groups) yearByGroup.set(g.id, 0)
+  for (const row of rows) {
+    const yr = row.yearCost || 0
+    if (yr <= 0) continue
+    const w = new Map<string, number>()
+    let wsum = 0
+    for (const g of groups) {
+      const gw = unitWeight(row.name, g.kw) * g.count
+      w.set(g.id, gw)
+      wsum += gw
+    }
+    if (wsum <= 0) continue
+    for (const g of groups)
+      yearByGroup.set(
+        g.id,
+        (yearByGroup.get(g.id) ?? 0) + (yr * (w.get(g.id) ?? 0)) / wsum,
+      )
+  }
+  for (const g of groups) {
+    const yearKwh = g.monthlyKwh * 12
+    rate.set(g.id, yearKwh > 0 ? (yearByGroup.get(g.id) ?? 0) / yearKwh : 0)
+  }
+  return rate
+}
+
 /** 한 그룹의 현행 월간 손익 */
 export interface ProfitResult {
   revenuePerKwh: number
