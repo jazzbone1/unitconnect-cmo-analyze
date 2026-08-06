@@ -1009,6 +1009,15 @@ body {
   overflow-wrap: anywhere;
   vertical-align: top;
 }
+/* 계산표(--calc, 비고 산식)만 자유 줄바꿈 허용. 유형별 실적·월별 추이 등은
+   좁아진 열에서 값이 한 글자씩 세로로 접혀 행 높이가 폭주하지 않도록 한 줄 유지. */
+.report-table:not(.report-table--calc) th,
+.report-table:not(.report-table--calc) td {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  vertical-align: middle;
+}
 /*
  * 산출/손익/하한선 등 3열 계산표는 열 너비를 고정해 블록 간(2-1·2-2 …) 정렬을
  * 통일한다. PDF 출력 시 모든 종류별 블록의 열이 정확히 같은 위치에 놓인다.
