@@ -115,21 +115,30 @@ function TextInput({
   onChange,
   wide,
   linked,
+  edited,
 }: {
   value: string
   onChange: (v: string) => void
   wide?: boolean
   /** 앞 단계 자동 연동 값이면 음영 표시 */
   linked?: boolean
+  /** 사용자가 직접 수정한 값이면 다른 음영 표시 */
+  edited?: boolean
 }) {
   return (
     <input
       className={`cell-input cell-input--rtext${wide ? ' cell-input--rwide' : ''}${
-        linked ? ' cell-input--linked' : ''
+        edited ? ' cell-input--edited' : linked ? ' cell-input--linked' : ''
       }`}
       type="text"
       style={{ width: wide ? '100%' : undefined }}
-      title={linked ? '앞 단계 자동 연동 값' : undefined}
+      title={
+        edited
+          ? '직접 수정한 값 (자동 연동에서 보존됨)'
+          : linked
+            ? '앞 단계 자동 연동 값'
+            : undefined
+      }
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -316,11 +325,51 @@ export default function ReportView({
   ) {
     setModel((m) => ({
       ...m,
-      [key]: (m[key] as { id: string }[]).map((r) =>
-        r.id === id ? { ...r, ...patch } : r,
+      [key]: (m[key] as { id: string; edited?: string[] }[]).map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              ...patch,
+              // 직접 수정한 필드를 기록 → 자동 연동에서 보존·음영 구분
+              edited: Array.from(
+                new Set([...(r.edited ?? []), ...Object.keys(patch)]),
+              ),
+            }
+          : r,
       ),
     }))
   }
+  // 월별 추이 종류별(types) 하위 셀 수정 — 편집 필드를 types[i].edited에 기록
+  function updMonthlyType(
+    rowId: string,
+    typeId: string,
+    patch: Record<string, unknown>,
+  ) {
+    setModel((m) => ({
+      ...m,
+      monthly: m.monthly.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              types: (r.types ?? []).map((t) =>
+                t.id === typeId
+                  ? {
+                      ...t,
+                      ...patch,
+                      edited: Array.from(
+                        new Set([...(t.edited ?? []), ...Object.keys(patch)]),
+                      ),
+                    }
+                  : t,
+              ),
+            }
+          : r,
+      ),
+    }))
+  }
+  // 특정 행/셀이 사용자 직접 수정값인지
+  const isEdited = (edited: string[] | undefined, key: string) =>
+    (edited ?? []).includes(key)
   // 표 헤더명(사용자 편집) — secTitle 맵에 키별로 저장. 미설정 시 기본 라벨.
   const colTitle = (k: string, def: string) => model.secTitle?.[k] ?? def
   const setColTitle = (k: string, v: string) =>
@@ -774,9 +823,12 @@ export default function ReportView({
             <b>요금 하한선 분석</b>에 자동 반영됩니다.
           </p>
           <p className="report-legend no-print">
-            <span className="report-legend__chip" /> 음영 칸 = 앞 단계(요금구조·정산·단지정보)
-            <b>자동 연동</b> 값 · 그 외 칸은 직접 입력.
-            <b>「🔄 앞 단계 값 자동 반영」</b>으로 음영 칸을 최신값으로 갱신합니다.
+            <span className="report-legend__chip" /> 라임 음영 = 앞 단계
+            <b>자동 연동</b> 값 ·{' '}
+            <span className="report-legend__chip report-legend__chip--edit" />{' '}
+            앰버 음영 = <b>직접 수정</b>(저장·보존됨) · 그 외 칸은 직접 입력.
+            자동 연동 칸도 수정하면 값이 저장되며, 직접 수정값은 자동 반영 시에도
+            덮어쓰지 않습니다.
           </p>
         </div>
         <div className="report-topbar__actions no-print">
@@ -937,7 +989,8 @@ export default function ReportView({
                         <TextInput
                           value={row[k] ?? ''}
                           onChange={(v) => updList('perType', row.id, { [k]: v })}
-                          linked
+                          linked={!isEdited(row.edited, k)}
+                          edited={isEdited(row.edited, k)}
                         />
                       </td>
                     ))}
@@ -956,6 +1009,7 @@ export default function ReportView({
                 <tr>
                   <th>월</th>
                   <th>전체 충전량(kWh)</th>
+                  <th>합산 이용률</th>
                   {monthTypes.map((t) => (
                     <Fragment key={t.id}>
                       <th>{t.name} 충전량</th>
@@ -974,14 +1028,26 @@ export default function ReportView({
                         onChange={(v) =>
                           updList('monthly', row.id, { month: v })
                         }
-                        linked
+                        linked={!isEdited(row.edited, 'month')}
+                        edited={isEdited(row.edited, 'month')}
                       />
                     </td>
                     <td>
                       <TextInput
                         value={row.kwh}
                         onChange={(v) => updList('monthly', row.id, { kwh: v })}
-                        linked
+                        linked={!isEdited(row.edited, 'kwh')}
+                        edited={isEdited(row.edited, 'kwh')}
+                      />
+                    </td>
+                    <td>
+                      <TextInput
+                        value={row.utilTotal ?? ''}
+                        onChange={(v) =>
+                          updList('monthly', row.id, { utilTotal: v })
+                        }
+                        linked={!isEdited(row.edited, 'utilTotal')}
+                        edited={isEdited(row.edited, 'utilTotal')}
                       />
                     </td>
                     {monthTypes.map((t) => {
@@ -989,14 +1055,24 @@ export default function ReportView({
                       return (
                         <Fragment key={t.id}>
                           <td>
-                            <span className="report-auto-value">
-                              {rt?.kwh ?? '—'}
-                            </span>
+                            <TextInput
+                              value={rt?.kwh ?? ''}
+                              onChange={(v) =>
+                                updMonthlyType(row.id, t.id, { kwh: v })
+                              }
+                              linked={!isEdited(rt?.edited, 'kwh')}
+                              edited={isEdited(rt?.edited, 'kwh')}
+                            />
                           </td>
                           <td>
-                            <span className="report-auto-value">
-                              {rt?.util ?? '—'}
-                            </span>
+                            <TextInput
+                              value={rt?.util ?? ''}
+                              onChange={(v) =>
+                                updMonthlyType(row.id, t.id, { util: v })
+                              }
+                              linked={!isEdited(rt?.edited, 'util')}
+                              edited={isEdited(rt?.edited, 'util')}
+                            />
                           </td>
                         </Fragment>
                       )

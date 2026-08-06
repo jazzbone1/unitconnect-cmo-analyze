@@ -161,6 +161,8 @@ function seedReport(
       month: m.periodLabel,
       // 전체 충전량
       kwh: Math.round(m.usageTotal).toLocaleString(),
+      // 합산(전체) 이용률 = 총사용량 ÷ (총설비 × 개월수)
+      utilTotal: `${m.utilTotal.toFixed(2)}%`,
       // 충전기 종류별 충전량·이용률(제외 종류는 빼고 활성 종류만)
       types: m.types
         .filter((t) => activeIds.has(t.id))
@@ -396,6 +398,47 @@ function deriveTariff(project: SavedSite): TariffInputs {
   return t
 }
 
+/** 자동 연동 seed 행에 사용자가 직접 수정한 필드(edited)만 덮어써 보존한다. */
+function mergeEdited<T extends { id: string; edited?: string[] }>(
+  prevRows: T[],
+  seedRows: T[],
+): T[] {
+  return seedRows.map((seed) => {
+    const prev = prevRows.find((p) => p.id === seed.id)
+    const edited = prev?.edited ?? []
+    if (!prev || edited.length === 0) return { ...seed, edited: [] }
+    const merged: Record<string, unknown> = { ...seed }
+    for (const k of edited) merged[k] = (prev as Record<string, unknown>)[k]
+    merged.edited = edited
+    return merged as T
+  })
+}
+
+/** 월별 추이 행 병합: 행 필드 + 종류별(types) 하위 셀의 edited까지 보존한다. */
+function mergeMonthly(
+  prevRows: ReportModel['monthly'],
+  seedRows: ReportModel['monthly'],
+): ReportModel['monthly'] {
+  return seedRows.map((seed) => {
+    const prev = prevRows.find((p) => p.id === seed.id)
+    const rowEdited = prev?.edited ?? []
+    const merged: Record<string, unknown> = { ...seed }
+    for (const k of rowEdited) merged[k] = (prev as Record<string, unknown>)[k]
+    merged.edited = rowEdited
+    // 종류별 하위 셀 병합
+    merged.types = (seed.types ?? []).map((st) => {
+      const pt = prev?.types?.find((x) => x.id === st.id)
+      const tEdited = pt?.edited ?? []
+      if (!pt || tEdited.length === 0) return st
+      const mt: Record<string, unknown> = { ...st }
+      for (const k of tEdited) mt[k] = (pt as Record<string, unknown>)[k]
+      mt.edited = tEdited
+      return mt
+    })
+    return merged as ReportModel['monthly'][number]
+  })
+}
+
 /** 앞 단계 자동 연동(음영) 필드만 보고서에 반영, 직접입력 필드는 보존 */
 function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
   const byLabel = new Map(s.overview.map((r) => [r.label, r]))
@@ -416,8 +459,8 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
     ...m,
     siteName: s.siteName || m.siteName,
     overview,
-    perType: s.perType,
-    monthly: s.monthly,
+    perType: mergeEdited(m.perType, s.perType),
+    monthly: mergeMonthly(m.monthly, s.monthly),
     opexBaseKwh: s.opexBaseKwh,
     groupA: {
       ...m.groupA,

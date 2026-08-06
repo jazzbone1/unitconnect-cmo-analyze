@@ -180,6 +180,8 @@ export interface ReportModel {
     perUnit: string
     /** 이용률(월) (예: "9.15%") */
     util?: string
+    /** 사용자가 직접 수정한 필드 키 목록(자동 연동에서 보존·음영 구분) */
+    edited?: string[]
   }[]
   /** Part1 월별 추이 표. kwh=전체 충전량. types=충전기 종류별 충전량·이용률. */
   monthly: {
@@ -187,11 +189,22 @@ export interface ReportModel {
     month: string
     /** 전체 충전량(kWh) */
     kwh: string
+    /** 합산(전체) 이용률 (예: "1.78%") */
+    utilTotal?: string
     /** (구) 매출 — 더 이상 표시하지 않음 */
     revenue?: string
     note?: string
     /** 충전기 종류별 충전량·이용률 */
-    types?: { id: string; name: string; kwh: string; util: string }[]
+    types?: {
+      id: string
+      name: string
+      kwh: string
+      util: string
+      /** 사용자가 직접 수정한 필드 키 목록 */
+      edited?: string[]
+    }[]
+    /** 사용자가 직접 수정한 필드 키 목록(자동 연동에서 보존·음영 구분) */
+    edited?: string[]
   }[]
   /** 그룹 A: 모자분리 충전기 (7kW 완속 + DC 급속) — (하위호환) */
   groupA: ElecCostInput
