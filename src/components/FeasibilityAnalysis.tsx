@@ -226,6 +226,8 @@ export default function FeasibilityAnalysis({
     standbyMonthlyKwhAll,
     // 대기전력 전기원가는 항상 사업성에 합산(토글 제거).
     includeStandby: true,
+    // 사업 기준 전 충전기 모자분리 예정 → 대기전력 범위는 '전체 종류'로 고정.
+    standbyScope: 'all',
     // 영업비는 공통 기준표(계약년수별)에서 자동 적용
     bizFeePerUnit: appliedBizFee,
     // 전기원가는 요금구조 실효원가 자동반영(또는 override)
@@ -551,24 +553,10 @@ export default function FeasibilityAnalysis({
             </h4>
           </div>
           <div className="var-row standby-merge__scope">
-            <label className="radio">
-              <input
-                type="radio"
-                name="standbyScope"
-                checked={(inputs.standbyScope ?? 'separated') === 'separated'}
-                onChange={() => set({ standbyScope: 'separated' })}
-              />
-              <span>모자분리 종류만 ({standbyMonthlyKwhSeparated.toLocaleString()} kWh/월)</span>
-            </label>
-            <label className="radio">
-              <input
-                type="radio"
-                name="standbyScope"
-                checked={inputs.standbyScope === 'all'}
-                onChange={() => set({ standbyScope: 'all' })}
-              />
-              <span>전체 종류 ({standbyMonthlyKwhAll.toLocaleString()} kWh/월)</span>
-            </label>
+            <span className="hint hint--tight">
+              범위: <b>전체 종류</b> ({standbyMonthlyKwhAll.toLocaleString()} kWh/월)
+              — 사업 기준 전 충전기 모자분리 예정이라 전체 종류 대기전력을 합산합니다.
+            </span>
           </div>
           <div className="table-scroll">
             <table className="data-table">

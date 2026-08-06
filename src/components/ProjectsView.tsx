@@ -443,6 +443,7 @@ function projectMargin(p: SavedSite): number | null {
     standbyMonthlyKwhSeparated: sepK,
     standbyMonthlyKwhAll: allK,
     includeStandby: true,
+    standbyScope: 'all',
   }
   return computeFeasibility(eff).margin
 }
