@@ -281,19 +281,7 @@ export function computeFeasibility(
         total
       : 0
 
-  // 종류별 요금(0이면 전체 단가). 에너지 가중 평균으로 실효 단가 산출.
   const eff = (r: number) => (r > 0 ? r : inp.rateVat)
-  const avgVat =
-    base > 0
-      ? (e100 * eff(inp.rateFast100 ?? 0) +
-          eFast * eff(inp.rateFast50) +
-          e7 * eff(inp.rateSlow7) +
-          e35 * eff(inp.rateSlow35) +
-          e3 * eff(inp.rateSlow3)) /
-        base
-      : inp.rateVat
-  const rateExVat = avgVat / 1.1
-
   const yearUtil = [
     inp.yearUtil2,
     inp.yearUtil3,
@@ -318,6 +306,32 @@ export function computeFeasibility(
     }
   }
   const sumW = yearlyW.reduce((a, w) => a + w, 0)
+
+  // 종류별 요금(0이면 전체 단가) → 실효 단가(VAT포함).
+  //  연차 성장으로 종류별 에너지 비중이 해마다 달라지므로, 1년차가 아닌 '전 기간
+  //  (계약기간 합)' 종류별 에너지로 가중 평균해야 매출이 종류별 목표단가 산정과
+  //  정합한다. (종류별 목표단가를 그대로 입력하면 목표이익률에 정확히 도달)
+  const typeCells = [
+    { e1: e100, count: c100, rate: eff(inp.rateFast100 ?? 0) },
+    { e1: eFast, count: inp.countFast50, rate: eff(inp.rateFast50) },
+    { e1: e7, count: inp.countSlow7, rate: eff(inp.rateSlow7) },
+    { e1: e35, count: inp.countSlow35, rate: eff(inp.rateSlow35) },
+    { e1: e3, count: inp.countSlow3, rate: eff(inp.rateSlow3) },
+  ]
+  let sumEt = 0
+  let sumEtRate = 0
+  for (const t of typeCells) {
+    let et = 0
+    for (let y = 1; y <= MAX_YEARS; y++) {
+      if (y > inp.years) continue
+      const yu = y === 1 ? inp.utilSlow7 : yearUtil[y - 2]
+      et += t.e1 + MAX_MONTHLY.slow7 * (yu - inp.utilSlow7) * t.count
+    }
+    sumEt += et
+    sumEtRate += et * t.rate
+  }
+  const avgVat = sumEt > 0 ? sumEtRate / sumEt : inp.rateVat
+  const rateExVat = avgVat / 1.1
 
   const revenue = 12 * rateExVat * sumW
   const pgFee = -revenue * PG_RATE
