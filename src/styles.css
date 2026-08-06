@@ -1652,25 +1652,34 @@ tr.row--detail .col-name {
     box-shadow: none !important;
     color: #000 !important;
   }
-  /* 월별 추이·유형별 실적 등 다열 표: 값이 두 줄로 접히지 않도록 폰트를 줄이고
-     줄바꿈을 막아 한 줄로 표시(내용 폭에 맞춘 auto 레이아웃). 3열 계산표(--calc)는
-     비고 줄바꿈이 필요하므로 제외. */
+  /* 월별 추이·유형별 실적 등 다열 표: 페이지 폭(1-2와 동일)에 반드시 들어오도록
+     table-layout: fixed + width 100%로 열을 균등 분배하고, 폰트를 줄여 한 줄로
+     표시. 헤더는 필요 시 줄바꿈 허용(간격 축소), 데이터는 한 줄 유지.
+     3열 계산표(--calc)는 비고 줄바꿈이 필요하므로 제외. */
   .report-root .report-table:not(.report-table--calc) {
-    table-layout: auto !important;
-    font-size: 8.5px !important;
+    table-layout: fixed !important;
+    width: 100% !important;
+    font-size: 8px !important;
   }
-  .report-root .report-table:not(.report-table--calc) th,
+  .report-root .report-table:not(.report-table--calc) th {
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: break-word !important;
+    padding: 2px 3px !important;
+    vertical-align: bottom;
+  }
   .report-root .report-table:not(.report-table--calc) td {
     white-space: nowrap !important;
     word-break: normal !important;
-    overflow-wrap: normal !important;
-    padding: 2px 4px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 3px !important;
   }
   .report-root .report-table:not(.report-table--calc) .report-auto-value,
   .report-root .report-table:not(.report-table--calc) .cell-input,
   .report-root .report-table:not(.report-table--calc) input {
     white-space: nowrap !important;
-    font-size: 8.5px !important;
+    font-size: 8px !important;
   }
   /* 제출용 PDF: 3열 계산표 열폭 재조정 — 비고(3열)를 넓혀 산식이 줄바꿈으로
      흩어지지 않게 하고, 항목/금액은 좁게. */

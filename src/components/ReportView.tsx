@@ -288,6 +288,7 @@ export default function ReportView({
       count: g.count,
       monthlyKwh: g.monthlyKwh,
     })),
+    model.opexBaseKwh,
   )
   const opexRateOf = (g: ElecGroup) => opexRateMap.get(g.id) ?? opexRate
   // 월별 추이 표의 종류별 열(등록 충전기 종류 기준)
@@ -1273,10 +1274,10 @@ export default function ReportView({
             )}
           {secOn('2-lb') && (
             <p className="table-note no-print">
-              운영비는 종류별로 배분해 각 충전기 원가에 반영합니다: 보험·수선비는
-              완속/급속 대당 단가 비중(급속이 큼), 그 외 항목은 대당 균등으로
-              나눈 뒤 그 종류의 월충전량으로 나눠 원/kWh로 환산합니다. (표에는
-              합계 운영비만 표기)
+              운영비 중 <b>보험·수선비만</b> 완속/급속 대당 단가 비중으로 종류별
+              배분해 각 종류 원가에 반영합니다(급속 수선비가 커서 급속 원가에 더
+              실림). 그 외 항목(정기·긴급점검·CS 등)은 기존과 동일하게 전 종류
+              균일 원/kWh를 적용합니다. (표에는 합계 운영비만 표기)
             </p>
           )}
 

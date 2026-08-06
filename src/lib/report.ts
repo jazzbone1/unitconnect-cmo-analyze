@@ -330,29 +330,41 @@ export function opexPerKwh(rows: OpexRow[], baseKwh: number): number {
 
 /**
  * 종류별(충전기 그룹별) 운영비 배분 → 그룹별 운영비 원/kWh.
- *  · 배분 가중치: 보험·수선비는 완속/급속 대당 단가 비중(급속이 큼), 그 외 항목
- *    (정기·긴급점검·CS 등)은 대당 균등(대수 비례).
- *  · 각 그룹의 배분 연비용 ÷ (그 그룹 월충전량 × 12) = 그 종류의 운영비 원/kWh.
- *  → 급속처럼 수선비가 큰 종류는 원가에 더 많은 운영비가 실린다.
+ *  · 보험·수선비만 완속/급속 대당 단가 비중으로 종류별 배분(급속이 큼) 후 그
+ *    종류의 월충전량으로 나눠 원/kWh 산출.
+ *  · 그 외 항목(정기·긴급점검·CS 등)은 기존과 동일하게 전체 기준 균일 원/kWh
+ *    (총 기타 운영비 ÷ opexBaseKwh)를 전 종류에 동일 적용.
+ *  → groupRate = 균일(기타) + 종류별(보험·수선비).
  */
 export function opexRateByGroup(
   rows: OpexRow[],
   groups: { id: string; kw: number; count: number; monthlyKwh: number }[],
+  baseKwh: number,
 ): Map<string, number> {
   const rate = new Map<string, number>()
   if (!groups.length) return rate
-  // 항목별 대당 배분 가중치(완속/급속 단가 반영). 그 외 항목은 1(대당 균등).
+  const isPerType = (name: string): boolean => {
+    const n = (name || '').replace(/\s/g, '')
+    return n.includes('보험') || n.includes('수선')
+  }
+  // 보험·수선비 대당 배분 가중치(완속/급속 단가 반영).
   const unitWeight = (name: string, kw: number): number => {
     const n = (name || '').replace(/\s/g, '')
     if (n.includes('보험')) return kw >= 50 ? 10000 : 4000
     if (n.includes('수선')) return kw >= 50 ? 300000 : 30000
-    return 1
+    return 0
   }
-  const yearByGroup = new Map<string, number>()
-  for (const g of groups) yearByGroup.set(g.id, 0)
+  // 보험·수선비: 종류별 연비용 배분 / 기타 항목: 합산(균일 배분 대상)
+  const specialYear = new Map<string, number>()
+  for (const g of groups) specialYear.set(g.id, 0)
+  let otherYear = 0
   for (const row of rows) {
     const yr = row.yearCost || 0
     if (yr <= 0) continue
+    if (!isPerType(row.name)) {
+      otherYear += yr
+      continue
+    }
     const w = new Map<string, number>()
     let wsum = 0
     for (const g of groups) {
@@ -360,16 +372,23 @@ export function opexRateByGroup(
       w.set(g.id, gw)
       wsum += gw
     }
-    if (wsum <= 0) continue
+    // 해당 종류가 없으면(가중치 0) 기타로 분류해 균일 적용
+    if (wsum <= 0) {
+      otherYear += yr
+      continue
+    }
     for (const g of groups)
-      yearByGroup.set(
+      specialYear.set(
         g.id,
-        (yearByGroup.get(g.id) ?? 0) + (yr * (w.get(g.id) ?? 0)) / wsum,
+        (specialYear.get(g.id) ?? 0) + (yr * (w.get(g.id) ?? 0)) / wsum,
       )
   }
+  // 기타 항목: 기존과 동일한 균일 원/kWh (월 기준)
+  const otherRate = baseKwh > 0 ? otherYear / 12 / baseKwh : 0
   for (const g of groups) {
     const yearKwh = g.monthlyKwh * 12
-    rate.set(g.id, yearKwh > 0 ? (yearByGroup.get(g.id) ?? 0) / yearKwh : 0)
+    const special = yearKwh > 0 ? (specialYear.get(g.id) ?? 0) / yearKwh : 0
+    rate.set(g.id, otherRate + special)
   }
   return rate
 }
