@@ -105,12 +105,25 @@ function seedReport(
     ? computeAll(files, config, {}, {}, autoWeights)
     : []
   const months = metrics.filter((m) => m.periodType === 'month')
+  // 종류별 사용량·개월수 기준: '정산 분석' 탭과 동일하게 맞춘다.
+  //  연간 파일(periodType==='year')이 있으면 그 파일의 종류별 사용량·개월수(보통 12)를
+  //  그대로 사용 → 보고서 유형별 실적/이용률이 정산 연간 표와 정확히 일치.
+  //  연간 파일이 없으면 월별 파일 합계와 월 개수(개월수 합)를 사용.
+  const yearMetric = metrics.find((m) => m.periodType === 'year')
   const usageByType = new Map<string, number>()
-  for (const m of months)
-    for (const t of m.types)
+  let analyzedMonths: number
+  if (yearMetric) {
+    analyzedMonths = yearMetric.months || 12
+    for (const t of yearMetric.types)
       usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
+  } else {
+    analyzedMonths = months.reduce((a, m) => a + (m.months || 1), 0) || 1
+    for (const m of months)
+      for (const t of m.types)
+        usageByType.set(t.id, (usageByType.get(t.id) ?? 0) + t.usage)
+  }
   if (active.length) {
-    const nMonths = months.length || 1
+    const nMonths = analyzedMonths || 1
     d.perType = active.map((c) => {
       const uSettle = usageByType.get(c.id) ?? 0
       // 충전량(월): 정산 총합을 개월수(nMonths)로 나눈 월 평균. 정산값이 없으면
@@ -211,9 +224,11 @@ function seedReport(
   // 운영비 원/kWh 분모(전체 월 충전량) — 종류별 월 사용량 합계로 자동 산출.
   let totalGroupMonthly = 0
   d.elecGroups = active.map((c) => {
-    const usageAvg = months.length
-      ? Math.round((usageByType.get(c.id) ?? 0) / months.length)
-      : 0
+    // 월 사용량: 정산 종류별 총사용량 ÷ 개월수(정산 분석과 동일 기준).
+    const usageAvg =
+      usageByType.size > 0
+        ? Math.round((usageByType.get(c.id) ?? 0) / analyzedMonths)
+        : 0
     // 월 사용량: 정산값 우선, 없으면 사업성 종류별 월 사용량(이용률×정격×720×대수)
     const feasMonthly = Math.round(utilByKw(c.kw) * c.kw * 720 * c.count)
     const groupMonthly = usageAvg > 0 ? usageAvg : feasMonthly
