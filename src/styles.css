@@ -1674,15 +1674,17 @@ tr.row--detail .col-name {
   .report-root input {
     max-width: 100% !important;
   }
-  /* 충전기 종류별 전기원가 그룹: 종류 구분을 확실히 — 남색 헤더 밴드 + 테두리,
-     그룹은 가능한 한 페이지 경계에서 쪼개지지 않게. */
+  /* 충전기 종류별 전기원가 그룹: 종류 구분은 남색 헤더 밴드 + 좌측 강조선으로.
+     그룹을 통째로 유지(break-inside avoid)하면 페이지가 크게 비므로, 내용은
+     자연스럽게 흐르게 두되 헤더만 다음 표와 붙게(break-after avoid) 한다. */
   .report-root .report-charger-group {
-    break-inside: avoid;
-    border: 1px solid #173b7a !important;
-    border-radius: 4px;
-    margin: 4mm 0 !important;
+    break-inside: auto;
+    border: none !important;
+    border-left: 3px solid #173b7a !important;
+    border-radius: 0 !important;
+    margin: 3mm 0 !important;
     padding: 0 !important;
-    overflow: hidden;
+    overflow: visible;
   }
   .report-root .report-charger-group > .report-sec-head {
     background: #173b7a !important;
@@ -1691,6 +1693,8 @@ tr.row--detail .col-name {
     border: none !important;
     padding: 1.6mm 3mm !important;
     margin: 0 !important;
+    break-after: avoid;
+    break-inside: avoid;
   }
   .report-root .report-charger-group > .report-sec-head .report-sec-title-input,
   .report-root .report-charger-group > .report-sec-head .report-block__title {
