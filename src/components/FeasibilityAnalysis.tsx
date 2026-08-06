@@ -224,6 +224,8 @@ export default function FeasibilityAnalysis({
     rateSlow3: resolveRate(3),
     standbyMonthlyKwhSeparated,
     standbyMonthlyKwhAll,
+    // 대기전력 전기원가는 항상 사업성에 합산(토글 제거).
+    includeStandby: true,
     // 영업비는 공통 기준표(계약년수별)에서 자동 적용
     bizFeePerUnit: appliedBizFee,
     // 전기원가는 요금구조 실효원가 자동반영(또는 override)
@@ -545,16 +547,8 @@ export default function FeasibilityAnalysis({
         <div className="subsection standby-merge">
           <div className="standby-merge__head">
             <h4 className="summary-block__title">
-              대기전력 전기원가 반영 (대기전력 탭 자동연동)
+              대기전력 전기원가 반영 (대기전력 탭 자동연동 · 항상 합산)
             </h4>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={inputs.includeStandby !== false}
-                onChange={(e) => set({ includeStandby: e.target.checked })}
-              />
-              <span>사업성에 합산</span>
-            </label>
           </div>
           <div className="var-row standby-merge__scope">
             <label className="radio">
