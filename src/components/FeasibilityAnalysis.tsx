@@ -234,6 +234,9 @@ export default function FeasibilityAnalysis({
   // 목표 영업이익률 직접입력 → 목표달성 충전단가 자동계산
   // 최초값은 UC 기준 목표이익률(r.targetMargin, %)로 시작
   const [customMarginPct, setCustomMarginPct] = useState<string>('')
+  // P&L 펼치기: 충전기별 / 연간 상세
+  const [showPerCharger, setShowPerCharger] = useState(false)
+  const [showPerYear, setShowPerYear] = useState(false)
   const customMargin =
     customMarginPct.trim() === ''
       ? r.targetMargin
@@ -291,6 +294,101 @@ export default function FeasibilityAnalysis({
       return { row, count, totalKwh, target }
     })
   }
+
+  // ── 연간 상세 P&L (연차별 매출·전기원가·영업현금흐름) ──
+  //  운영비·대기전력은 연차 균등, 매출·충전전기원가는 연차별 사용량(yearlyW)에 비례.
+  //  영업현금흐름(cf) = 매출총이익 + 운영비 (영업비·CAPEX 제외 → 회수기간 산정용).
+  const yearsN = Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))
+  const opsPerYear = r.opsCost / yearsN
+  const standbyPerYear = r.standbyCost / yearsN
+  const perYearRows = Array.from({ length: yearsN }, (_, y) => {
+    const W = r.yearlyW[y] ?? 0
+    const rev = 12 * r.rateExVat * W
+    const pg = -rev * PG_RATE
+    const eu = elecByYear && elecByYear[y] != null ? elecByYear[y] : effElecCost
+    const elecCharge = -12 * eu * W
+    const gross = rev + pg + elecCharge + standbyPerYear
+    const cf = gross + opsPerYear
+    return { year: y + 1, rev, pg, elec: elecCharge + standbyPerYear, gross, ops: opsPerYear, cf }
+  })
+
+  // ── CAPEX(영업비 포함) 회수기간 ──
+  //  투자액 = CAPEX + 영업비(총). 연간 영업현금흐름 누적이 투자액에 도달하는 시점(년).
+  const investment = -(r.capex + r.bizCost)
+  const payback = (() => {
+    if (investment <= 0) return { text: '즉시 회수', reached: true }
+    let cum = 0
+    for (const row of perYearRows) {
+      if (row.cf <= 0) continue
+      if (cum + row.cf >= investment) {
+        const frac = row.year - 1 + (investment - cum) / row.cf
+        return { text: `${frac.toFixed(1)}년`, reached: true }
+      }
+      cum += row.cf
+    }
+    const avgCf = yearsN > 0 ? cum / yearsN : 0
+    if (avgCf > 0)
+      return {
+        text: `${yearsN}년 내 미회수 (약 ${(investment / avgCf).toFixed(1)}년)`,
+        reached: false,
+      }
+    return { text: '회수 불가', reached: false }
+  })()
+
+  // ── 충전기별 손익 상세 ──
+  //  전기원가는 사용량 비례, 운영비·CAPEX는 대당 균등, 영업비는 대분 환산(콘센트 1/4·
+  //  7kW 1·급속 0) 비중으로 배분. 매출은 종류별 요금 × 계약기간 사용량.
+  const sevenByYearC = [
+    inputs.utilSlow7,
+    inputs.yearUtil2,
+    inputs.yearUtil3,
+    inputs.yearUtil4,
+    inputs.yearUtil5,
+    inputs.yearUtil6 ?? 0.12,
+    inputs.yearUtil7 ?? 0.13,
+  ]
+  const bizWeightOf = (kw: number) => (kw <= 3.5 ? 0.25 : kw === 7 ? 1 : 0)
+  const bizWeightTotal = chargerRows.reduce(
+    (a, row) => a + countOf(row.kw) * bizWeightOf(row.kw),
+    0,
+  )
+  const perChargerRows = chargerRows
+    .map((row) => {
+      const count = countOf(row.kw)
+      let Et = 0 // Σ 월사용량(연차 합)
+      for (let y = 0; y < yearsN; y++) {
+        const uy =
+          (inputs[row.utilKey] as number) +
+          (sevenByYearC[y] - inputs.utilSlow7) * (7 / row.kw)
+        Et += uy * row.kw * 720 * count
+      }
+      const energyShare = r.sumW > 0 ? Et / r.sumW : 0
+      const countShare = r.totalUnits > 0 ? count / r.totalUnits : 0
+      const rateEx =
+        resolveRate(row.kw) > 0 ? resolveRate(row.kw) / 1.1 : r.rateExVat
+      const rev = 12 * Et * rateEx
+      const pg = -rev * PG_RATE
+      const elec = (r.elecCost + r.standbyCost) * energyShare
+      const ops = r.opsCost * countShare
+      const biz =
+        bizWeightTotal > 0
+          ? r.bizCost * ((count * bizWeightOf(row.kw)) / bizWeightTotal)
+          : 0
+      const capex = -(count * inputs.mojaBunri + inputs.miniPc * countShare)
+      const op = rev + pg + elec + ops + biz + capex
+      return {
+        label: row.label,
+        count,
+        rev,
+        elec: elec + pg,
+        ops,
+        biz,
+        capex,
+        op,
+        margin: rev !== 0 ? op / rev : 0,
+      }
+    })
+    .filter((x) => x.count > 0)
 
   const pnl: { label: string; value: number; strong?: boolean; minus?: boolean }[] = [
     { label: '매출 (VAT 제외)', value: r.revenue, strong: true },
@@ -1219,6 +1317,17 @@ export default function FeasibilityAnalysis({
                 <td className="col-name">영업이익률</td>
                 <td>{(r.margin * 100).toFixed(2)}%</td>
               </tr>
+              <tr className="row--strong">
+                <td
+                  className="col-name"
+                  title="투자액(CAPEX + 영업비 총액)을 연간 영업현금흐름(매출총이익 − 현장 운영비)으로 회수하는 데 걸리는 기간"
+                >
+                  CAPEX·영업비 회수기간
+                </td>
+                <td className={payback.reached ? '' : 'cell--down'}>
+                  {payback.text}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -1227,8 +1336,115 @@ export default function FeasibilityAnalysis({
           {(PG_RATE * 100).toFixed(2)}% ·
           누적 충전량(ΣW) {formatNumber(Math.round(r.sumW))} kWh · 영업비
           환산계수 {r.convFactor.toFixed(4)}. 사업성 판정: 영업이익률 ≥ 목표이면
-          진행가능.
+          진행가능. · 회수기간 투자액 = CAPEX {won(-r.capex)} + 영업비{' '}
+          {won(-r.bizCost)} = {won(investment)}.
         </p>
+
+        {/* 충전기별 손익 상세 (펼치기) */}
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setShowPerCharger((v) => !v)}
+        >
+          {showPerCharger ? '▾' : '▸'} 충전기별 손익 상세
+        </button>
+        {showPerCharger && (
+          <div className="table-scroll">
+            <table className="data-table pnl-table">
+              <thead>
+                <tr>
+                  <th>종류</th>
+                  <th>대수</th>
+                  <th>매출</th>
+                  <th>전기원가(+PG)</th>
+                  <th>운영비</th>
+                  <th>영업비</th>
+                  <th>CAPEX</th>
+                  <th>영업이익</th>
+                  <th>이익률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perChargerRows.map((row) => (
+                  <tr key={row.label}>
+                    <td className="col-name">{row.label}</td>
+                    <td>{row.count.toLocaleString()}대</td>
+                    <td>{won(row.rev)}</td>
+                    <td className="cell--down">{won(row.elec)}</td>
+                    <td className="cell--down">{won(row.ops)}</td>
+                    <td className="cell--down">{won(row.biz)}</td>
+                    <td className="cell--down">{won(row.capex)}</td>
+                    <td className={row.op >= 0 ? '' : 'cell--down'}>
+                      {won(row.op)}
+                    </td>
+                    <td>{(row.margin * 100).toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="table-note">
+              전기원가·대기전력은 사용량 비례, 운영비·CAPEX는 대당 균등, 영업비는
+              대분 환산(콘센트·3.5kW 1/4대분 · 7kW 1대분 · 급속 0) 비중으로
+              배분한 값입니다. (전기원가 칸은 PG 수수료 포함)
+            </p>
+          </div>
+        )}
+
+        {/* 연간 상세 P&L (펼치기) */}
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setShowPerYear((v) => !v)}
+        >
+          {showPerYear ? '▾' : '▸'} 연간 손익 상세
+        </button>
+        {showPerYear && (
+          <div className="table-scroll">
+            <table className="data-table pnl-table">
+              <thead>
+                <tr>
+                  <th>연차</th>
+                  <th>매출</th>
+                  <th>전기원가(+PG)</th>
+                  <th>매출총이익</th>
+                  <th>현장 운영비</th>
+                  <th>영업현금흐름</th>
+                  <th>누적 현금흐름</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  let cum = 0
+                  return perYearRows.map((row) => {
+                    cum += row.cf
+                    const crossed = cum >= investment
+                    return (
+                      <tr key={row.year}>
+                        <td className="col-name">{row.year}년차</td>
+                        <td>{won(row.rev)}</td>
+                        <td className="cell--down">{won(row.elec + row.pg)}</td>
+                        <td>{won(row.gross)}</td>
+                        <td className="cell--down">{won(row.ops)}</td>
+                        <td className={row.cf >= 0 ? '' : 'cell--down'}>
+                          {won(row.cf)}
+                        </td>
+                        <td className={crossed ? 'cell--up' : ''}>
+                          {won(cum)}
+                        </td>
+                      </tr>
+                    )
+                  })
+                })()}
+              </tbody>
+            </table>
+            <p className="table-note">
+              영업현금흐름 = 매출총이익 − 현장 운영비 (영업비·CAPEX 제외). 누적
+              현금흐름이 투자액 {won(investment)}에 도달하는 시점이 회수기간이며,
+              도달한 연차는 <b>초록색</b>으로 표시됩니다. 매출·충전 전기원가는
+              연차별 이용률(사용량) 증가를 반영합니다.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 목표 달성 충전단가 */}
