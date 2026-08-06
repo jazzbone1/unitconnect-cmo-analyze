@@ -386,10 +386,12 @@ function chargerBreakdown(p: SavedSite): string {
     .join(' · ')
 }
 
-/** 프로젝트 목록 표시용: 사업성 영업이익률(%). 사업성 탭(ProjectDetail)의 파생
- *  계산 체인(제외 반영·요금구조 실효원가·연차별 전기원가·대기전력 전체 종류)을
+/** 프로젝트 목록 표시용: 사업성 결과(영업이익률·영업이익). 사업성 탭(ProjectDetail)의
+ *  파생 계산 체인(제외 반영·요금구조 실효원가·연차별 전기원가·대기전력 전체 종류)을
  *  그대로 재현해 탭 결과와 일치시킨다. */
-function projectMargin(p: SavedSite): number | null {
+function projectFeas(
+  p: SavedSite,
+): ReturnType<typeof computeFeasibility> | null {
   const f = p.feas
   if (!f) return null
   const tariff = p.tariff ?? deriveTariff(p)
@@ -526,7 +528,7 @@ function projectMargin(p: SavedSite): number | null {
     includeStandby: true,
     standbyScope: 'all',
   }
-  return computeFeasibility(eff, elecByYear).margin
+  return computeFeasibility(eff, elecByYear)
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
@@ -1162,10 +1164,10 @@ export default function ProjectsView({
 
   const chargerCount = (p: SavedSite) =>
     p.chargers.reduce((a, c) => a + c.count, 0)
-  // 목록 표시용 파생값(영업이익률)은 프로젝트 변경 시에만 재계산.
-  const marginById = useMemo(() => {
-    const m = new Map<string, number | null>()
-    for (const p of projects) m.set(p.id, projectMargin(p))
+  // 목록 표시용 파생값(영업이익률·영업이익)은 프로젝트 변경 시에만 재계산.
+  const feasById = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof computeFeasibility> | null>()
+    for (const p of projects) m.set(p.id, projectFeas(p))
     return m
   }, [projects])
   const val = (p: SavedSite, key: string): string | number => {
@@ -1183,7 +1185,9 @@ export default function ProjectsView({
       case 'years':
         return p.feas?.years ?? 0
       case 'margin':
-        return marginById.get(p.id) ?? -Infinity
+        return feasById.get(p.id)?.margin ?? -Infinity
+      case 'profit':
+        return feasById.get(p.id)?.operatingProfit ?? -Infinity
       default:
         return ''
     }
@@ -1233,6 +1237,7 @@ export default function ProjectsView({
     { key: 'parking', label: '총 주차대수', num: true },
     { key: 'years', label: '계약기간', num: true },
     { key: 'margin', label: '영업이익률', num: true },
+    { key: 'profit', label: '영업 이익', num: true },
   ]
   const sortMark = (key: string) =>
     sortKey === key ? (sortDir === 'asc' ? ' ↓' : ' ↑') : ''
@@ -1311,10 +1316,18 @@ export default function ProjectsView({
                   </td>
                   <td className="proj-num">
                     {(() => {
-                      const mg = marginById.get(p.id)
+                      const mg = feasById.get(p.id)?.margin
                       return mg == null || !Number.isFinite(mg)
                         ? '—'
                         : `${(mg * 100).toFixed(2)}%`
+                    })()}
+                  </td>
+                  <td className="proj-num">
+                    {(() => {
+                      const pr = feasById.get(p.id)?.operatingProfit
+                      return pr == null || !Number.isFinite(pr)
+                        ? '—'
+                        : `${Math.round(pr).toLocaleString()}원`
                     })()}
                   </td>
                   <td>
