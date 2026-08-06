@@ -1155,7 +1155,12 @@ export default function ReportView({
 
           {/* 등록 충전기 종류별 전기원가 분석 */}
           {groups.map((g, i) => (
-            <Fragment key={g.id}>
+            <div
+              className={`report-charger-group${
+                secOn(groupKey(g.id)) ? '' : ' no-print'
+              }`}
+              key={g.id}
+            >
               {SecHead({
                 k: groupKey(g.id),
                 tag: 'h4',
@@ -1172,7 +1177,7 @@ export default function ReportView({
                       ? '모자분리 적용 · 계약전력 기반 기본요금 부과'
                       : '모자분리 미적용 · 공용부 전기세 부과 (기본요금 없음)',
                 })}
-            </Fragment>
+            </div>
           ))}
 
           {/* 운영비 내역 */}
