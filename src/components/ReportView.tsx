@@ -165,7 +165,7 @@ export default function ReportView({
     if (!autoSeed) return
     if (
       !window.confirm(
-        '앞 단계(요금구조·정산·단지정보)에서 끌어올 수 있는 항목을 다시 불러옵니다.\n개요·유형별 실적·월별 추이·전기원가(계약전력/월사용량/실효원가)·현행요금이 덮어써집니다.\n(운영비 항목·해결방안 서술·포함 체크는 유지)',
+        '앞 단계(요금구조·정산·단지정보)에서 끌어올 수 있는 항목을 다시 불러옵니다.\n개요·유형별 실적·월별 추이·전기원가(계약전력/월사용량/실효원가)·현행요금·운영비 자동 항목이 기본값으로 되돌아갑니다.\n(직접 추가한 운영비 항목·해결방안 서술·포함 체크는 유지)',
       )
     )
       return
@@ -177,6 +177,14 @@ export default function ReportView({
       perType: s.perType,
       monthly: s.monthly,
       opexBaseKwh: s.opexBaseKwh,
+      // 운영비: 자동 산출 항목(id/이름 일치)의 연비용을 기본값으로 복원.
+      //  사용자가 추가한 항목(시드에 없음)은 그대로 보존.
+      opex: (m.opex ?? []).map((r) => {
+        const sr =
+          (s.opex ?? []).find((x) => x.id === r.id) ??
+          (s.opex ?? []).find((x) => x.name === r.name)
+        return sr ? { ...r, yearCost: sr.yearCost } : r
+      }),
       groupA: {
         ...m.groupA,
         contractKw: s.groupA.contractKw,

@@ -386,15 +386,90 @@ function chargerBreakdown(p: SavedSite): string {
     .join(' · ')
 }
 
-/** 프로젝트 목록 표시용: 사업성 영업이익률(%) 근사. 사업성 탭과 동일 산식으로
- *  저장된 feas·요금·대기전력·충전기 수량을 반영해 산출한다. */
+/** 프로젝트 목록 표시용: 사업성 영업이익률(%). 사업성 탭(ProjectDetail)의 파생
+ *  계산 체인(제외 반영·요금구조 실효원가·연차별 전기원가·대기전력 전체 종류)을
+ *  그대로 재현해 탭 결과와 일치시킨다. */
 function projectMargin(p: SavedSite): number | null {
   const f = p.feas
   if (!f) return null
-  const active = p.chargers.filter((c) => !c.excluded)
-  const totalCount = active.reduce((a, c) => a + c.count, 0)
+  const tariff = p.tariff ?? deriveTariff(p)
+  const standby = p.standby ?? defaultStandby()
+  // 제외(excluded) 종류는 대수 0으로 취급(effConfig).
+  const chargers = p.chargers.map((c) => (c.excluded ? { ...c, count: 0 } : c))
+  const totalCount = chargers.reduce((a, c) => a + c.count, 0)
   if (totalCount === 0) return null
-  const countOf = (kw: number) => active.find((c) => c.kw === kw)?.count ?? 0
+  const countOf = (kw: number) => chargers.find((c) => c.kw === kw)?.count ?? 0
+  const installedKw = chargers.reduce((a, c) => a + c.kw * c.count, 0)
+  const utilOf = (kw: number): number => {
+    if (kw === 100) return f.utilFast100 ?? 0
+    if (kw === 50) return f.utilFast50 ?? 0
+    if (kw === 7) return f.utilSlow7 ?? 0
+    if (kw === 3.5) return f.utilSlow35 ?? 0
+    if (kw === 3) return f.utilSlow3 ?? 0
+    return 0
+  }
+  const feasMonthlyKwh = chargers.reduce(
+    (a, c) => a + utilOf(c.kw) * c.kw * 720 * c.count,
+    0,
+  )
+  const effMonthlyKwh =
+    tariff.monthlyKwhOverride != null &&
+    Number.isFinite(tariff.monthlyKwhOverride)
+      ? (tariff.monthlyKwhOverride as number)
+      : Math.round(feasMonthlyKwh)
+  const hasExclusion = p.chargers.some((c) => c.excluded && c.count > 0)
+  const properKw = properContractKwByUsage(
+    effMonthlyKwh,
+    tariff.targetLoadFactor ?? 0.18,
+    tariff.contractMargin ?? 0.15,
+  )
+  const contractRatioAuto =
+    hasExclusion && installedKw > 0 && properKw > 0
+      ? properKw / installedKw
+      : undefined
+  const tariffEff = computeTariff({
+    ...tariff,
+    installedKw,
+    monthlyKwh: effMonthlyKwh,
+    ...(contractRatioAuto != null ? { contractRatio: contractRatioAuto } : {}),
+  })
+  const autoElecCost = tariffEff.selected.effCost
+  // 연차별 전기원가 모델
+  const yearlyW = computeFeasibility({
+    ...f,
+    countFast100: countOf(100),
+    countFast50: countOf(50),
+    countSlow7: countOf(7),
+    countSlow35: countOf(3.5),
+    countSlow3: countOf(3),
+  }).yearlyW
+  const contractKw1 = tariffEff.contractKw
+  const mk1 = yearlyW[0] || effMonthlyKwh || 1
+  const lf1 = contractKw1 > 0 ? mk1 / (contractKw1 * 720) : 0
+  const mode = f.elecYearMode ?? 'demandFixed'
+  const elecByYearAll = yearlyW.map((mk) => {
+    const contractKw =
+      mode === 'loadFactorFixed'
+        ? lf1 > 0
+          ? mk / (lf1 * 720)
+          : contractKw1
+        : contractKw1
+    return computeTariff({
+      ...tariff,
+      installedKw: undefined,
+      contractRatio: undefined,
+      contractKw,
+      monthlyKwh: mk,
+    }).selected.effCost
+  })
+  const hasElecOverride =
+    f.elecCostOverride != null && Number.isFinite(f.elecCostOverride)
+  const effElecCost = hasElecOverride
+    ? (f.elecCostOverride as number)
+    : Number.isFinite(autoElecCost)
+      ? autoElecCost
+      : ELEC_COST
+  const elecByYear = hasElecOverride ? undefined : elecByYearAll
   const rateKeyOf = (kw: number): keyof FeasibilityInputs =>
     kw === 100
       ? 'rateFast100'
@@ -410,22 +485,28 @@ function projectMargin(p: SavedSite): number | null {
     if (ov > 0) return ov
     return p.chargers.find((c) => c.kw === kw)?.rate ?? 0
   }
-  // 전기원가: override → 요금구조 실효원가 → 기본
-  let elec = ELEC_COST
-  if (f.elecCostOverride != null && Number.isFinite(f.elecCostOverride)) {
-    elec = f.elecCostOverride
-  } else if (p.tariff) {
-    const t = computeTariff(p.tariff)
-    if (t.selected && t.selected.effCost > 0) elec = t.selected.effCost
+  // 영업비 1대분: 프로젝트 override > 전역 기준표(bizFeeByYear, 사업성 탭에서 편집) >
+  //  계약연수 기본값. 전역 기준표는 사업성 탭과 동일하게 localStorage에서 읽는다.
+  let globalBiz: number[] | null = null
+  try {
+    const raw = localStorage.getItem('unitconnect.ui.feasibility.bizFeeByYear')
+    const arr = raw ? JSON.parse(raw) : null
+    if (Array.isArray(arr)) globalBiz = arr
+  } catch {
+    globalBiz = null
   }
+  const yearIdx = Math.max(1, Math.min(7, Math.round(f.years))) - 1
+  const standardBiz = globalBiz?.[yearIdx] ?? defaultBizFee(f.years)
   const biz =
     f.bizFeeOverride != null && Number.isFinite(f.bizFeeOverride)
       ? f.bizFeeOverride
-      : defaultBizFee(f.years)
-  const sepK = p.standby
-    ? computeStandby(active.filter((c) => c.separated), p.standby, 0).totalKwh
-    : 0
-  const allK = p.standby ? computeStandby(active, p.standby, 0).totalKwh : 0
+      : standardBiz
+  const sepK = computeStandby(
+    chargers.filter((c) => c.separated),
+    standby,
+    0,
+  ).totalKwh
+  const allK = computeStandby(chargers, standby, 0).totalKwh
   const eff: FeasibilityInputs = {
     ...f,
     countFast100: countOf(100),
@@ -439,13 +520,13 @@ function projectMargin(p: SavedSite): number | null {
     rateSlow35: rateOf(3.5),
     rateSlow3: rateOf(3),
     bizFeePerUnit: biz,
-    elecCostUnit: elec,
+    elecCostUnit: effElecCost,
     standbyMonthlyKwhSeparated: sepK,
     standbyMonthlyKwhAll: allK,
     includeStandby: true,
     standbyScope: 'all',
   }
-  return computeFeasibility(eff).margin
+  return computeFeasibility(eff, elecByYear).margin
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
