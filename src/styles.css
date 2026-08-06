@@ -1383,6 +1383,13 @@ tr.row--detail .col-name {
 .proj-num {
   text-align: right !important;
 }
+.proj-charger-breakdown {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 .proj-sortable {
   cursor: pointer;
   user-select: none;

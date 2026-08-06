@@ -6,6 +6,8 @@ import { detectSettlement, computeAll } from '../lib/settlement'
 import {
   DEFAULT_INPUTS,
   computeFeasibility,
+  defaultBizFee,
+  ELEC_COST,
   type FeasibilityInputs,
 } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
@@ -374,6 +376,75 @@ function nonSepStandbyKwh(
     standby,
     0,
   ).totalKwh
+}
+
+/** 프로젝트 목록 표시용: 등록 충전기 종류별 수량 요약 문자열 (예: "3kW 503 · 7kW 21") */
+function chargerBreakdown(p: SavedSite): string {
+  return p.chargers
+    .filter((c) => c.count > 0)
+    .map((c) => `${c.kw}kW ${c.count.toLocaleString()}`)
+    .join(' · ')
+}
+
+/** 프로젝트 목록 표시용: 사업성 영업이익률(%) 근사. 사업성 탭과 동일 산식으로
+ *  저장된 feas·요금·대기전력·충전기 수량을 반영해 산출한다. */
+function projectMargin(p: SavedSite): number | null {
+  const f = p.feas
+  if (!f) return null
+  const active = p.chargers.filter((c) => !c.excluded)
+  const totalCount = active.reduce((a, c) => a + c.count, 0)
+  if (totalCount === 0) return null
+  const countOf = (kw: number) => active.find((c) => c.kw === kw)?.count ?? 0
+  const rateKeyOf = (kw: number): keyof FeasibilityInputs =>
+    kw === 100
+      ? 'rateFast100'
+      : kw === 50
+        ? 'rateFast50'
+        : kw === 7
+          ? 'rateSlow7'
+          : kw === 3.5
+            ? 'rateSlow35'
+            : 'rateSlow3'
+  const rateOf = (kw: number) => {
+    const ov = (f[rateKeyOf(kw)] as number) ?? 0
+    if (ov > 0) return ov
+    return p.chargers.find((c) => c.kw === kw)?.rate ?? 0
+  }
+  // 전기원가: override → 요금구조 실효원가 → 기본
+  let elec = ELEC_COST
+  if (f.elecCostOverride != null && Number.isFinite(f.elecCostOverride)) {
+    elec = f.elecCostOverride
+  } else if (p.tariff) {
+    const t = computeTariff(p.tariff)
+    if (t.selected && t.selected.effCost > 0) elec = t.selected.effCost
+  }
+  const biz =
+    f.bizFeeOverride != null && Number.isFinite(f.bizFeeOverride)
+      ? f.bizFeeOverride
+      : defaultBizFee(f.years)
+  const sepK = p.standby
+    ? computeStandby(active.filter((c) => c.separated), p.standby, 0).totalKwh
+    : 0
+  const allK = p.standby ? computeStandby(active, p.standby, 0).totalKwh : 0
+  const eff: FeasibilityInputs = {
+    ...f,
+    countFast100: countOf(100),
+    countFast50: countOf(50),
+    countSlow7: countOf(7),
+    countSlow35: countOf(3.5),
+    countSlow3: countOf(3),
+    rateFast100: rateOf(100),
+    rateFast50: rateOf(50),
+    rateSlow7: rateOf(7),
+    rateSlow35: rateOf(3.5),
+    rateSlow3: rateOf(3),
+    bizFeePerUnit: biz,
+    elecCostUnit: elec,
+    standbyMonthlyKwhSeparated: sepK,
+    standbyMonthlyKwhAll: allK,
+    includeStandby: true,
+  }
+  return computeFeasibility(eff).margin
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
@@ -1009,6 +1080,12 @@ export default function ProjectsView({
 
   const chargerCount = (p: SavedSite) =>
     p.chargers.reduce((a, c) => a + c.count, 0)
+  // 목록 표시용 파생값(영업이익률)은 프로젝트 변경 시에만 재계산.
+  const marginById = useMemo(() => {
+    const m = new Map<string, number | null>()
+    for (const p of projects) m.set(p.id, projectMargin(p))
+    return m
+  }, [projects])
   const val = (p: SavedSite, key: string): string | number => {
     switch (key) {
       case 'name':
@@ -1021,6 +1098,10 @@ export default function ProjectsView({
         return p.households ?? 0
       case 'parking':
         return p.parking ?? 0
+      case 'years':
+        return p.feas?.years ?? 0
+      case 'margin':
+        return marginById.get(p.id) ?? -Infinity
       default:
         return ''
     }
@@ -1068,6 +1149,8 @@ export default function ProjectsView({
     { key: 'chargers', label: '충전기 수량', num: true },
     { key: 'households', label: '세대수', num: true },
     { key: 'parking', label: '총 주차대수', num: true },
+    { key: 'years', label: '계약기간', num: true },
+    { key: 'margin', label: '영업이익률', num: true },
   ]
   const sortMark = (key: string) =>
     sortKey === key ? (sortDir === 'asc' ? ' ↓' : ' ↑') : ''
@@ -1129,12 +1212,28 @@ export default function ProjectsView({
                   <td className="col-name">{p.address || '—'}</td>
                   <td className="proj-num">
                     {chargerCount(p).toLocaleString()}기
+                    {chargerBreakdown(p) && (
+                      <div className="proj-charger-breakdown">
+                        {chargerBreakdown(p)}
+                      </div>
+                    )}
                   </td>
                   <td className="proj-num">
                     {p.households ? p.households.toLocaleString() : '—'}
                   </td>
                   <td className="proj-num">
                     {p.parking ? p.parking.toLocaleString() : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {p.feas?.years ? `${p.feas.years}년` : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {(() => {
+                      const mg = marginById.get(p.id)
+                      return mg == null || !Number.isFinite(mg)
+                        ? '—'
+                        : `${(mg * 100).toFixed(2)}%`
+                    })()}
                   </td>
                   <td>
                     <button
