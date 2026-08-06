@@ -504,21 +504,26 @@ export function defaultReport(): ReportModel {
       separated: false,
     },
     opex: [
-      { id: rid(), name: '정기점검', yearCost: 360000, note: '1년 2회 기준' },
-      { id: rid(), name: '긴급점검', yearCost: 720000, note: '1년 4회 기준' },
+      { id: 'opex-regular', name: '정기점검', yearCost: 360000, note: '1년 2회 기준' },
+      { id: 'opex-urgent', name: '긴급점검', yearCost: 720000, note: '1년 4회 기준' },
       {
-        id: rid(),
+        id: 'opex-cs',
         name: 'CS 운영/원격모니터링/정산',
         yearCost: 42000000,
         note: '1명(월 350만원)',
       },
       {
-        id: rid(),
+        id: 'opex-insurance',
         name: '보험가입비용',
         yearCost: 53900000,
         note: '영업배상·손해배상책임보험',
       },
-      { id: rid(), name: '수선비', yearCost: 63240000, note: '소모품·대수선비' },
+      {
+        id: 'opex-repair',
+        name: '수선비',
+        yearCost: 63240000,
+        note: '소모품·대수선비',
+      },
     ],
     opexBaseKwh: 147166,
     recommend: [

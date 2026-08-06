@@ -341,8 +341,8 @@ function seedReport(
       { id: 'opex-regular', name: '정기점검', yearCost: visitFee * 2 * inspectSets, note: '회당 30만원 × 연 2회 × (충전기 100대당 1세트, 올림)' },
       { id: 'opex-urgent', name: '긴급점검', yearCost: visitFee * 4, note: '회당 30만원 × 연 4회' },
       { id: 'opex-cs', name: 'CS 운영/원격모니터링/정산', yearCost: cnt * 60000, note: '' },
-      { id: 'opex-insurance', name: '배상책임보험', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당·연)' },
-      { id: 'opex-repair', name: '수선비·부품적립', yearCost: slow * 30000 + fast * 300000, note: '완속 30,000 / 급속 300,000원 (대당·연)' },
+      { id: 'opex-insurance', name: '보험가입비용', yearCost: slow * 4000 + fast * 10000, note: '완속 4,000 / 급속 10,000원 (대당·연)' },
+      { id: 'opex-repair', name: '수선비', yearCost: slow * 30000 + fast * 300000, note: '완속 30,000 / 급속 300,000원 (대당·연)' },
     ]
   }
 
