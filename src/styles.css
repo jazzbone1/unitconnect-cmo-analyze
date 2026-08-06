@@ -1680,7 +1680,6 @@ tr.row--detail .col-name {
   .report-root .report-charger-group {
     break-inside: auto;
     border: none !important;
-    border-left: 3px solid #173b7a !important;
     border-radius: 0 !important;
     margin: 3mm 0 !important;
     padding: 0 !important;
