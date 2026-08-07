@@ -13,6 +13,7 @@ import {
   type FeasibilityInputs,
 } from '../lib/feasibility'
 import { formatNumber } from '../lib/stats'
+import AiPanel from './AiPanel'
 
 interface FeasibilityAnalysisProps {
   inputs: FeasibilityInputs
@@ -441,6 +442,47 @@ export default function FeasibilityAnalysis({
           <span className="stat__label">영업이익 ({inputs.years}년)</span>
         </div>
       </div>
+
+      {/* AI 사업성 총평 */}
+      <AiPanel
+        kind="summary"
+        label="AI 사업성 총평 생성"
+        getData={() => ({
+          계약연수: inputs.years,
+          판정: r.verdict,
+          영업이익률: `${(r.margin * 100).toFixed(2)}%`,
+          영업이익률목표: `${(r.targetMargin * 100).toFixed(2)}%`,
+          영업이익_계약기간: Math.round(r.operatingProfit),
+          회수기간: payback.text,
+          전기원가_원kWh: Number(effElecCost.toFixed(1)),
+          손익_계약기간: {
+            매출: Math.round(r.revenue),
+            PG수수료: Math.round(r.pgFee),
+            전기원가_충전: Math.round(r.elecCost),
+            전기원가_대기전력: Math.round(r.standbyCost),
+            현장운영비: Math.round(r.opsCost),
+            영업비: Math.round(r.bizCost),
+            CAPEX: Math.round(r.capex),
+          },
+          충전기종류별: chargerRows
+            .filter((row) => countOf(row.kw) > 0)
+            .map((row) => ({
+              종류: row.label,
+              대수: countOf(row.kw),
+              이용률: `${((inputs[row.utilKey] as number) * 100).toFixed(2)}%`,
+              요금_원kWh: resolveRate(row.kw) || inputs.rateVat,
+              월사용량_kWh: Math.round(
+                (inputs[row.utilKey] as number) * row.kw * 720 * countOf(row.kw),
+              ),
+            })),
+          충전기별손익: perChargerRows.map((row) => ({
+            종류: row.label,
+            대수: row.count,
+            영업이익: Math.round(row.op),
+            이익률: `${(row.margin * 100).toFixed(2)}%`,
+          })),
+        })}
+      />
 
       {/* 1. 영업이익 기준 (계약년수·단가에 따라 기준 변동) */}
       <div className="subsection">

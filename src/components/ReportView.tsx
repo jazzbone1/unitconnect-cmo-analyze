@@ -13,6 +13,7 @@ import {
   type ReportModel,
 } from '../lib/report'
 import { Fragment } from 'react'
+import AiPanel from './AiPanel'
 
 interface ReportViewProps {
   model: ReportModel
@@ -1131,6 +1132,52 @@ export default function ReportView({
           secOn('2-rec')) && (
         <section className="card">
           <h2>Part 2. 문제점 — 전기요금 구조 및 운영비</h2>
+
+          {/* AI 보고서 문제점·해결방안 초안 */}
+          <AiPanel
+            kind="report"
+            label="AI 문제점·해결방안 초안 생성"
+            getData={() => ({
+              단지: model.siteName,
+              개요: model.overview.map((r) => ({
+                항목: r.label,
+                값: r.value,
+                비고: r.note,
+              })),
+              유형별실적: model.perType.map((r) => ({
+                종류: r.type,
+                대수: r.count,
+                월충전량: r.monthlyKwh,
+                이용률: r.util,
+              })),
+              전기원가그룹: groups.map((g) => {
+                const gi = { ...g, vatDeduct: model.vatDeduct }
+                const rr = computeElecCost(gi)
+                const p = computeProfit(gi, opexRateOf(g))
+                return {
+                  종류: g.name,
+                  모자분리: g.separated !== false,
+                  계약전력_kW: g.contractKw,
+                  실효원가Lv1_원kWh: Number(rr.lv1.toFixed(1)),
+                  손익분기Lv2_원kWh: Number(p.lv2.toFixed(1)),
+                  현행요금_원kWh: g.currentRate,
+                  월사용량_kWh: g.monthlyKwh,
+                  월순손익_원: Math.round(p.netMonth),
+                }
+              }),
+              운영비: model.opex.map((o) => ({
+                항목: o.name,
+                연비용: o.yearCost,
+              })),
+              운영비분모_월kWh: model.opexBaseKwh,
+              권고안: (model.recommend ?? []).map((r) => ({
+                구분: r.label,
+                현행요금: r.current,
+                최소인상안: r.proposed,
+                비고: r.note,
+              })),
+            })}
+          />
 
           <label className="toggle report-moja no-print">
             <input

@@ -1560,6 +1560,46 @@ tr.row--detail .col-name {
   background: var(--edit-soft);
   border-color: var(--edit-border);
 }
+/* AI 분석 패널 */
+.ai-panel {
+  margin: 0.6rem 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--lime-deep);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.ai-panel__bar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ai-panel__btn {
+  font-weight: 700;
+}
+.ai-panel__out {
+  margin-top: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 32rem;
+  overflow-y: auto;
+}
+.ai-panel__note,
+.ai-panel__hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.ai-panel__hint {
+  margin: 0.5rem 0;
+}
 .report-premise {
   display: flex;
   flex-direction: column;

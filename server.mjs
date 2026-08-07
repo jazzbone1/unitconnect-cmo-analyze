@@ -7,10 +7,15 @@
 //   R2_BUCKET            버킷 이름 (예: wecha-cmo-analysis)
 //   (프론트) VITE_REMOTE_STORE=1  ← 빌드 시 주입 (같은 도메인 /api 사용)
 //
+//   ANTHROPIC_API_KEY    Claude API 키 (AI 분석 기능 활성화). 없으면 기능 비활성.
+//   ANTHROPIC_MODEL      (선택) 모델 ID. 기본 claude-opus-5. 저비용은 claude-haiku-4-5.
+//
 // R2 환경변수가 없으면 /api 는 비활성(앱은 localStorage로 동작).
+// ANTHROPIC_API_KEY 가 없으면 /api/ai 는 비활성(status.enabled=false).
 
 import express from 'express'
 import { AwsClient } from 'aws4fetch'
+import Anthropic from '@anthropic-ai/sdk'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -23,7 +28,14 @@ const {
   R2_ACCESS_KEY_ID,
   R2_SECRET_ACCESS_KEY,
   R2_BUCKET,
+  // AI 분석(Claude). 키가 없으면 /api/ai 는 비활성(앱은 정상 동작).
+  ANTHROPIC_API_KEY,
+  ANTHROPIC_MODEL, // 기본 claude-opus-5, 비용 절감 시 claude-haiku-4-5 등으로 지정
 } = process.env
+
+const aiReady = !!ANTHROPIC_API_KEY
+const anthropic = aiReady ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null
+const AI_MODEL = ANTHROPIC_MODEL || 'claude-opus-5'
 
 const r2Ready =
   R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET
@@ -75,10 +87,96 @@ app.put(
   },
 )
 
+// ── AI 분석 (Claude) ─────────────────────────────────────────────
+// 키가 없으면 enabled:false 로만 응답. 프론트는 이 값으로 버튼 노출 여부 결정.
+app.get('/api/ai/status', (_req, res) => {
+  res.json({ enabled: aiReady, model: aiReady ? AI_MODEL : null })
+})
+
+const AI_SYSTEM = `당신은 UNITCONNECT의 전기차 충전 인프라 CMO(위탁운영) 컨설턴트입니다.
+아파트 단지 충전 사업의 사업성·요금구조·운영비 데이터를 해석해 한국어로 간결하고
+전문적인 진단을 작성합니다. 규칙:
+- 반드시 제공된 데이터(JSON)에 근거해서만 서술하고, 없는 수치는 지어내지 않습니다.
+- 숫자는 데이터의 값을 그대로 인용하고, 단위(원/kWh, %, 원)를 붙입니다.
+- 과장·홍보 문구가 아닌 컨설팅 톤으로, 근거→판단→제언 순서로 씁니다.
+- 마크다운 소제목(###)과 불릿(-)을 사용해 읽기 쉽게 구성합니다.`
+
+function aiPrompt(kind, data) {
+  const json = JSON.stringify(data, null, 2)
+  if (kind === 'report') {
+    return `아래는 한 아파트 단지의 컨설팅 보고서용 계산 데이터입니다.
+이 데이터를 근거로 보고서 "문제점 → 해결방안 → 권고" 초안을 작성하세요.
+
+구성:
+### 문제점
+- 현행 요금·전기원가·운영비 구조에서 드러난 핵심 문제 3~5가지 (수치 근거 포함)
+### 해결방안
+- 각 문제에 대응하는 구체적 개선안 (요금 조정·운영비 최적화·모자분리 등)
+### 권고
+- 우선순위와 기대효과를 1~2문장으로 요약
+
+데이터:
+\`\`\`json
+${json}
+\`\`\``
+  }
+  // summary (단지별 사업성 총평)
+  return `아래는 한 아파트 단지의 사업성 분석 결과 데이터입니다.
+이 데이터를 근거로 "사업성 총평"을 작성하세요.
+
+구성:
+### 진단
+- 진행가능/진행불가 판정과 그 사유 (영업이익률 vs 목표, 회수기간 등 수치 근거)
+### 핵심 리스크
+- 사업성을 떨어뜨리는 요인 2~4가지 (예: 저이용 충전기, 높은 원가/운영비)
+### 개선 포인트
+- 목표이익률 달성을 위한 실행 가능한 제언 2~4가지
+
+데이터:
+\`\`\`json
+${json}
+\`\`\``
+}
+
+app.post('/api/ai/analyze', express.json({ limit: '4mb' }), async (req, res) => {
+  if (!anthropic) return res.status(503).json({ error: 'AI not configured' })
+  const kind = req.body?.kind === 'report' ? 'report' : 'summary'
+  const data = req.body?.data
+  if (data == null || typeof data !== 'object') {
+    return res.status(400).json({ error: 'data required' })
+  }
+  try {
+    // 스트리밍으로 받아 HTTP 타임아웃을 피하고, 완성 텍스트만 한 번에 반환.
+    const stream = anthropic.messages.stream({
+      model: AI_MODEL,
+      max_tokens: kind === 'report' ? 12000 : 8000,
+      system: AI_SYSTEM,
+      messages: [{ role: 'user', content: aiPrompt(kind, data) }],
+    })
+    const msg = await stream.finalMessage()
+    const text = (msg.content || [])
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim()
+    if (msg.stop_reason === 'refusal' || !text) {
+      return res.status(502).json({ error: 'AI 응답을 생성하지 못했습니다.' })
+    }
+    res.json({ text, model: msg.model })
+  } catch (e) {
+    const status = e?.status && Number.isInteger(e.status) ? e.status : 502
+    res.status(status).json({ error: e?.message || String(e) })
+  }
+})
+
 // 정적 파일 + SPA 폴백
 app.use(express.static(DIST))
 app.use((_req, res) => res.sendFile(path.join(DIST, 'index.html')))
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`listening on ${PORT} · R2 ${r2Ready ? 'ON' : 'OFF(localStorage)'}`)
+  console.log(
+    `listening on ${PORT} · R2 ${r2Ready ? 'ON' : 'OFF(localStorage)'} · AI ${
+      aiReady ? `ON(${AI_MODEL})` : 'OFF(no ANTHROPIC_API_KEY)'
+    }`,
+  )
 })
