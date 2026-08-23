@@ -8,6 +8,7 @@ import {
   computeFeasibility,
   defaultBizFee,
   ELEC_COST,
+  STD,
   type FeasibilityInputs,
 } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
@@ -45,6 +46,16 @@ import ApartmentBillAnalysis from './ApartmentBillAnalysis'
 import SiteConfigForm, { type SiteInfo } from './SiteConfigForm'
 import Dropzone from './Dropzone'
 import FileList from './FileList'
+
+/** 종류별 표준(UC 기준) 이용률 — 정산 종류별 배분 가중치용(사업성 가정과 분리). */
+function stdUtilByKw(kw: number): number {
+  if (kw === 100) return STD.utilFast100
+  if (kw === 50) return STD.utilFast50
+  if (kw === 7) return STD.utilSlow7
+  if (kw === 3.5) return STD.utilSlow35
+  if (kw === 3) return STD.utilSlow3
+  return 0
+}
 
 /** 프로젝트 데이터로 보고서 초기값(현장 정보) 자동 기입 */
 function seedReport(
@@ -97,10 +108,12 @@ function seedReport(
     if (kw === 3) return feas.utilSlow3 ?? 0
     return 0
   }
-  // 3종류 이상 자동 비례 배분 가중치 = 정격 × 대수 × 가정 이용률
+  // 3종류 이상 자동 비례 배분 가중치 = 정격 × 대수 × 표준(UC 기준) 이용률.
+  //  사업성 가정 이용률과 분리(고정 프로파일) → 사업성 %를 바꿔도 정산 배분이
+  //  흔들리지 않고, 정산 실적을 사업성 분석의 기준값으로 쓸 수 있다.
   const autoWeights: Record<string, number> = {}
   for (const c of config.chargers)
-    autoWeights[c.id] = c.kw * c.count * utilByKw(c.kw)
+    autoWeights[c.id] = c.kw * c.count * stdUtilByKw(c.kw)
 
   // 정산 월간 데이터가 있으면 유형별 실적·월별 추이 자동 기입
   const metrics = files.length
@@ -790,21 +803,15 @@ function ProjectDetail({
       0,
     )
   }, [feas, effConfig])
-  // 정산 종류별 자동 비례 배분 가중치 = 정격 × 대수 × 사업성 가정 이용률.
+  // 정산 종류별 자동 비례 배분 가중치 = 정격 × 대수 × 표준(UC 기준) 이용률.
   //  요금 역산 불가(3종류 이상)일 때 총 사용량을 이 비중으로 배분해 이용률 추정.
+  //  사업성 가정 이용률과 분리 → 사업성 %를 바꿔도 정산 배분이 흔들리지 않는다.
   const settleWeights = useMemo(() => {
-    const u = (kw: number) => {
-      if (kw === 100) return feas.utilFast100 ?? 0
-      if (kw === 50) return feas.utilFast50 ?? 0
-      if (kw === 7) return feas.utilSlow7 ?? 0
-      if (kw === 3.5) return feas.utilSlow35 ?? 0
-      if (kw === 3) return feas.utilSlow3 ?? 0
-      return 0
-    }
     const w: Record<string, number> = {}
-    for (const c of config.chargers) w[c.id] = c.kw * c.count * u(c.kw)
+    for (const c of config.chargers)
+      w[c.id] = c.kw * c.count * stdUtilByKw(c.kw)
     return w
-  }, [config, feas])
+  }, [config])
   // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
   const effMonthlyKwh =
     tariff.monthlyKwhOverride != null &&

@@ -361,8 +361,8 @@ export default function SettlementAnalysis({
       {anyEstimate && (
         <p className="status status--info">
           요금이 지정된 종류가 3개 이상이라 요금 역산으로는 나눌 수 없어,
-          <b> 종류별 (정격×대수×사업성 가정 이용률) 비중으로 총 사용량을 배분한
-          추정치</b>로 표시합니다. (총량은 보존)
+          <b> 종류별 (정격×대수×표준 이용률[UC 기준]) 비중으로 총 사용량을 배분한
+          추정치</b>로 표시합니다. (총량은 보존, 사업성 가정 이용률과 무관)
         </p>
       )}
       {anyNone && (
