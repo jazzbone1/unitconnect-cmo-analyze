@@ -9,6 +9,7 @@ import {
 } from '../lib/settlement'
 import { formatNumber } from '../lib/stats'
 import type { SiteInfo } from './SiteInfoPanel'
+import type { KwhProfile } from './ProjectsView'
 import ComboChart from './ComboChart'
 
 /** 큰 금액을 만/억 단위로 짧게 표기 */
@@ -107,8 +108,11 @@ interface SettlementAnalysisProps {
   files: FileEntry[]
   config: SettlementConfig
   site: SiteInfo
-  /** 종류별 자동 비례 배분 가중치(정격×대수×가정이용률). 3종류 이상 이용률 추정용. */
+  /** 종류별 자동 비례 배분 가중치(대수×표준 월대당충전량). 3종류 이상 이용률 추정용. */
   autoWeights?: Record<string, number>
+  /** 표준 월 대당 충전량 프로파일(편집 가능) */
+  kwhProfile?: KwhProfile
+  setKwhProfile?: (p: KwhProfile) => void
 }
 
 // 기간 유형별 표시 순서/라벨
@@ -317,6 +321,8 @@ export default function SettlementAnalysis({
   config,
   site,
   autoWeights,
+  kwhProfile,
+  setKwhProfile,
 }: SettlementAnalysisProps) {
   // 종류별 사용량 수동 입력(파일별·종류별). 있으면 자동/추정값을 덮어쓴다.
   const [manualUsage, setManualUsage] = usePersistentState<
@@ -365,6 +371,44 @@ export default function SettlementAnalysis({
           등]) 비중으로 총 사용량을 배분한 추정치</b>로 표시합니다. (콘센트는
           저속·대량설치라 대당 낮게 반영. 총량 보존, 사업성 가정 이용률과 무관)
         </p>
+      )}
+      {anyEstimate && kwhProfile && setKwhProfile && (
+        <div className="kwh-profile">
+          <div className="kwh-profile__title">
+            종류별 표준 월 대당 충전량 (배분 가중치 · kWh/대·월)
+          </div>
+          <div className="kwh-profile__grid">
+            {(
+              [
+                ['콘센트 3kW', 'p3'],
+                ['완속 3.5kW', 'p35'],
+                ['완속 7kW', 'p7'],
+                ['급속 50kW', 'p50'],
+                ['급속 100kW', 'p100'],
+              ] as const
+            ).map(([label, key]) => (
+              <label key={key} className="kwh-profile__field">
+                <span>{label}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={kwhProfile[key]}
+                  onChange={(e) =>
+                    setKwhProfile({
+                      ...kwhProfile,
+                      [key]: Number(e.target.value) || 0,
+                    })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <p className="kwh-profile__note">
+            단지별 실제 이용 패턴에 맞게 조정하세요. 이 값의 비중대로 총사용량이
+            종류별로 배분됩니다. (전역 저장 · 모든 프로젝트 공통, 보고서에도 반영)
+          </p>
+        </div>
       )}
       {anyNone && (
         <p className="status status--info">

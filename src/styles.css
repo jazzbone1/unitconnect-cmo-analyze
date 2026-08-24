@@ -1600,6 +1600,47 @@ tr.row--detail .col-name {
 .ai-panel__hint {
   margin: 0.5rem 0;
 }
+/* 정산 종류별 표준 월 대당 충전량 편집 */
+.kwh-profile {
+  margin: 0.6rem 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--lime-deep);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.kwh-profile__title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+.kwh-profile__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+.kwh-profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.kwh-profile__field input {
+  width: 5.5rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+}
+.kwh-profile__note {
+  margin: 0.5rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
 .report-premise {
   display: flex;
   flex-direction: column;

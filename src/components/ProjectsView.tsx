@@ -55,12 +55,28 @@ import FileList from './FileList'
  *   · 급속 50/100kW ≈ 650/850 (방문·급속 수요로 대당 에너지 큼. 단지별 편차 큼)
  *  → 콘센트:완속 대당 비율 약 1:5. 가중치 = 대수 × 이 값(정격·720h는 상수라 비중 무관).
  */
-function stdMonthlyKwhByKw(kw: number): number {
-  if (kw >= 100) return 850
-  if (kw >= 50) return 650
-  if (kw >= 7) return 400
-  if (kw >= 3.5) return 150
-  return 80 // 3kW 콘센트: 대량설치·저속·저이용
+export interface KwhProfile {
+  p100: number
+  p50: number
+  p7: number
+  p35: number
+  p3: number
+}
+/** 정산 배분용 표준 월 대당 충전량 기본값(편집 가능). */
+export const DEFAULT_KWH_PROFILE: KwhProfile = {
+  p100: 850,
+  p50: 650,
+  p7: 400,
+  p35: 150,
+  p3: 80,
+}
+/** 정격(kW)에 해당하는 프로파일 값(월 대당 충전량, kWh). */
+function monthlyKwhFromProfile(kw: number, p: KwhProfile): number {
+  if (kw >= 100) return p.p100
+  if (kw >= 50) return p.p50
+  if (kw >= 7) return p.p7
+  if (kw >= 3.5) return p.p35
+  return p.p3 // 3kW 콘센트
 }
 
 /** 프로젝트 데이터로 보고서 초기값(현장 정보) 자동 기입 */
@@ -72,6 +88,7 @@ function seedReport(
   standby?: StandbyInputs,
   feas?: FeasibilityInputs,
   aptBill?: ApartmentBillInputs,
+  kwhProfile: KwhProfile = DEFAULT_KWH_PROFILE,
 ): ReportModel {
   const d = defaultReport()
   d.siteName = project.name
@@ -119,7 +136,7 @@ function seedReport(
   //  사업성 %를 바꿔도 정산 배분이 흔들리지 않고, 정산 실적을 사업성 기준값으로 쓸 수 있다.
   const autoWeights: Record<string, number> = {}
   for (const c of config.chargers)
-    autoWeights[c.id] = c.count * stdMonthlyKwhByKw(c.kw)
+    autoWeights[c.id] = c.count * monthlyKwhFromProfile(c.kw, kwhProfile)
 
   // 정산 월간 데이터가 있으면 유형별 실적·월별 추이 자동 기입
   const metrics = files.length
@@ -738,6 +755,11 @@ function ProjectDetail({
   const [subtab, setSubtab] = usePersistentState<
     'usage' | 'feasibility' | 'report' | 'tariff' | 'standby' | 'aptbill'
   >('projectSubtab', 'usage')
+  // 정산 종류별 배분용 표준 월 대당 충전량 프로파일(편집 가능·전역 저장).
+  const [kwhProfile, setKwhProfile] = usePersistentState<KwhProfile>(
+    'settle.kwhProfile',
+    DEFAULT_KWH_PROFILE,
+  )
   const [feas, setFeas] = useState<FeasibilityInputs>(
     project.feas ?? DEFAULT_INPUTS(),
   )
@@ -752,6 +774,7 @@ function ProjectDetail({
         project.standby ?? defaultStandby(),
         project.feas ?? DEFAULT_INPUTS(),
         project.aptBill ?? defaultApartmentBill(),
+        kwhProfile,
       ),
   )
   const [tariff, setTariff] = useState<TariffInputs>(() => deriveTariff(project))
@@ -820,9 +843,9 @@ function ProjectDetail({
   const settleWeights = useMemo(() => {
     const w: Record<string, number> = {}
     for (const c of config.chargers)
-      w[c.id] = c.count * stdMonthlyKwhByKw(c.kw)
+      w[c.id] = c.count * monthlyKwhFromProfile(c.kw, kwhProfile)
     return w
-  }, [config])
+  }, [config, kwhProfile])
   // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
   const effMonthlyKwh =
     tariff.monthlyKwhOverride != null &&
@@ -914,8 +937,9 @@ function ProjectDetail({
         standby,
         feas,
         aptBill,
+        kwhProfile,
       ),
-    [site.name, site.households, effConfig, files, tariff, standby, feas, aptBill],
+    [site.name, site.households, effConfig, files, tariff, standby, feas, aptBill, kwhProfile],
   )
   useEffect(() => {
     setReport((m) => mergeLinked(m, linkedSeed))
@@ -1068,6 +1092,7 @@ function ProjectDetail({
               standby,
               feas,
               aptBill,
+              kwhProfile,
             )
           }
         />
@@ -1149,6 +1174,8 @@ function ProjectDetail({
               config={config}
               site={site}
               autoWeights={settleWeights}
+              kwhProfile={kwhProfile}
+              setKwhProfile={setKwhProfile}
             />
           )}
           {registryResult && <RegistryAnalysis result={registryResult} />}
