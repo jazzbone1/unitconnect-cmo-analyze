@@ -8,7 +8,6 @@ import {
   computeFeasibility,
   defaultBizFee,
   ELEC_COST,
-  STD,
   type FeasibilityInputs,
 } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
@@ -47,14 +46,22 @@ import SiteConfigForm, { type SiteInfo } from './SiteConfigForm'
 import Dropzone from './Dropzone'
 import FileList from './FileList'
 
-/** 종류별 표준(UC 기준) 이용률 — 정산 종류별 배분 가중치용(사업성 가정과 분리). */
-function stdUtilByKw(kw: number): number {
-  if (kw === 100) return STD.utilFast100
-  if (kw === 50) return STD.utilFast50
-  if (kw === 7) return STD.utilSlow7
-  if (kw === 3.5) return STD.utilSlow35
-  if (kw === 3) return STD.utilSlow3
-  return 0
+/**
+ * 종류별 표준 '월 대당 충전량(kWh)' — 정산 종류별 배분 가중치용(사업성 가정과 분리).
+ *  일반적인 공동주택 충전 실적을 근거로 산정:
+ *   · 완속 7kW ≈ 400 kWh/월 (업계 실측 기준. 한국생산성본부 산정 750은 과다)
+ *   · 콘센트 3kW ≈ 300, 완속 3.5kW ≈ 350 (주거 상시충전, 세대 주행거리 기반이라
+ *     완속과 비슷하되 저속·보조용이라 약간 낮음)
+ *   · 급속 50/100kW ≈ 700/900 (방문·급속 수요로 대당 에너지 큼. 공동주택 급속
+ *     이용횟수가 완속의 약 2.9배[에너지공단]인 점 반영. 단지별 편차 큼)
+ *  가중치 = 대수 × 이 값. (정격·720h는 상수라 비중에 영향 없음)
+ */
+function stdMonthlyKwhByKw(kw: number): number {
+  if (kw >= 100) return 900
+  if (kw >= 50) return 700
+  if (kw >= 7) return 400
+  if (kw >= 3.5) return 350
+  return 300 // 3kW 콘센트
 }
 
 /** 프로젝트 데이터로 보고서 초기값(현장 정보) 자동 기입 */
@@ -108,12 +115,12 @@ function seedReport(
     if (kw === 3) return feas.utilSlow3 ?? 0
     return 0
   }
-  // 3종류 이상 자동 비례 배분 가중치 = 정격 × 대수 × 표준(UC 기준) 이용률.
-  //  사업성 가정 이용률과 분리(고정 프로파일) → 사업성 %를 바꿔도 정산 배분이
-  //  흔들리지 않고, 정산 실적을 사업성 분석의 기준값으로 쓸 수 있다.
+  // 3종류 이상 자동 비례 배분 가중치 = 대수 × 표준 월 대당 충전량(kWh).
+  //  일반 공동주택 충전 실적 기반 프로파일이라 사업성 가정 이용률과 분리 →
+  //  사업성 %를 바꿔도 정산 배분이 흔들리지 않고, 정산 실적을 사업성 기준값으로 쓸 수 있다.
   const autoWeights: Record<string, number> = {}
   for (const c of config.chargers)
-    autoWeights[c.id] = c.kw * c.count * stdUtilByKw(c.kw)
+    autoWeights[c.id] = c.count * stdMonthlyKwhByKw(c.kw)
 
   // 정산 월간 데이터가 있으면 유형별 실적·월별 추이 자동 기입
   const metrics = files.length
@@ -803,13 +810,13 @@ function ProjectDetail({
       0,
     )
   }, [feas, effConfig])
-  // 정산 종류별 자동 비례 배분 가중치 = 정격 × 대수 × 표준(UC 기준) 이용률.
+  // 정산 종류별 자동 비례 배분 가중치 = 대수 × 표준 월 대당 충전량(kWh).
   //  요금 역산 불가(3종류 이상)일 때 총 사용량을 이 비중으로 배분해 이용률 추정.
-  //  사업성 가정 이용률과 분리 → 사업성 %를 바꿔도 정산 배분이 흔들리지 않는다.
+  //  일반 공동주택 실적 기반이라 사업성 가정 이용률과 분리(사업성 %와 무관).
   const settleWeights = useMemo(() => {
     const w: Record<string, number> = {}
     for (const c of config.chargers)
-      w[c.id] = c.kw * c.count * stdUtilByKw(c.kw)
+      w[c.id] = c.count * stdMonthlyKwhByKw(c.kw)
     return w
   }, [config])
   // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
