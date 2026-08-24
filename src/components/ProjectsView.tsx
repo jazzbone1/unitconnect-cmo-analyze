@@ -131,7 +131,12 @@ function seedReport(
   //  연간 파일(periodType==='year')이 있으면 그 파일의 종류별 사용량·개월수(보통 12)를
   //  그대로 사용 → 보고서 유형별 실적/이용률이 정산 연간 표와 정확히 일치.
   //  연간 파일이 없으면 월별 파일 합계와 월 개수(개월수 합)를 사용.
-  const yearMetric = metrics.find((m) => m.periodType === 'year')
+  // 연간 파일이 여러 개면(예: 부분기간 + 전체연도) 실적이 가장 많은(총사용량 최대)
+  //  파일을 대표로 사용한다. (기존 .find는 가장 이른 파일을 집어 엉뚱한 값이 나왔음)
+  const yearMetrics = metrics.filter((m) => m.periodType === 'year')
+  const yearMetric = yearMetrics.length
+    ? yearMetrics.reduce((best, m) => (m.usageTotal > best.usageTotal ? m : best))
+    : undefined
   const usageByType = new Map<string, number>()
   let analyzedMonths: number
   if (yearMetric) {
