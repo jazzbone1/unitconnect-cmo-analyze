@@ -873,6 +873,11 @@ function ProjectDetail({
   const [subtab, setSubtab] = usePersistentState<
     'usage' | 'feasibility' | 'report' | 'tariff' | 'standby' | 'aptbill'
   >('projectSubtab', 'usage')
+  // 상세 화면 모드: 결재(요약·승인) / 분석·편집. 결재를 우선 표시.
+  const [detailMode, setDetailMode] = usePersistentState<'approval' | 'work'>(
+    'projectDetailMode',
+    'approval',
+  )
   // 정산 종류별 배분용 표준 월 대당 충전량 프로파일(편집 가능·전역 저장).
   const [kwhProfile, setKwhProfile] = usePersistentState<KwhProfile>(
     'settle.kwhProfile',
@@ -1189,17 +1194,32 @@ function ProjectDetail({
 
   return (
     <div className="projects">
-      <button type="button" className="link-button back-link" onClick={onBack}>
-        ← 프로젝트 목록
-      </button>
+      <div className="detail-top">
+        <button type="button" className="link-button back-link" onClick={onBack}>
+          ← 프로젝트 목록
+        </button>
+        <div className="detail-modes" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            className={`detail-mode${detailMode === 'approval' ? ' detail-mode--active' : ''}`}
+            onClick={() => setDetailMode('approval')}
+          >
+            결재 · 요약
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={`detail-mode${detailMode === 'work' ? ' detail-mode--active' : ''}`}
+            onClick={() => setDetailMode('work')}
+          >
+            분석 · 편집
+          </button>
+        </div>
+      </div>
 
-      <ApprovalPanel
-        approval={approval}
-        onChange={updateApproval}
-        currentUser={currentUser}
-        accounts={accounts}
-      />
-
+      {detailMode === 'approval' && (
+      <>
       <section className="card summary-card">
         <div className="card__header summary-head">
           <div className="summary-head__title">
@@ -1446,10 +1466,22 @@ function ProjectDetail({
         )}
         <p className="summary-note">
           동일 조건(충전기 구성·이용률·요금)에서 계약연수(3·5·7년)만 달리해 산출한
-          결과입니다. 모든 지표는 저장된 데이터 기준입니다.
+          결과입니다. 모든 지표는 저장된 데이터 기준입니다. 분석 값 변경은{' '}
+          <b>분석 · 편집</b> 탭에서 하고 저장하면 요약에 반영됩니다.
         </p>
       </section>
 
+      <ApprovalPanel
+        approval={approval}
+        onChange={updateApproval}
+        currentUser={currentUser}
+        accounts={accounts}
+      />
+      </>
+      )}
+
+      {detailMode === 'work' && (
+      <>
       <section className="card">
         <div className="card__header">
           <h2>{site.name || '(이름 없음)'} · 편집</h2>
@@ -1633,6 +1665,8 @@ function ProjectDetail({
             </p>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   )
