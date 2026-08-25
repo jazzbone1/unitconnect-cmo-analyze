@@ -9,13 +9,17 @@
 //
 //   ANTHROPIC_API_KEY    Claude API 키 (AI 분석 기능 활성화). 없으면 기능 비활성.
 //   ANTHROPIC_MODEL      (선택) 모델 ID. 기본 claude-opus-5. 저비용은 claude-haiku-4-5.
+//   SSO_SECRET           메신저(ERP)와 공유하는 SSO 서명 시크릿(HS256). 설정 시
+//                        ?sso=<JWT> 자동로그인 활성화. 없으면 SSO 비활성(무인증).
 //
 // R2 환경변수가 없으면 /api 는 비활성(앱은 localStorage로 동작).
 // ANTHROPIC_API_KEY 가 없으면 /api/ai 는 비활성(status.enabled=false).
+// SSO_SECRET 이 없으면 /api/sso 는 비활성(앱은 로그인 없이 동작).
 
 import express from 'express'
 import { AwsClient } from 'aws4fetch'
 import Anthropic from '@anthropic-ai/sdk'
+import crypto from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -36,6 +40,55 @@ const {
 const aiReady = !!ANTHROPIC_API_KEY
 const anthropic = aiReady ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null
 const AI_MODEL = ANTHROPIC_MODEL || 'claude-opus-5'
+
+// ── SSO (A안: 서명 JWT) ─────────────────────────────────────────
+// 메신저(ERP)가 발급한 단기 JWT(HS256)를 SSO_SECRET로 검증 → 세션 쿠키(uc_sso) 발급.
+// SSO_SECRET 미설정 시 SSO 비활성(앱은 로그인 없이 동작).
+const SSO_SECRET = process.env.SSO_SECRET
+const ssoReady = !!SSO_SECRET
+const SSO_SESSION_HOURS = 8
+
+const b64url = (buf) =>
+  Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const b64urlToBuf = (s) =>
+  Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+
+function signJwt(payload, secret) {
+  const h = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const p = b64url(JSON.stringify(payload))
+  const sig = b64url(crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest())
+  return `${h}.${p}.${sig}`
+}
+/** HS256 JWT 검증(서명·exp). 유효하면 payload, 아니면 null. */
+function verifyJwt(token, secret) {
+  const parts = String(token || '').split('.')
+  if (parts.length !== 3) return null
+  const [h, p, sig] = parts
+  const expected = b64url(crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest())
+  const a = Buffer.from(sig)
+  const b = Buffer.from(expected)
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
+  let payload
+  try {
+    payload = JSON.parse(b64urlToBuf(p).toString('utf8'))
+  } catch {
+    return null
+  }
+  if (payload.exp && Date.now() / 1000 > payload.exp) return null
+  return payload
+}
+function readCookie(req, name) {
+  const raw = req.headers.cookie || ''
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=')
+    if (i > -1 && part.slice(0, i).trim() === name)
+      return decodeURIComponent(part.slice(i + 1).trim())
+  }
+  return null
+}
+function sessionCookie(value, maxAgeSec) {
+  return `uc_sso=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax; Secure`
+}
 
 const r2Ready =
   R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET
@@ -169,6 +222,45 @@ app.post('/api/ai/analyze', express.json({ limit: '4mb' }), async (req, res) => 
   }
 })
 
+// ── SSO 라우트 ───────────────────────────────────────────────────
+app.get('/api/sso/status', (_req, res) => {
+  res.json({ enabled: ssoReady })
+})
+
+// 메신저 발급 JWT 검증 → 세션 쿠키 발급(자동로그인)
+app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
+  if (!ssoReady) return res.status(503).json({ error: 'SSO not configured' })
+  const payload = verifyJwt(req.body?.token, SSO_SECRET)
+  if (!payload || !payload.sub) {
+    return res.status(401).json({ error: 'invalid token' })
+  }
+  const now = Math.floor(Date.now() / 1000)
+  const session = signJwt(
+    {
+      sub: String(payload.sub),
+      name: String(payload.name || ''),
+      iat: now,
+      exp: now + SSO_SESSION_HOURS * 3600,
+    },
+    SSO_SECRET,
+  )
+  res.setHeader('Set-Cookie', sessionCookie(session, SSO_SESSION_HOURS * 3600))
+  res.json({ ok: true, user: { sub: String(payload.sub), name: String(payload.name || '') } })
+})
+
+// 현재 로그인 사용자(세션 쿠키 기준)
+app.get('/api/sso/me', (req, res) => {
+  if (!ssoReady) return res.json({ enabled: false, user: null })
+  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  if (!payload) return res.status(401).json({ enabled: true, user: null })
+  res.json({ enabled: true, user: { sub: payload.sub, name: payload.name || '' } })
+})
+
+app.post('/api/sso/logout', (_req, res) => {
+  res.setHeader('Set-Cookie', sessionCookie('', 0))
+  res.json({ ok: true })
+})
+
 // 정적 파일 + SPA 폴백
 app.use(express.static(DIST))
 app.use((_req, res) => res.sendFile(path.join(DIST, 'index.html')))
@@ -177,6 +269,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(
     `listening on ${PORT} · R2 ${r2Ready ? 'ON' : 'OFF(localStorage)'} · AI ${
       aiReady ? `ON(${AI_MODEL})` : 'OFF(no ANTHROPIC_API_KEY)'
-    }`,
+    } · SSO ${ssoReady ? 'ON' : 'OFF(no SSO_SECRET)'}`,
   )
 })
