@@ -1,5 +1,6 @@
 import type { SavedSite } from './sites'
 import { loadSites as loadLocal, saveSites as saveLocal } from './sites'
+import { notifyUnauthorized } from './authEvents'
 
 /**
  * 프로젝트(현장) 저장소 추상화.
@@ -37,7 +38,12 @@ class RemoteStore implements ProjectStore {
   async load(): Promise<SavedSite[]> {
     const res = await fetch(`${this.base}/api/projects`, {
       headers: this.headers(),
+      credentials: 'same-origin', // 세션 쿠키(uc_sso) 동봉 — 서버가 로그인을 요구한다
     })
+    if (res.status === 401) {
+      notifyUnauthorized()
+      throw new Error('로그인이 필요합니다.')
+    }
     if (!res.ok) throw new Error(`목록 불러오기 실패: ${res.status}`)
     const data = await res.json()
     return Array.isArray(data) ? (data as SavedSite[]) : []
@@ -47,7 +53,12 @@ class RemoteStore implements ProjectStore {
       method: 'PUT',
       headers: this.headers(),
       body: JSON.stringify(sites),
+      credentials: 'same-origin',
     })
+    if (res.status === 401) {
+      notifyUnauthorized()
+      throw new Error('로그인이 필요합니다.')
+    }
     if (!res.ok) throw new Error(`저장 실패: ${res.status}`)
   }
 }

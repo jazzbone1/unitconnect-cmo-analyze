@@ -194,9 +194,29 @@ async function recordAccount(id, name, at) {
   }
 }
 
+/** 세션 쿠키(uc_sso) 검증 → payload 또는 null. 쿠키 검사 로직의 단일 출처. */
+function requireSession(req) {
+  return verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+}
+
+/**
+ * 데이터 API 보호 미들웨어 — 로그인한 사람만 조회·수정·AI 호출 가능.
+ * 게이트가 프론트에만 있으면 주소만 알아도 API 를 직접 부를 수 있어 서버에서 강제한다.
+ *
+ * ⚠️ SSO_SECRET 미설정(ssoReady=false)이면 검사를 건너뛴다 — 파일 상단 주석의
+ *    "SSO_SECRET 이 없으면 앱은 로그인 없이 동작" 설계 유지. 이걸 깨면 시크릿이
+ *    빠진 환경에서 앱이 통째로 먹통이 된다.
+ * 정적 파일·SPA 셸에는 걸지 않는다. 게이트 화면이 떠야 로그인을 할 수 있다.
+ */
+function requireAuth(req, res, next) {
+  if (!ssoReady) return next()
+  if (!requireSession(req)) return res.status(401).json({ error: 'unauthorized' })
+  next()
+}
+
 const app = express()
 
-app.get('/api/projects', async (_req, res) => {
+app.get('/api/projects', requireAuth, async (_req, res) => {
   if (!r2) return res.status(503).json({ error: 'R2 not configured' })
   try {
     const r = await r2.fetch(OBJECT_URL, { method: 'GET' })
@@ -211,6 +231,8 @@ app.get('/api/projects', async (_req, res) => {
 
 app.put(
   '/api/projects',
+  // 인증을 본문 파서보다 먼저 — 미인증 요청의 50mb 본문을 버퍼링하지 않는다.
+  requireAuth,
   express.text({ type: () => true, limit: '50mb' }),
   async (req, res) => {
     if (!r2) return res.status(503).json({ error: 'R2 not configured' })
@@ -281,7 +303,7 @@ ${json}
 \`\`\``
 }
 
-app.post('/api/ai/analyze', express.json({ limit: '4mb' }), async (req, res) => {
+app.post('/api/ai/analyze', requireAuth, express.json({ limit: '4mb' }), async (req, res) => {
   if (!anthropic) return res.status(503).json({ error: 'AI not configured' })
   const kind = req.body?.kind === 'report' ? 'report' : 'summary'
   const data = req.body?.data
@@ -367,7 +389,7 @@ app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
 // 계정 명부(디렉터리) — 승인자 지정 드롭다운용. 본사 명단 + 로그인 명부 합본. 로그인 사용자만 조회.
 app.get('/api/sso/directory', async (req, res) => {
   if (!ssoReady) return res.json({ accounts: [] })
-  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  const payload = requireSession(req)
   if (!payload) return res.status(401).json({ error: 'unauthorized' })
   res.json({ accounts: await mergedAccounts() })
 })
@@ -375,7 +397,7 @@ app.get('/api/sso/directory', async (req, res) => {
 // 본사 명단 조회 — 관리 화면용. 로그인 사용자만.
 app.get('/api/sso/hq', async (req, res) => {
   if (!ssoReady) return res.json({ members: [] })
-  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  const payload = requireSession(req)
   if (!payload) return res.status(401).json({ error: 'unauthorized' })
   const list = await loadHqMembers()
   const members = list
@@ -390,7 +412,7 @@ app.get('/api/sso/hq', async (req, res) => {
 // 본사 명단 저장(전체 교체) — 관리 화면용. 로그인 사용자만.
 app.put('/api/sso/hq', express.json({ limit: '256kb' }), async (req, res) => {
   if (!ssoReady) return res.status(503).json({ error: 'SSO not configured' })
-  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  const payload = requireSession(req)
   if (!payload) return res.status(401).json({ error: 'unauthorized' })
   const raw = Array.isArray(req.body?.members) ? req.body.members : null
   if (!raw) return res.status(400).json({ error: 'members array required' })
@@ -416,7 +438,7 @@ app.put('/api/sso/hq', express.json({ limit: '256kb' }), async (req, res) => {
 // 현재 로그인 사용자(세션 쿠키 기준)
 app.get('/api/sso/me', (req, res) => {
   if (!ssoReady) return res.json({ enabled: false, user: null, directLogin: false })
-  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  const payload = requireSession(req)
   if (!payload)
     return res.status(401).json({ enabled: true, user: null, directLogin: directLoginReady })
   res.json({

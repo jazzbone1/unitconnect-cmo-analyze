@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { resolveSso, ssoDirectLogin, type SsoState } from '../lib/sso'
+import { onUnauthorized } from '../lib/authEvents'
 
 /**
  * SSO 게이트. 서버에 SSO_SECRET이 설정돼 SSO가 켜진 경우에만 로그인 요구.
@@ -21,6 +22,21 @@ export default function SsoGate({ children }: { children: React.ReactNode }) {
     })
     return () => {
       alive = false
+    }
+  }, [])
+
+  // 데이터 API가 401을 받으면(세션 만료·미로그인) 서버에 세션을 다시 물어 게이트를 띄운다.
+  // 서버 응답을 근거로 삼으므로 SSO가 꺼진 환경에서 잘못 잠기지 않는다.
+  useEffect(() => {
+    let alive = true
+    const off = onUnauthorized(() => {
+      resolveSso().then((s) => {
+        if (alive) setState(s)
+      })
+    })
+    return () => {
+      alive = false
+      off()
     }
   }, [])
 

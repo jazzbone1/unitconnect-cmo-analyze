@@ -3,6 +3,8 @@
  * API 키는 서버에만 있으며 브라우저에 노출되지 않는다.
  * 원격 저장소와 동일한 base(VITE_API_BASE) 규칙을 따른다.
  */
+import { notifyUnauthorized } from './authEvents'
+
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
 const APP_KEY = import.meta.env.VITE_APP_KEY as string | undefined
 
@@ -32,7 +34,12 @@ export async function aiAnalyze(kind: AiKind, data: unknown): Promise<string> {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ kind, data }),
+    credentials: 'same-origin', // 세션 쿠키(uc_sso) 동봉 — 서버가 로그인을 요구한다
   })
+  if (res.status === 401) {
+    notifyUnauthorized()
+    throw new Error('로그인이 필요합니다.')
+  }
   if (!res.ok) {
     let msg = `AI 분석 실패 (${res.status})`
     try {
