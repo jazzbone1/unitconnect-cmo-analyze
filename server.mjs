@@ -11,6 +11,8 @@
 //   ANTHROPIC_MODEL      (선택) 모델 ID. 기본 claude-opus-5. 저비용은 claude-haiku-4-5.
 //   SSO_SECRET           메신저(ERP)와 공유하는 SSO 서명 시크릿(HS256). 설정 시
 //                        ?sso=<JWT> 자동로그인 활성화. 없으면 SSO 비활성(무인증).
+//   DIRECT_LOGIN_PASSWORD (선택) 별도(직접) 로그인용 공용 접속 비밀번호.
+//                        설정 시 게이트에 로그인 폼(이름+비밀번호) 노출.
 //
 // R2 환경변수가 없으면 /api 는 비활성(앱은 localStorage로 동작).
 // ANTHROPIC_API_KEY 가 없으면 /api/ai 는 비활성(status.enabled=false).
@@ -47,6 +49,15 @@ const AI_MODEL = ANTHROPIC_MODEL || 'claude-opus-5'
 const SSO_SECRET = process.env.SSO_SECRET
 const ssoReady = !!SSO_SECRET
 const SSO_SESSION_HOURS = 8
+// 별도(직접) 로그인용 공용 접속 비밀번호. 설정 시 게이트에 로그인 폼 노출.
+const DIRECT_LOGIN_PASSWORD = process.env.DIRECT_LOGIN_PASSWORD
+const directLoginReady = ssoReady && !!DIRECT_LOGIN_PASSWORD
+
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest()
+  const hb = crypto.createHash('sha256').update(String(b)).digest()
+  return crypto.timingSafeEqual(ha, hb)
+}
 
 const b64url = (buf) =>
   Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -224,7 +235,27 @@ app.post('/api/ai/analyze', express.json({ limit: '4mb' }), async (req, res) => 
 
 // ── SSO 라우트 ───────────────────────────────────────────────────
 app.get('/api/sso/status', (_req, res) => {
-  res.json({ enabled: ssoReady })
+  res.json({ enabled: ssoReady, directLogin: directLoginReady })
+})
+
+// 별도(직접) 로그인: 이름 + 공용 접속 비밀번호 → 세션 쿠키 발급
+app.post('/api/sso/login', express.json({ limit: '16kb' }), (req, res) => {
+  if (!ssoReady) return res.status(503).json({ error: 'SSO not configured' })
+  if (!directLoginReady)
+    return res.status(403).json({ error: 'direct login disabled' })
+  const name = String(req.body?.name || '').trim()
+  const password = String(req.body?.password || '')
+  if (!name) return res.status(400).json({ error: 'name required' })
+  if (!safeEqual(password, DIRECT_LOGIN_PASSWORD)) {
+    return res.status(401).json({ error: '비밀번호가 올바르지 않습니다.' })
+  }
+  const now = Math.floor(Date.now() / 1000)
+  const session = signJwt(
+    { sub: name, name, iat: now, exp: now + SSO_SESSION_HOURS * 3600 },
+    SSO_SECRET,
+  )
+  res.setHeader('Set-Cookie', sessionCookie(session, SSO_SESSION_HOURS * 3600))
+  res.json({ ok: true, user: { sub: name, name } })
 })
 
 // 메신저 발급 JWT 검증 → 세션 쿠키 발급(자동로그인)
@@ -250,10 +281,15 @@ app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
 
 // 현재 로그인 사용자(세션 쿠키 기준)
 app.get('/api/sso/me', (req, res) => {
-  if (!ssoReady) return res.json({ enabled: false, user: null })
+  if (!ssoReady) return res.json({ enabled: false, user: null, directLogin: false })
   const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
-  if (!payload) return res.status(401).json({ enabled: true, user: null })
-  res.json({ enabled: true, user: { sub: payload.sub, name: payload.name || '' } })
+  if (!payload)
+    return res.status(401).json({ enabled: true, user: null, directLogin: directLoginReady })
+  res.json({
+    enabled: true,
+    user: { sub: payload.sub, name: payload.name || '' },
+    directLogin: directLoginReady,
+  })
 })
 
 app.post('/api/sso/logout', (_req, res) => {
@@ -269,6 +305,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(
     `listening on ${PORT} · R2 ${r2Ready ? 'ON' : 'OFF(localStorage)'} · AI ${
       aiReady ? `ON(${AI_MODEL})` : 'OFF(no ANTHROPIC_API_KEY)'
-    } · SSO ${ssoReady ? 'ON' : 'OFF(no SSO_SECRET)'}`,
+    } · SSO ${
+      ssoReady
+        ? `ON${directLoginReady ? '+직접로그인' : ''}`
+        : 'OFF(no SSO_SECRET)'
+    }`,
   )
 })

@@ -13,6 +13,8 @@ export interface SsoState {
   /** 서버에 SSO_SECRET이 설정되어 SSO가 켜져 있는지 */
   enabled: boolean
   user: SsoUser | null
+  /** 별도(직접) 로그인 폼 사용 가능 여부(DIRECT_LOGIN_PASSWORD 설정 시) */
+  directLogin: boolean
 }
 
 /** URL의 ?sso= 토큰을 소비(검증→세션쿠키)하고 파라미터를 제거한다. */
@@ -43,16 +45,41 @@ export async function resolveSso(): Promise<SsoState> {
   await consumeTokenFromUrl()
   try {
     const res = await fetch('/api/sso/me', { credentials: 'same-origin' })
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
-      return { enabled: !!d.enabled, user: null }
+    const d = await res.json().catch(() => ({}))
+    return {
+      enabled: !!d.enabled,
+      user: (d.user as SsoUser) ?? null,
+      directLogin: !!d.directLogin,
     }
-    const d = await res.json()
-    return { enabled: !!d.enabled, user: (d.user as SsoUser) ?? null }
   } catch {
     // 서버(server.mjs)가 없는 환경(로컬 vite 등) → SSO 비활성 취급
-    return { enabled: false, user: null }
+    return { enabled: false, user: null, directLogin: false }
   }
+}
+
+/** 별도(직접) 로그인: 이름 + 공용 접속 비밀번호. 성공 시 사용자 반환. */
+export async function ssoDirectLogin(
+  name: string,
+  password: string,
+): Promise<SsoUser> {
+  const res = await fetch('/api/sso/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, password }),
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    let msg = `로그인 실패 (${res.status})`
+    try {
+      const e = await res.json()
+      if (e?.error) msg = e.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg)
+  }
+  const d = await res.json()
+  return d.user as SsoUser
 }
 
 export async function ssoLogout(): Promise<void> {
