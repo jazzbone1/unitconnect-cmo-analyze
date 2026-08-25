@@ -3,6 +3,7 @@ import {
   ssoHqMembers,
   ssoSaveHqMembers,
   ssoCurrentUser,
+  ssoDirectory,
   type SsoAccount,
 } from '../lib/sso'
 
@@ -16,6 +17,7 @@ export default function HqMembersPanel() {
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [members, setMembers] = useState<SsoAccount[]>([])
+  const [roster, setRoster] = useState<SsoAccount[]>([])
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [bulk, setBulk] = useState('')
   const [busy, setBusy] = useState(false)
@@ -26,6 +28,7 @@ export default function HqMembersPanel() {
     if (!open || loaded) return
     let alive = true
     ssoCurrentUser().then((u) => alive && setLoggedIn(!!u))
+    ssoDirectory().then((list) => alive && setRoster(list))
     ssoHqMembers().then((list) => {
       if (!alive) return
       setMembers(list)
@@ -54,6 +57,14 @@ export default function HqMembersPanel() {
     })
     setDirty(true)
     setBulk('')
+    setMsg('')
+  }
+
+  const addAccount = (acc: SsoAccount) => {
+    setMembers((prev) =>
+      prev.some((m) => m.id === acc.id) ? prev : [...prev, acc],
+    )
+    setDirty(true)
     setMsg('')
   }
 
@@ -104,6 +115,31 @@ export default function HqMembersPanel() {
               로그인)
             </p>
           )}
+
+          {(() => {
+            const have = new Set(members.map((m) => m.id))
+            const sug = roster.filter((a) => !have.has(a.id))
+            if (sug.length === 0) return null
+            return (
+              <div className="hq-panel__sug">
+                <div className="hq-panel__sug-title">
+                  로그인 이력이 있는 계정에서 추가
+                </div>
+                <div className="hq-panel__sug-chips">
+                  {sug.map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="hq-panel__sug-chip"
+                      onClick={() => addAccount(a)}
+                    >
+                      + {a.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           <div className="hq-panel__add">
             <textarea

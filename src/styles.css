@@ -1998,6 +1998,34 @@ tr.row--detail .col-name {
   color: var(--warn);
   margin: 0 0 0.6rem;
 }
+.hq-panel__sug {
+  margin-bottom: 0.7rem;
+}
+.hq-panel__sug-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+.hq-panel__sug-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.hq-panel__sug-chip {
+  padding: 0.3rem 0.7rem;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hq-panel__sug-chip:hover {
+  background: var(--surface-2);
+  border-style: solid;
+}
 .hq-panel__add {
   display: flex;
   gap: 0.5rem;
