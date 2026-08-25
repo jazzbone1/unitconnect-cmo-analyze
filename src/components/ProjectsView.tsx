@@ -13,6 +13,8 @@ import {
   computeFeasibility,
   defaultBizFee,
   ELEC_COST,
+  MAX_YEARS,
+  PG_RATE,
   type FeasibilityInputs,
 } from '../lib/feasibility'
 import { detectRegistry, computeRegistry } from '../lib/registry'
@@ -435,11 +437,23 @@ function chargerBreakdown(p: SavedSite): string {
 /** 프로젝트 목록 표시용: 사업성 결과(영업이익률·영업이익). 사업성 탭(ProjectDetail)의
  *  파생 계산 체인(제외 반영·요금구조 실효원가·연차별 전기원가·대기전력 전체 종류)을
  *  그대로 재현해 탭 결과와 일치시킨다. */
-function projectFeas(
+/** 결재용 요약: 사업성 결과 + CAPEX·영업비 회수기간. 연수(years) override 가능. */
+interface ProjectFeasFull {
+  r: ReturnType<typeof computeFeasibility>
+  years: number
+  paybackText: string
+  paybackReached: boolean
+}
+function projectFeasFull(
   p: SavedSite,
-): ReturnType<typeof computeFeasibility> | null {
+  yearsOverride?: number,
+): ProjectFeasFull | null {
   const f = p.feas
   if (!f) return null
+  const years = Math.max(
+    1,
+    Math.min(MAX_YEARS, Math.round(yearsOverride ?? f.years)),
+  )
   const tariff = p.tariff ?? deriveTariff(p)
   const standby = p.standby ?? defaultStandby()
   // 제외(excluded) 종류는 대수 0으로 취급(effConfig).
@@ -543,8 +557,8 @@ function projectFeas(
   } catch {
     globalBiz = null
   }
-  const yearIdx = Math.max(1, Math.min(7, Math.round(f.years))) - 1
-  const standardBiz = globalBiz?.[yearIdx] ?? defaultBizFee(f.years)
+  const yearIdx = years - 1
+  const standardBiz = globalBiz?.[yearIdx] ?? defaultBizFee(years)
   const biz =
     f.bizFeeOverride != null && Number.isFinite(f.bizFeeOverride)
       ? f.bizFeeOverride
@@ -557,6 +571,7 @@ function projectFeas(
   const allK = computeStandby(chargers, standby, 0).totalKwh
   const eff: FeasibilityInputs = {
     ...f,
+    years,
     countFast100: countOf(100),
     countFast50: countOf(50),
     countSlow7: countOf(7),
@@ -574,7 +589,55 @@ function projectFeas(
     includeStandby: true,
     standbyScope: 'all',
   }
-  return computeFeasibility(eff, elecByYear)
+  const r = computeFeasibility(eff, elecByYear)
+
+  // CAPEX·영업비 회수기간 (사업성 탭과 동일 로직).
+  //  투자액 = CAPEX + 영업비(총). 연간 영업현금흐름(매출총이익 − 현장운영비) 누적 도달 시점.
+  const opsPerYear = r.opsCost / years
+  const standbyPerYear = r.standbyCost / years
+  const cfByYear = Array.from({ length: years }, (_, y) => {
+    const W = r.yearlyW[y] ?? 0
+    const rev = 12 * r.rateExVat * W
+    const pg = -rev * PG_RATE
+    const eu = elecByYear && elecByYear[y] != null ? elecByYear[y] : effElecCost
+    const elecCharge = -12 * eu * W
+    const gross = rev + pg + elecCharge + standbyPerYear
+    return gross + opsPerYear
+  })
+  const investment = -(r.capex + r.bizCost)
+  let paybackText = '회수 불가'
+  let paybackReached = false
+  if (investment <= 0) {
+    paybackText = '즉시 회수'
+    paybackReached = true
+  } else {
+    let cum = 0
+    for (let y = 0; y < cfByYear.length; y++) {
+      const cf = cfByYear[y]
+      if (cf <= 0) continue
+      if (cum + cf >= investment) {
+        paybackText = `${(y + (investment - cum) / cf).toFixed(1)}년`
+        paybackReached = true
+        break
+      }
+      cum += cf
+    }
+    if (!paybackReached) {
+      const avgCf = years > 0 ? cum / years : 0
+      paybackText =
+        avgCf > 0
+          ? `${years}년 내 미회수 (약 ${(investment / avgCf).toFixed(1)}년)`
+          : '회수 불가'
+    }
+  }
+  return { r, years, paybackText, paybackReached }
+}
+
+/** 목록·정렬용: 사업성 결과만. (projectFeasFull 래퍼) */
+function projectFeas(
+  p: SavedSite,
+): ReturnType<typeof computeFeasibility> | null {
+  return projectFeasFull(p)?.r ?? null
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
@@ -1044,6 +1107,26 @@ function ProjectDetail({
     })
   }
 
+  // ── 결재용 현장 요약 (저장된 데이터 기준) ──
+  const summaryYearsList = [3, 4, 5, 6, 7]
+  const summaryByYear = useMemo(
+    () => summaryYearsList.map((y) => ({ y, full: projectFeasFull(project, y) })),
+    [project],
+  )
+  const effChargers = project.chargers
+    .filter((c) => !c.excluded && c.count > 0)
+    .slice()
+    .sort((a, b) => b.kw - a.kw)
+  const summaryTotalUnits = effChargers.reduce((a, c) => a + c.count, 0)
+  const summaryInstalledKw = effChargers.reduce((a, c) => a + c.kw * c.count, 0)
+  const curYears = project.feas
+    ? Math.max(1, Math.min(MAX_YEARS, Math.round(project.feas.years)))
+    : null
+  const fmtWon = (v?: number) =>
+    v == null || !Number.isFinite(v) ? '—' : `${Math.round(v).toLocaleString()}원`
+  const fmtPct = (v?: number) =>
+    v == null || !Number.isFinite(v) ? '—' : `${(v * 100).toFixed(2)}%`
+
   return (
     <div className="projects">
       <button type="button" className="link-button back-link" onClick={onBack}>
@@ -1056,6 +1139,149 @@ function ProjectDetail({
         currentUser={currentUser}
         accounts={accounts}
       />
+
+      <section className="card summary-card">
+        <div className="card__header">
+          <h2>결재용 현장 요약</h2>
+          {curYears != null && (
+            <span className="summary-cur">현재 계약연수 {curYears}년 기준</span>
+          )}
+        </div>
+
+        <div className="summary-overview">
+          <div>
+            <span className="summary-k">단지명</span>
+            <span className="summary-v">{project.name || '—'}</span>
+          </div>
+          <div>
+            <span className="summary-k">주소</span>
+            <span className="summary-v">{project.address || '—'}</span>
+          </div>
+          <div>
+            <span className="summary-k">세대수</span>
+            <span className="summary-v">
+              {project.households ? project.households.toLocaleString() : '—'}
+            </span>
+          </div>
+          <div>
+            <span className="summary-k">총 주차대수</span>
+            <span className="summary-v">
+              {project.parking ? project.parking.toLocaleString() : '—'}
+            </span>
+          </div>
+          <div>
+            <span className="summary-k">충전기</span>
+            <span className="summary-v">
+              총 {summaryTotalUnits}기
+              {effChargers.length > 0 && (
+                <em className="summary-sub">
+                  {' '}
+                  {effChargers.map((c) => `${c.kw}kW ${c.count}`).join(' · ')}
+                </em>
+              )}
+            </span>
+          </div>
+          <div>
+            <span className="summary-k">총 설비용량</span>
+            <span className="summary-v">
+              {summaryInstalledKw > 0
+                ? `${summaryInstalledKw.toLocaleString()} kW`
+                : '—'}
+            </span>
+          </div>
+        </div>
+
+        {project.feas ? (
+          <div className="table-scroll">
+            <table className="data-table summary-table">
+              <thead>
+                <tr>
+                  <th>지표</th>
+                  {summaryByYear.map(({ y }) => (
+                    <th
+                      key={y}
+                      className={y === curYears ? 'summary-col--cur' : ''}
+                    >
+                      {y}년
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th>영업이익률</th>
+                  {summaryByYear.map(({ y, full }) => (
+                    <td
+                      key={y}
+                      className={`proj-num${y === curYears ? ' summary-col--cur' : ''}${
+                        full && full.r.margin < 0 ? ' cell--down' : ''
+                      }`}
+                    >
+                      {fmtPct(full?.r.margin)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <th>영업이익</th>
+                  {summaryByYear.map(({ y, full }) => (
+                    <td
+                      key={y}
+                      className={`proj-num${y === curYears ? ' summary-col--cur' : ''}${
+                        full && full.r.operatingProfit < 0 ? ' cell--down' : ''
+                      }`}
+                    >
+                      {fmtWon(full?.r.operatingProfit)}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <th>판정</th>
+                  {summaryByYear.map(({ y, full }) => (
+                    <td
+                      key={y}
+                      className={y === curYears ? 'summary-col--cur' : ''}
+                    >
+                      <span
+                        className={`summary-verdict summary-verdict--${
+                          full?.r.verdict === '진행가능'
+                            ? 'ok'
+                            : full?.r.verdict === '진행불가'
+                              ? 'no'
+                              : 'na'
+                        }`}
+                      >
+                        {full?.r.verdict ?? '—'}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <th>CAPEX·영업비 회수기간</th>
+                  {summaryByYear.map(({ y, full }) => (
+                    <td
+                      key={y}
+                      className={`${y === curYears ? 'summary-col--cur' : ''}${
+                        full && !full.paybackReached ? ' cell--down' : ''
+                      }`}
+                    >
+                      {full?.paybackText ?? '—'}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="summary-empty">
+            사업성 입력이 없어 요약 지표를 계산할 수 없습니다. 사업성 분석 탭에서
+            먼저 입력·저장해 주세요.
+          </p>
+        )}
+        <p className="summary-note">
+          동일 조건(충전기 구성·이용률·요금)에서 계약연수만 달리해 산출한
+          결과입니다. 영업이익률·영업이익·회수기간은 저장된 데이터 기준입니다.
+        </p>
+      </section>
 
       <section className="card">
         <div className="card__header">

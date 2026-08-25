@@ -2838,6 +2838,79 @@ tr.row--detail .col-name {
   color: #b91c1c;
   font-weight: 600;
 }
+/* 결재용 현장 요약 */
+.summary-card .card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.summary-cur {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.summary-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem 1.4rem;
+  margin: 0.6rem 0 1rem;
+}
+.summary-overview > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.summary-k {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.summary-v {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.summary-sub {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-style: normal;
+}
+.summary-table th {
+  white-space: nowrap;
+}
+.summary-col--cur {
+  background: var(--accent-soft);
+}
+.summary-verdict {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.summary-verdict--ok {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+.summary-verdict--no {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+.summary-verdict--na {
+  color: var(--text-muted);
+}
+.summary-empty {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0;
+}
+.summary-note {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin: 0.7rem 0 0;
+  line-height: 1.5;
+}
 @media (prefers-color-scheme: dark) {
   .cell--up {
     color: #4ade80;
