@@ -4,6 +4,7 @@ import { defaultApproval } from '../lib/sites'
 import { ssoCurrentUser, ssoDirectory } from '../lib/sso'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
+import HqMembersPanel from './HqMembersPanel'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement, computeAll } from '../lib/settlement'
@@ -1354,6 +1355,9 @@ export default function ProjectsView({
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+
+      {/* 본사 명단 관리 (승인자 명부) */}
+      <HqMembersPanel />
 
       {/* 건수 + 정렬 안내 */}
       <div className="proj-count">

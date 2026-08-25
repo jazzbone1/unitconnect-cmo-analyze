@@ -1958,6 +1958,127 @@ tr.row--detail .col-name {
 .proj-approval:not(.approval__badge) {
   color: var(--text-muted);
 }
+/* 본사 명단 관리 */
+.hq-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 0.8rem;
+  overflow: hidden;
+}
+.hq-panel__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.hq-panel__chev {
+  color: var(--text-muted);
+}
+.hq-panel__body {
+  padding: 0.2rem 1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+.hq-panel__desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0.6rem 0;
+}
+.hq-panel__warn {
+  font-size: 0.82rem;
+  color: var(--warn);
+  margin: 0 0 0.6rem;
+}
+.hq-panel__add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.7rem;
+}
+.hq-panel__add textarea {
+  flex: 1;
+  max-width: 22rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.hq-panel__add-btn,
+.hq-panel__save {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hq-panel__save {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+.hq-panel__add-btn:disabled,
+.hq-panel__save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.hq-panel__empty {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0.3rem 0 0.7rem;
+}
+.hq-panel__list {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.hq-panel__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.hq-panel__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.hq-panel__x {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.hq-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.hq-panel__msg {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
 /* 승인자/담당자 계정 선택기 (검색·자동완성) */
 .approval__picker {
   position: relative;

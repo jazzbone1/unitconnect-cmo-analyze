@@ -115,6 +115,42 @@ export async function ssoDirectory(): Promise<SsoAccount[]> {
   }
 }
 
+/** 본사 명단 조회(관리 화면용). */
+export async function ssoHqMembers(): Promise<SsoAccount[]> {
+  try {
+    const res = await fetch('/api/sso/hq', { credentials: 'same-origin' })
+    if (!res.ok) return []
+    const d = await res.json()
+    return Array.isArray(d.members) ? (d.members as SsoAccount[]) : []
+  } catch {
+    return []
+  }
+}
+
+/** 본사 명단 전체 저장(교체). 저장된 결과를 반환. */
+export async function ssoSaveHqMembers(
+  members: { id?: string; name: string }[],
+): Promise<SsoAccount[]> {
+  const res = await fetch('/api/sso/hq', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ members }),
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    let msg = `저장 실패 (${res.status})`
+    try {
+      const e = await res.json()
+      if (e?.error) msg = e.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg)
+  }
+  const d = await res.json()
+  return Array.isArray(d.members) ? (d.members as SsoAccount[]) : []
+}
+
 export async function ssoLogout(): Promise<void> {
   try {
     await fetch('/api/sso/logout', {

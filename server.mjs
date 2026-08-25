@@ -127,19 +127,49 @@ const OBJECT_URL = r2Ready
 const DIRECTORY_URL = r2Ready
   ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/sso-directory.json`
   : null
-let memDirectory = [] // [{ id, name, at }]
+// 본사 명단(관리자 수동 관리). 메신저 계정 API가 없어 이 사이트에서 직접 관리.
+const HQ_URL = r2Ready
+  ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/hq-members.json`
+  : null
+let memDirectory = [] // [{ id, name, at }] — 로그인 자동수집 명부
+let memHq = [] // [{ id, name }] — 본사 수동 명단
 
-async function loadDirectory() {
-  if (!r2) return memDirectory
+async function loadJsonArray(url, fallback) {
+  if (!r2) return fallback
   try {
-    const r = await r2.fetch(DIRECTORY_URL, { method: 'GET' })
+    const r = await r2.fetch(url, { method: 'GET' })
     if (r.status === 404) return []
-    if (!r.ok) return memDirectory
+    if (!r.ok) return fallback
     const arr = JSON.parse((await r.text()) || '[]')
     return Array.isArray(arr) ? arr : []
   } catch {
-    return memDirectory
+    return fallback
   }
+}
+
+async function loadDirectory() {
+  return loadJsonArray(DIRECTORY_URL, memDirectory)
+}
+async function loadHqMembers() {
+  return loadJsonArray(HQ_URL, memHq)
+}
+async function saveHqMembers(list) {
+  memHq = list
+  if (!r2) return
+  await r2.fetch(HQ_URL, { method: 'PUT', body: JSON.stringify(list) })
+}
+
+/** 본사 명단 + 로그인 자동수집 명부를 합쳐(계정ID 기준 중복 제거) 반환. 본사 명단 이름 우선. */
+async function mergedAccounts() {
+  const [hq, dir] = await Promise.all([loadHqMembers(), loadDirectory()])
+  const map = new Map()
+  for (const e of dir) {
+    if (e && e.id) map.set(String(e.id), { id: String(e.id), name: String(e.name || e.id) })
+  }
+  for (const e of hq) {
+    if (e && e.id) map.set(String(e.id), { id: String(e.id), name: String(e.name || e.id) })
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 }
 
 /** 로그인 계정을 명부에 upsert (이름 갱신 + 최근 접속 시각). 실패는 무시. */
@@ -334,17 +364,53 @@ app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
   res.json({ ok: true, user: { sub: String(payload.sub), name: String(payload.name || '') } })
 })
 
-// 계정 명부(디렉터리) — 승인자 지정 드롭다운용. 로그인 사용자만 조회.
+// 계정 명부(디렉터리) — 승인자 지정 드롭다운용. 본사 명단 + 로그인 명부 합본. 로그인 사용자만 조회.
 app.get('/api/sso/directory', async (req, res) => {
   if (!ssoReady) return res.json({ accounts: [] })
   const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
   if (!payload) return res.status(401).json({ error: 'unauthorized' })
-  const list = await loadDirectory()
-  const accounts = list
-    .filter((e) => e && e.id)
-    .map((e) => ({ id: String(e.id), name: String(e.name || e.id) }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-  res.json({ accounts })
+  res.json({ accounts: await mergedAccounts() })
+})
+
+// 본사 명단 조회 — 관리 화면용. 로그인 사용자만.
+app.get('/api/sso/hq', async (req, res) => {
+  if (!ssoReady) return res.json({ members: [] })
+  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  if (!payload) return res.status(401).json({ error: 'unauthorized' })
+  const list = await loadHqMembers()
+  const members = list
+    .filter((e) => e && (e.id || e.name))
+    .map((e) => ({
+      id: String(e.id || e.name).trim(),
+      name: String(e.name || e.id).trim(),
+    }))
+  res.json({ members })
+})
+
+// 본사 명단 저장(전체 교체) — 관리 화면용. 로그인 사용자만.
+app.put('/api/sso/hq', express.json({ limit: '256kb' }), async (req, res) => {
+  if (!ssoReady) return res.status(503).json({ error: 'SSO not configured' })
+  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  if (!payload) return res.status(401).json({ error: 'unauthorized' })
+  const raw = Array.isArray(req.body?.members) ? req.body.members : null
+  if (!raw) return res.status(400).json({ error: 'members array required' })
+  // 이름 필수. id 미지정 시 이름을 계정ID로 사용(메신저 SSO 식별자=이름).
+  const seen = new Set()
+  const members = []
+  for (const e of raw) {
+    const name = String(e?.name || '').trim()
+    if (!name) continue
+    const id = String(e?.id || name).trim()
+    if (seen.has(id)) continue
+    seen.add(id)
+    members.push({ id, name })
+  }
+  try {
+    await saveHqMembers(members)
+    res.json({ ok: true, members })
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
 })
 
 // 현재 로그인 사용자(세션 쿠키 기준)
