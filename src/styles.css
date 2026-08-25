@@ -2911,6 +2911,49 @@ tr.row--detail .col-name {
   margin: 0.7rem 0 0;
   line-height: 1.5;
 }
+.summary-head {
+  align-items: flex-start;
+}
+.summary-head__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.summary-head__title h2 {
+  margin: 0;
+}
+.summary-approve {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.summary-approve__badge {
+  font-size: 0.78rem;
+}
+.summary-approve__turn {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.summary-block {
+  margin-top: 1.1rem;
+}
+.summary-block__h {
+  font-size: 0.9rem;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
+.summary-pl th {
+  text-align: left;
+  font-weight: 600;
+}
+.summary-pl__strong th,
+.summary-pl__strong td {
+  font-weight: 800;
+  background: var(--surface-2);
+}
 @media (prefers-color-scheme: dark) {
   .cell--up {
     color: #4ade80;

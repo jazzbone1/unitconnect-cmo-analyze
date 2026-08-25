@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SavedSite, AnalysisApproval } from '../lib/sites'
-import { defaultApproval } from '../lib/sites'
+import {
+  defaultApproval,
+  approvalRequest,
+  approvalDecide,
+  approvalCanDecide,
+} from '../lib/sites'
 import { ssoCurrentUser, ssoDirectory } from '../lib/sso'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
@@ -438,11 +443,23 @@ function chargerBreakdown(p: SavedSite): string {
  *  파생 계산 체인(제외 반영·요금구조 실효원가·연차별 전기원가·대기전력 전체 종류)을
  *  그대로 재현해 탭 결과와 일치시킨다. */
 /** 결재용 요약: 사업성 결과 + CAPEX·영업비 회수기간. 연수(years) override 가능. */
+interface PerChargerRate {
+  kw: number
+  count: number
+  /** 반영된 충전단가 (VAT 포함, 원/kWh) */
+  rateVat: number
+  /** 반영된 전기원가 (VAT 제외, 원/kWh) */
+  elecCost: number
+}
 interface ProjectFeasFull {
   r: ReturnType<typeof computeFeasibility>
   years: number
   paybackText: string
   paybackReached: boolean
+  /** 반영된 전기원가 (VAT 제외, 원/kWh) */
+  effElecCost: number
+  /** 충전기 종류별 반영 단가 */
+  perCharger: PerChargerRate[]
 }
 function projectFeasFull(
   p: SavedSite,
@@ -630,7 +647,24 @@ function projectFeasFull(
           : '회수 불가'
     }
   }
-  return { r, years, paybackText, paybackReached }
+  const perCharger: PerChargerRate[] = chargers
+    .filter((c) => !c.excluded && c.count > 0)
+    .slice()
+    .sort((a, b) => b.kw - a.kw)
+    .map((c) => ({
+      kw: c.kw,
+      count: c.count,
+      rateVat: rateOf(c.kw),
+      elecCost: effElecCost,
+    }))
+  return {
+    r,
+    years,
+    paybackText,
+    paybackReached,
+    effElecCost,
+    perCharger,
+  }
 }
 
 /** 목록·정렬용: 사업성 결과만. (projectFeasFull 래퍼) */
@@ -1107,12 +1141,14 @@ function ProjectDetail({
     })
   }
 
-  // ── 결재용 현장 요약 (저장된 데이터 기준) ──
+  // ── 현장 요약 (저장된 데이터 기준) ──
   const summaryYearsList = [3, 4, 5, 6, 7]
   const summaryByYear = useMemo(
     () => summaryYearsList.map((y) => ({ y, full: projectFeasFull(project, y) })),
     [project],
   )
+  // 현재 계약연수 기준 상세(P&L·충전기별 단가).
+  const summaryCur = useMemo(() => projectFeasFull(project), [project])
   const effChargers = project.chargers
     .filter((c) => !c.excluded && c.count > 0)
     .slice()
@@ -1126,6 +1162,30 @@ function ProjectDetail({
     v == null || !Number.isFinite(v) ? '—' : `${Math.round(v).toLocaleString()}원`
   const fmtPct = (v?: number) =>
     v == null || !Number.isFinite(v) ? '—' : `${(v * 100).toFixed(2)}%`
+  const fmtRate = (v?: number) =>
+    v == null || !Number.isFinite(v)
+      ? '—'
+      : `${v.toLocaleString(undefined, { maximumFractionDigits: 1 })}원/kWh`
+
+  // 요약 상단 승인 컨트롤(승인 요청 / 승인 / 반려).
+  const summaryApprover =
+    approval.status === 'requested' ? approval.approvers[approval.currentStep] : null
+  const summaryCanDecide = approvalCanDecide(approval, currentUser)
+  const requestApproval = () => {
+    if (approval.approvers.length === 0) return
+    updateApproval(
+      approvalRequest(approval, currentUser?.name, new Date().toISOString()),
+    )
+  }
+  const decideApprovalSummary = (d: 'approved' | 'rejected') =>
+    updateApproval(approvalDecide(approval, d, new Date().toISOString()))
+  const APPROVAL_LABEL: Record<AnalysisApproval['status'], string> = {
+    review: '검토 중',
+    reviewed: '검토 완료',
+    requested: '승인 요청(진행중)',
+    approved: '승인 완료',
+    rejected: '반려',
+  }
 
   return (
     <div className="projects">
@@ -1141,11 +1201,58 @@ function ProjectDetail({
       />
 
       <section className="card summary-card">
-        <div className="card__header">
-          <h2>결재용 현장 요약</h2>
-          {curYears != null && (
-            <span className="summary-cur">현재 계약연수 {curYears}년 기준</span>
-          )}
+        <div className="card__header summary-head">
+          <div className="summary-head__title">
+            <h2>현장 요약</h2>
+            {curYears != null && (
+              <span className="summary-cur">계약연수 {curYears}년 기준</span>
+            )}
+          </div>
+          <div className="summary-approve">
+            <span
+              className={`approval__badge approval__badge--${approval.status} summary-approve__badge`}
+            >
+              {APPROVAL_LABEL[approval.status]}
+            </span>
+            {(approval.status === 'review' || approval.status === 'reviewed') && (
+              <button
+                type="button"
+                className="approval__btn approval__btn--primary"
+                disabled={approval.approvers.length === 0}
+                title={
+                  approval.approvers.length === 0
+                    ? '아래 승인 패널에서 승인자를 먼저 지정하세요.'
+                    : undefined
+                }
+                onClick={requestApproval}
+              >
+                승인 요청
+              </button>
+            )}
+            {approval.status === 'requested' && summaryApprover && (
+              <>
+                <span className="summary-approve__turn">
+                  현재 차례 <b>{summaryApprover.name}</b>
+                </span>
+                <button
+                  type="button"
+                  className="approval__btn approval__btn--primary"
+                  disabled={!summaryCanDecide}
+                  onClick={() => decideApprovalSummary('approved')}
+                >
+                  승인
+                </button>
+                <button
+                  type="button"
+                  className="approval__btn approval__btn--danger"
+                  disabled={!summaryCanDecide}
+                  onClick={() => decideApprovalSummary('rejected')}
+                >
+                  반려
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="summary-overview">
@@ -1191,7 +1298,95 @@ function ProjectDetail({
           </div>
         </div>
 
+        {project.feas && summaryCur && summaryCur.perCharger.length > 0 && (
+          <div className="table-scroll summary-block">
+            <div className="summary-block__h">충전기별 반영 단가</div>
+            <table className="data-table summary-table">
+              <thead>
+                <tr>
+                  <th>종류</th>
+                  <th className="proj-num">대수</th>
+                  <th className="proj-num">충전단가(VAT 포함)</th>
+                  <th className="proj-num">전기원가(VAT 제외)</th>
+                  <th className="proj-num">단가차(마진)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryCur.perCharger.map((pc) => {
+                  const rateEx = pc.rateVat / 1.1
+                  const gap = rateEx - pc.elecCost
+                  return (
+                    <tr key={pc.kw}>
+                      <th>{pc.kw}kW</th>
+                      <td className="proj-num">{pc.count}기</td>
+                      <td className="proj-num">{fmtRate(pc.rateVat)}</td>
+                      <td className="proj-num">{fmtRate(pc.elecCost)}</td>
+                      <td className={`proj-num${gap < 0 ? ' cell--down' : ''}`}>
+                        {fmtRate(gap)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="summary-note">
+              충전단가는 종류별 입력값(없으면 충전기 요금)을, 전기원가는 요금구조
+              분석의 실효원가를 반영합니다. 단가차 = 충전단가(VAT 제외) − 전기원가.
+            </p>
+          </div>
+        )}
+
+        {project.feas && summaryCur && (
+          <div className="table-scroll summary-block">
+            <div className="summary-block__h">
+              사업 전체 손익 (P&L · {summaryCur.years}년)
+            </div>
+            <table className="data-table summary-table summary-pl">
+              <tbody>
+                {(
+                  [
+                    ['매출 (VAT 제외)', summaryCur.r.revenue, false],
+                    ['(−) PG 수수료', summaryCur.r.pgFee, true],
+                    ['(−) 전기원가 (충전)', summaryCur.r.elecCost, true],
+                    ['(−) 전기원가 (대기전력)', summaryCur.r.standbyCost, true],
+                    ['매출총이익', summaryCur.r.grossProfit, false, true],
+                    ['(−) 현장 운영비', summaryCur.r.opsCost, true],
+                    ['(−) 영업비 (총)', summaryCur.r.bizCost, true],
+                    ['(−) CAPEX', summaryCur.r.capex, true],
+                    ['영업이익', summaryCur.r.operatingProfit, false, true],
+                  ] as [string, number, boolean, boolean?][]
+                ).map(([label, val, neg, strong]) => (
+                  <tr key={label} className={strong ? 'summary-pl__strong' : ''}>
+                    <th>{label}</th>
+                    <td className={`proj-num${neg ? ' cell--down' : ''}`}>
+                      {fmtWon(val)}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="summary-pl__strong">
+                  <th>영업이익률</th>
+                  <td
+                    className={`proj-num${summaryCur.r.margin < 0 ? ' cell--down' : ''}`}
+                  >
+                    {fmtPct(summaryCur.r.margin)}
+                  </td>
+                </tr>
+                <tr>
+                  <th>CAPEX·영업비 회수기간</th>
+                  <td
+                    className={`proj-num${summaryCur.paybackReached ? '' : ' cell--down'}`}
+                  >
+                    {summaryCur.paybackText}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {project.feas ? (
+          <div className="summary-block">
+          <div className="summary-block__h">계약연수별 요약 지표</div>
           <div className="table-scroll">
             <table className="data-table summary-table">
               <thead>
@@ -1270,6 +1465,7 @@ function ProjectDetail({
                 </tr>
               </tbody>
             </table>
+          </div>
           </div>
         ) : (
           <p className="summary-empty">

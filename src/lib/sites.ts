@@ -42,6 +42,74 @@ export function defaultApproval(): AnalysisApproval {
   return { status: 'review', approvers: [], currentStep: 0 }
 }
 
+/** 승인 요청 시작(검토→승인요청). 이전 처리 이력 초기화. */
+export function approvalRequest(
+  a: AnalysisApproval,
+  byName: string | undefined,
+  nowIso: string,
+): AnalysisApproval {
+  return {
+    ...a,
+    status: 'requested',
+    currentStep: 0,
+    requestedBy: byName || a.assignee || '',
+    requestedAt: nowIso,
+    approvers: a.approvers.map((s) => ({ id: s.id, name: s.name })),
+  }
+}
+
+/** 현재 차례 승인자가 승인/반려. 마지막까지 승인 시 approved. */
+export function approvalDecide(
+  a: AnalysisApproval,
+  decision: 'approved' | 'rejected',
+  nowIso: string,
+): AnalysisApproval {
+  const i = a.currentStep
+  const approvers = a.approvers.map((s, idx) =>
+    idx === i ? { ...s, decision, at: nowIso } : s,
+  )
+  if (decision === 'rejected') return { ...a, approvers, status: 'rejected' }
+  const next = i + 1
+  return {
+    ...a,
+    approvers,
+    currentStep: next,
+    status: next >= a.approvers.length ? 'approved' : 'requested',
+  }
+}
+
+/** 현재 차례 승인자 본인인지(계정ID 또는 이름 일치). 로그인 정보 없으면 제약 없음. */
+export function approvalCanDecide(
+  a: AnalysisApproval,
+  user: { sub?: string; name?: string } | null | undefined,
+): boolean {
+  if (a.status !== 'requested') return false
+  const cur = a.approvers[a.currentStep]
+  if (!cur) return false
+  if (!user) return true
+  return (
+    (!!cur.id && cur.id === user.sub) ||
+    cur.name.trim() === (user.name || '').trim()
+  )
+}
+
+/**
+ * 대체안(변형 분석): 이용량 분석은 기본안과 공유하고, 충전기 구성(일부 제외 등)만
+ * 달리하여 사업성~아파트요금 분석을 별도로 저장한다. 보고서는 기본안 기준.
+ */
+export interface AnalysisVariant {
+  id: string
+  label: string
+  /** 이용시간(시간/일) — 정산 설정 */
+  hours: number
+  /** 충전기 구성(제외 플래그 포함) */
+  chargers: ChargerType[]
+  feas?: FeasibilityInputs
+  tariff?: TariffInputs
+  standby?: StandbyInputs
+  aptBill?: ApartmentBillInputs
+}
+
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
 export interface SavedSite {
   id: string
