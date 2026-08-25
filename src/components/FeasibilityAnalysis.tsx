@@ -34,6 +34,10 @@ interface FeasibilityAnalysisProps {
     effCost: number
     loadFactor: number
   }[]
+  /** 프로젝트별 영업비 1대분(계약년수별) override. 값>0인 칸만 적용, 나머지는 전체 기준값. */
+  projectBizFee?: number[]
+  /** 프로젝트별 영업비 저장 콜백 */
+  setProjectBizFee?: (arr: number[]) => void
 }
 
 /**
@@ -131,6 +135,8 @@ export default function FeasibilityAnalysis({
   standbyMonthlyKwhAll = 0,
   autoElecCost,
   elecYearModel,
+  projectBizFee,
+  setProjectBizFee,
 }: FeasibilityAnalysisProps) {
   const set = (patch: Partial<FeasibilityInputs>) =>
     setInputs({ ...inputs, ...patch })
@@ -173,15 +179,32 @@ export default function FeasibilityAnalysis({
       next[idx] = v
       return next
     })
+  const setProjectBizFeeAt = (idx: number, v: number) => {
+    if (!setProjectBizFee) return
+    const next = [...(projectBizFee ?? [])]
+    while (next.length < MAX_YEARS) next.push(0)
+    next[idx] = v
+    setProjectBizFee(next)
+  }
   const yearIdx = Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years))) - 1
-  // 공통 기준표 값(계약년수 기준)
-  const standardBizFee = bizFeeByYear[yearIdx] ?? defaultBizFee(inputs.years)
-  // 프로젝트별 override가 있으면 우선, 없으면 공통 기준표 값(일괄) 적용
+  // 영업비 1대분 결정 순서(값>0 만 유효):
+  //  1) 프로젝트별 개별 기준표(projectBizFee) → 2) 전체 기준값(bizFeeByYear) → 3) 기본값
+  const projBizAt = (i: number) =>
+    projectBizFee && projectBizFee[i] > 0 ? projectBizFee[i] : undefined
+  const globalBizAt = (i: number) =>
+    bizFeeByYear[i] > 0 ? bizFeeByYear[i] : undefined
+  const standardBizFee =
+    projBizAt(yearIdx) ?? globalBizAt(yearIdx) ?? defaultBizFee(inputs.years)
+  // '영업비 1대분 단가' 단일 override — 빈 값(0)은 override 아님(기준표로 fallback).
   const hasBizFeeOverride =
-    inputs.bizFeeOverride != null && Number.isFinite(inputs.bizFeeOverride)
+    inputs.bizFeeOverride != null &&
+    Number.isFinite(inputs.bizFeeOverride) &&
+    (inputs.bizFeeOverride as number) > 0
   const appliedBizFee = hasBizFeeOverride
     ? (inputs.bizFeeOverride as number)
     : standardBizFee
+  // 전체 기준값 관리 창(모달) 표시 여부.
+  const [showBizStd, setShowBizStd] = useState(false)
 
   // 대수·요금은 단지 정보의 '충전기 종류별 수량·요금'과 자동 연동 (읽기 전용).
   //  제외(excluded) 종류는 대수 0으로 취급하여 사업성 전체에서 빠진다.
@@ -486,13 +509,22 @@ export default function FeasibilityAnalysis({
 
       {/* 1. 영업이익 기준 (계약년수·단가에 따라 기준 변동) */}
       <div className="subsection">
-        <h3 className="subsection__title">1. 영업이익 기준 (유닛커넥트 기준표)</h3>
+        <div className="subsection__head">
+          <h3 className="subsection__title">1. 영업이익 기준 (영업비 · 프로젝트별)</h3>
+          <button
+            type="button"
+            className="btn-link"
+            onClick={() => setShowBizStd(true)}
+          >
+            전체 기준값 관리
+          </button>
+        </div>
         <div className="table-scroll">
           <table className="data-table">
             <thead>
               <tr>
                 <th>계약기간</th>
-                <th>영업비 1대분(원/대) · 직접기입</th>
+                <th>영업비 1대분(원/대) · 프로젝트별</th>
                 <th>영업이익률 목표<br />(≥244원 · 249원)</th>
                 <th>영업이익률 목표<br />(&lt;244원 · 239원)</th>
               </tr>
@@ -502,14 +534,16 @@ export default function FeasibilityAnalysis({
                 const isYear = row.years === Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))
                 const highActive = isYear && inputs.rateVat >= 244
                 const lowActive = isYear && inputs.rateVat < 244
+                const globalVal = globalBizAt(i) ?? defaultBizFee(row.years)
                 return (
                   <tr key={row.years} className={isYear ? 'row--selected' : ''}>
                     <td className="col-name">{row.years}년</td>
                     <td>
                       <DecimalInput
                         className="cell-input"
-                        value={bizFeeByYear[i] ?? 0}
-                        onValue={(n) => setBizFeeAt(i, n)}
+                        value={projectBizFee?.[i] ?? 0}
+                        onValue={(n) => setProjectBizFeeAt(i, n)}
+                        placeholder={`기준값 ${formatNumber(globalVal)}`}
                       />
                     </td>
                     <td className={highActive ? 'cell--up' : ''}>
@@ -526,21 +560,99 @@ export default function FeasibilityAnalysis({
         </div>
         <div className="table-note table-note--row">
           <span>
-            영업비 1대분은 <b>모든 프로젝트 공통(일괄)</b>으로 적용됩니다. 계약년수(
+            영업비 1대분은 <b>프로젝트별로 저장</b>됩니다. 빈 칸은{' '}
+            <b>전체 기준값</b>(전체 기준값 관리에서 설정)이 자동 적용됩니다.
+            계약년수(
             {Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))}년)에
-            해당하는 값이 손익의 영업비로 자동 반영됩니다. (현재 적용:{' '}
+            해당하는 값이 손익의 영업비로 반영됩니다. (현재 적용:{' '}
             {formatNumber(appliedBizFee)}원 ·{' '}
             {inputs.rateVat >= 244 ? '249원 기준' : '239원 기준'})
           </span>
-          <button
-            type="button"
-            className="btn-link"
-            onClick={() => setBizFeeByYear(PROFIT_STANDARD.map((r) => r.bizFee))}
-          >
-            기본값 복원
-          </button>
+          {projectBizFee && projectBizFee.some((v) => v > 0) && setProjectBizFee && (
+            <button
+              type="button"
+              className="btn-link"
+              onClick={() => setProjectBizFee([])}
+            >
+              프로젝트값 지우기(기준값 사용)
+            </button>
+          )}
         </div>
       </div>
+
+      {showBizStd && (
+        <div
+          className="biz-modal__backdrop"
+          onClick={() => setShowBizStd(false)}
+        >
+          <div
+            className="biz-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="biz-modal__head">
+              <h3>영업비 전체 기준값 관리</h3>
+              <button
+                type="button"
+                className="biz-modal__x"
+                aria-label="닫기"
+                onClick={() => setShowBizStd(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="biz-modal__desc">
+              여기서 설정한 값은 <b>모든 현장의 기본 영업비 기준값</b>입니다. 각
+              프로젝트에서 영업비를 따로 기입하지 않은 계약연수에는 이 값이
+              적용됩니다.
+            </p>
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>계약기간</th>
+                    <th>영업비 1대분(원/대) · 기준값</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PROFIT_STANDARD.map((row, i) => (
+                    <tr key={row.years}>
+                      <td className="col-name">{row.years}년</td>
+                      <td>
+                        <DecimalInput
+                          className="cell-input"
+                          value={bizFeeByYear[i] ?? 0}
+                          onValue={(n) => setBizFeeAt(i, n)}
+                          placeholder={`${formatNumber(defaultBizFee(row.years))}`}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="biz-modal__foot">
+              <button
+                type="button"
+                className="btn-link"
+                onClick={() =>
+                  setBizFeeByYear(PROFIT_STANDARD.map((r) => r.bizFee))
+                }
+              >
+                기본값 복원
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowBizStd(false)}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="var-panel">
         <h3 className="subsection__title">① 변수 입력 (좌: 직접 기입 / 우: UC 기준)</h3>

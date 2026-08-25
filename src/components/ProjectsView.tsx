@@ -576,8 +576,9 @@ function projectFeasFull(
     if (ov > 0) return ov
     return p.chargers.find((c) => c.kw === kw)?.rate ?? 0
   }
-  // 영업비 1대분: 프로젝트 override > 전역 기준표(bizFeeByYear, 사업성 탭에서 편집) >
-  //  계약연수 기본값. 전역 기준표는 사업성 탭과 동일하게 localStorage에서 읽는다.
+  // 영업비 1대분(값>0 만 유효):
+  //  단일 override(f.bizFeeOverride) > 프로젝트별 기준표(p.bizFeeByYear) >
+  //  전체 기준값(bizFeeByYear·localStorage) > 계약연수 기본값.
   let globalBiz: number[] | null = null
   try {
     const raw = localStorage.getItem('unitconnect.ui.feasibility.bizFeeByYear')
@@ -587,10 +588,18 @@ function projectFeasFull(
     globalBiz = null
   }
   const yearIdx = years - 1
-  const standardBiz = globalBiz?.[yearIdx] ?? defaultBizFee(years)
+  const projBizVal =
+    p.bizFeeByYear && p.bizFeeByYear[yearIdx] > 0
+      ? p.bizFeeByYear[yearIdx]
+      : undefined
+  const globalBizVal =
+    globalBiz && globalBiz[yearIdx] > 0 ? globalBiz[yearIdx] : undefined
+  const standardBiz = projBizVal ?? globalBizVal ?? defaultBizFee(years)
   const biz =
-    f.bizFeeOverride != null && Number.isFinite(f.bizFeeOverride)
-      ? f.bizFeeOverride
+    f.bizFeeOverride != null &&
+    Number.isFinite(f.bizFeeOverride) &&
+    (f.bizFeeOverride as number) > 0
+      ? (f.bizFeeOverride as number)
       : standardBiz
   const sepK = computeStandby(
     chargers.filter((c) => c.separated),
@@ -1252,6 +1261,7 @@ function ProjectDetail({
       approval,
       variants: resolvedVariants,
       fieldNote,
+      bizFeeByYear: projectBizFee,
     })
     setBaseSet(resolvedBase)
     setVariants(resolvedVariants)
@@ -1270,6 +1280,10 @@ function ProjectDetail({
   //  결재 뷰에서 기본안/대체안을 선택해 그 분석을 요약으로 본다(저장된 데이터 기준).
   const savedVariants = project.variants ?? []
   const [approvalSlotId, setApprovalSlotId] = useState<string | null>(null)
+  // 프로젝트별 영업비 1대분(계약년수별). 값>0 칸만 적용, 나머지는 전체 기준값.
+  const [projectBizFee, setProjectBizFee] = useState<number[]>(
+    project.bizFeeByYear ?? [],
+  )
   // 현장 의견(결재 참고 메모) — 입력 후 포커스 아웃 시 저장.
   const [fieldNote, setFieldNote] = useState<string>(project.fieldNote ?? '')
   const saveFieldNote = () => {
@@ -1891,6 +1905,8 @@ function ProjectDetail({
           }
           autoElecCost={autoElecCost}
           elecYearModel={elecYearModel}
+          projectBizFee={projectBizFee}
+          setProjectBizFee={setProjectBizFee}
         />
       ) : (
         <>

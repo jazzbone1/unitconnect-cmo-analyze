@@ -148,6 +148,9 @@ export interface SavedSite {
   /** 현장 의견(결재 참고용 메모) */
   fieldNote?: string
 
+  /** 프로젝트별 영업비 1대분(계약년수별, 1~7년). 값>0 인 칸만 적용, 나머지는 전체 기준값. */
+  bizFeeByYear?: number[]
+
   // ── 프로젝트 관리(파이프라인) 필드 ──
   /** 프로젝트 코드 (예: BF-2608) */
   code?: string
