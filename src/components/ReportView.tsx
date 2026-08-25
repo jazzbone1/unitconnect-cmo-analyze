@@ -337,7 +337,16 @@ export default function ReportView({
     setModel((m) => ({
       ...m,
       elecGroups: (m.elecGroups ?? []).map((g) =>
-        g.id === id ? { ...g, ...patch } : g,
+        g.id === id
+          ? {
+              ...g,
+              ...patch,
+              // 직접 수정 필드 기록 → 자동 연동에서 덮어쓰지 않도록 보존
+              edited: Array.from(
+                new Set([...(g.edited ?? []), ...Object.keys(patch)]),
+              ),
+            }
+          : g,
       ),
     }))
   }

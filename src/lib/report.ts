@@ -113,6 +113,8 @@ export interface ElecGroup extends ElecCostInput {
   name: string
   kw: number
   count: number
+  /** 사용자가 직접 수정한 필드 키(자동 연동에서 보존) */
+  edited?: string[]
 }
 
 export interface OpexRow {
@@ -123,6 +125,8 @@ export interface OpexRow {
   yearCost: number
   /** 비고 */
   note: string
+  /** 사용자가 직접 수정한 필드 키(자동 연동에서 보존) */
+  edited?: string[]
 }
 
 /** 보고서에 포함할 섹션 키(체크박스 대상) */
@@ -163,7 +167,13 @@ export interface ReportModel {
    */
   vatDeduct?: boolean
   /** Part1 개요 표 (자유 행) */
-  overview: { id: string; label: string; value: string; note: string }[]
+  overview: {
+    id: string
+    label: string
+    value: string
+    note: string
+    edited?: string[]
+  }[]
   /** Part1 유형별 실적 표 */
   perType: {
     id: string
@@ -223,6 +233,7 @@ export interface ReportModel {
     current: string
     proposed: string
     note: string
+    edited?: string[]
   }[]
   /** Part3 공통 전제 */
   premise: string

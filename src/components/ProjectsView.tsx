@@ -640,7 +640,10 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
   const byLabel = new Map(s.overview.map((r) => [r.label, r]))
   const linkedLabels = ['세대수', '충전기', '현행 요금']
   const overview = m.overview.map((row) => {
-    if (linkedLabels.includes(row.label)) {
+    if (
+      linkedLabels.includes(row.label) &&
+      !(row.edited ?? []).includes('value')
+    ) {
       const src = byLabel.get(row.label)
       if (src)
         return {
@@ -690,29 +693,41 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
       }
       // 미적용 그룹은 공용부 기본요금 배분값(계약전력·기본단가)도 자동 연동.
       // 배분 적용 여부(토글)는 사용자가 끈 경우 보존(undefined면 자동값 사용).
-      if (sg.separated === false)
-        return {
-          ...base,
-          contractKw: sg.contractKw,
-          baseUnitPrice: sg.baseUnitPrice,
-          apartmentBaseAlloc:
-            prev.apartmentBaseAlloc ?? sg.apartmentBaseAlloc,
-          // 주택용 누진(baseUnitTier)이면 세대당 기본료 사용 → 고지서 역산값 제거.
-          //  일반용은 사용자 직접 입력 보존, 미입력이면 아파트요금분석 시드값 반영.
-          baseUnitTier: sg.baseUnitTier,
-          billBase: sg.baseUnitTier ? undefined : prev.billBase ?? sg.billBase,
-          billContractKw: sg.baseUnitTier
-            ? undefined
-            : prev.billContractKw ?? sg.billContractKw,
-          // 대기전력 손실 단가: 아파트 요금제 단가로 자동 연동.
-          standbyRate: sg.standbyRate,
-        }
-      // 모자분리 그룹: 계약전력(고지서 재책정/설비×0.8)·실효원가(Lv1) 자동 반영
-      return { ...base, contractKw: sg.contractKw, lv1Override: sg.lv1Override }
+      const merged =
+        sg.separated === false
+          ? {
+              ...base,
+              contractKw: sg.contractKw,
+              baseUnitPrice: sg.baseUnitPrice,
+              apartmentBaseAlloc:
+                prev.apartmentBaseAlloc ?? sg.apartmentBaseAlloc,
+              // 주택용 누진(baseUnitTier)이면 세대당 기본료 사용 → 고지서 역산값 제거.
+              baseUnitTier: sg.baseUnitTier,
+              billBase: sg.baseUnitTier
+                ? undefined
+                : prev.billBase ?? sg.billBase,
+              billContractKw: sg.baseUnitTier
+                ? undefined
+                : prev.billContractKw ?? sg.billContractKw,
+              // 대기전력 손실 단가: 아파트 요금제 단가로 자동 연동.
+              standbyRate: sg.standbyRate,
+            }
+          : // 모자분리 그룹: 계약전력(고지서 재책정/설비×0.8)·실효원가(Lv1) 자동 반영
+            { ...base, contractKw: sg.contractKw, lv1Override: sg.lv1Override }
+      // 사용자가 직접 수정한 필드(edited)는 seed로 덮어쓰지 않고 보존한다.
+      const edited = prev.edited ?? []
+      if (edited.length === 0) return merged
+      const out: Record<string, unknown> = { ...merged }
+      const prevRec = prev as unknown as Record<string, unknown>
+      for (const k of edited) out[k] = prevRec[k]
+      out.edited = edited
+      return out as unknown as typeof merged
     }),
     // 운영비: 자동 산출 항목(정기·긴급점검·보험·수선)의 연비용만 대수 기준으로 연동.
     //  CS 운영(수동·별도 기입)과 사용자 추가 항목·비고는 보존.
     opex: (m.opex ?? []).map((r) => {
+      // 사용자가 직접 수정한(yearCost 편집) 항목은 자동 연동에서 보존.
+      if ((r.edited ?? []).includes('yearCost')) return r
       // 자동 산출 항목(대수 비례)은 연비용 연동. 사용자 추가 항목은 시드에 없어 보존.
       const sr =
         (s.opex ?? []).find((x) => x.id === r.id) ??
@@ -722,6 +737,7 @@ function mergeLinked(m: ReportModel, s: ReportModel): ReportModel {
     // 인상 권고안: 현행 요금(current)만 '충전기 종류별 요금'에서 자동 연동.
     //  행 id 또는 라벨의 정격(kW)으로 시드 행을 매칭. 나머지 열(최소 인상안·비고)은 보존.
     recommend: (m.recommend ?? []).map((r) => {
+      if ((r.edited ?? []).includes('current')) return r
       const sr =
         (s.recommend ?? []).find((x) => x.id === r.id) ??
         (s.recommend ?? []).find(
