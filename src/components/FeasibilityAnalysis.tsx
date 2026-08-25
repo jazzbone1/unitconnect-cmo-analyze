@@ -791,17 +791,22 @@ export default function FeasibilityAnalysis({
             <button
               type="button"
               className="btn-secondary"
-              title="완속 7kW 이용률을 기준으로 매년 1%p씩 상승 반영"
-              onClick={() =>
+              title="완속 7kW 이용률 기준 매년 1%p 상승 (상한: 25% 또는 현재 7kW 이용률 중 큰 값 — 넘지 않음)"
+              onClick={() => {
+                const base = inputs.utilSlow7
+                // 상한: 현재 7kW 이용률이 25% 초과면 현재값을 넘지 않게,
+                //  25% 이하면 25%까지만 성장.
+                const cap = Math.max(base, 0.25)
+                const grow = (n: number) => Math.min(base + n * 0.01, cap)
                 set({
-                  yearUtil2: inputs.utilSlow7 + 0.01,
-                  yearUtil3: inputs.utilSlow7 + 0.02,
-                  yearUtil4: inputs.utilSlow7 + 0.03,
-                  yearUtil5: inputs.utilSlow7 + 0.04,
-                  yearUtil6: inputs.utilSlow7 + 0.05,
-                  yearUtil7: inputs.utilSlow7 + 0.06,
+                  yearUtil2: grow(1),
+                  yearUtil3: grow(2),
+                  yearUtil4: grow(3),
+                  yearUtil5: grow(4),
+                  yearUtil6: grow(5),
+                  yearUtil7: grow(6),
                 })
-              }
+              }}
             >
               연 성장률 1%p 반영
             </button>
@@ -831,7 +836,9 @@ export default function FeasibilityAnalysis({
               ).toFixed(2)}
               %
             </b>
-            .
+            . <b>[연 성장률 1%p 반영]</b>은 7kW 기준 상한{' '}
+            <b>{(Math.max(inputs.utilSlow7, 0.25) * 100).toFixed(1)}%</b>
+            (25% 또는 현재 이용률 중 큰 값)를 넘지 않습니다.
           </p>
           {/* 종류별·연차별 이용률 표 */}
           <div className="table-scroll" style={{ marginTop: '0.75rem' }}>
