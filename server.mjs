@@ -98,7 +98,13 @@ function readCookie(req, name) {
   return null
 }
 function sessionCookie(value, maxAgeSec) {
-  return `uc_sso=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax; Secure`
+  // ⚠️ SameSite=None 필수 — 딜러커넥트(메신저)가 이 사이트를 iframe 으로 임베드하는데,
+  //    Lax 면 교차 사이트 iframe 안에서 브라우저가 쿠키를 저장·전송하지 않아
+  //    SSO 검증에 성공해도 로그인 게이트가 그대로 뜬다.
+  //    Partitioned(CHIPS)는 서드파티 쿠키 차단 환경 대비. 최상위 방문 시에도 자기 사이트로
+  //    파티션되므로 직접 접속 로그인은 그대로 동작한다. 모르는 속성은 구형 브라우저가 무시한다.
+  //    로그아웃 만료 쿠키도 같은 함수를 쓰므로 속성이 일치해야 삭제가 먹는다.
+  return `uc_sso=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSec}; SameSite=None; Secure; Partitioned`
 }
 
 const r2Ready =
