@@ -21,8 +21,11 @@ export interface ApprovalStep {
 
 /** 현장 분석 승인 워크플로 */
 export interface AnalysisApproval {
-  /** review=검토중, requested=승인요청(진행중), approved=승인완료, rejected=반려 */
-  status: 'review' | 'requested' | 'approved' | 'rejected'
+  /**
+   * review=검토중, reviewed=검토완료, requested=승인요청(진행중),
+   * approved=승인완료(승인자 전원 승인 시 자동), rejected=반려
+   */
+  status: 'review' | 'reviewed' | 'requested' | 'approved' | 'rejected'
   /** 담당자 이름(표시용) */
   assignee?: string
   /** 담당자 계정 ID(SSO sub) */

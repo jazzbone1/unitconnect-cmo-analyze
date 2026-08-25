@@ -8,7 +8,23 @@ import type { SsoUser, SsoAccount } from '../lib/sso'
 
 const STATUS_LABEL: Record<AnalysisApproval['status'], string> = {
   review: '검토 중',
+  reviewed: '검토 완료',
   requested: '승인 요청(진행중)',
+  approved: '승인 완료',
+  rejected: '반려',
+}
+
+/** 직접 선택 가능한 상태(승인 완료는 승인자 전원 승인 시 자동 반영되지만 수동 지정도 허용). */
+const STATUS_CHOICES: AnalysisApproval['status'][] = [
+  'review',
+  'reviewed',
+  'requested',
+  'approved',
+]
+const STATUS_CHOICE_LABEL: Record<AnalysisApproval['status'], string> = {
+  review: '검토 중',
+  reviewed: '검토 완료',
+  requested: '승인 요청',
   approved: '승인 완료',
   rejected: '반려',
 }
@@ -139,7 +155,8 @@ export default function ApprovalPanel({
   const nowIso = () => new Date().toISOString()
   const fmt = (iso?: string) =>
     iso ? new Date(iso).toLocaleString('ko-KR', { hour12: false }) : ''
-  const editable = a.status === 'review' // 검토중일 때만 담당자·승인자 편집
+  // 검토중·검토완료(승인요청 전)일 때만 담당자·승인자 편집.
+  const editable = a.status === 'review' || a.status === 'reviewed'
 
   const addApprover = (acc: { id?: string; name: string }) => {
     const name = acc.name.trim()
@@ -192,15 +209,43 @@ export default function ApprovalPanel({
     })
   }
 
-  const reset = () =>
+  /** 진행 이력 초기화(승인자 id/name 유지, 결정·시각 삭제). */
+  const clearedApprovers = (): ApprovalStep[] =>
+    a.approvers.map((s) => ({ id: s.id, name: s.name }))
+
+  /** 상태 직접 변경. 승인요청은 승인자 필요, 승인완료는 전원 승인 처리. */
+  const setStatus = (status: AnalysisApproval['status']) => {
+    if (status === a.status) return
+    if (status === 'requested') {
+      if (a.approvers.length === 0) return // 버튼 자체를 비활성화하지만 방어
+      request()
+      return
+    }
+    if (status === 'approved') {
+      // 수동 승인 완료 → 미결정 승인자를 모두 승인 처리(반려는 유지).
+      const approvers = a.approvers.map((s) =>
+        s.decision === 'rejected'
+          ? s
+          : { ...s, decision: 'approved' as const, at: s.at ?? nowIso() },
+      )
+      onChange({
+        ...a,
+        status: 'approved',
+        approvers,
+        currentStep: a.approvers.length,
+      })
+      return
+    }
+    // review / reviewed → 진행 초기화
     onChange({
       ...a,
-      status: 'review',
+      status,
       currentStep: 0,
       requestedAt: undefined,
       requestedBy: undefined,
-      approvers: a.approvers.map((s) => ({ id: s.id, name: s.name })),
+      approvers: clearedApprovers(),
     })
+  }
 
   const current = a.status === 'requested' ? a.approvers[a.currentStep] : null
   // 현재 차례 승인자 본인만 처리 가능.
@@ -224,6 +269,45 @@ export default function ApprovalPanel({
           {STATUS_LABEL[a.status]}
         </span>
       </div>
+
+      <div className="approval__status-set">
+        <span className="approval__status-label">상태 변경</span>
+        <div className="approval__seg">
+          {STATUS_CHOICES.map((s) => {
+            const disabled = s === 'requested' && a.approvers.length === 0
+            return (
+              <button
+                key={s}
+                type="button"
+                className={`approval__seg-btn${a.status === s ? ' is-active' : ''}`}
+                aria-pressed={a.status === s}
+                disabled={disabled}
+                title={
+                  disabled ? '승인자를 먼저 추가하세요.' : undefined
+                }
+                onClick={() => setStatus(s)}
+              >
+                {STATUS_CHOICE_LABEL[s]}
+              </button>
+            )
+          })}
+          {a.status === 'rejected' && (
+            <button
+              type="button"
+              className="approval__seg-btn is-active approval__seg-btn--rejected"
+              aria-pressed
+              disabled
+            >
+              반려
+            </button>
+          )}
+        </div>
+      </div>
+      {a.status === 'approved' && (
+        <p className="approval__hint">
+          승인자 전원 승인이 완료되면 자동으로 “승인 완료”로 전환됩니다.
+        </p>
+      )}
 
       <div className="approval__row">
         <label className="approval__field">
@@ -329,47 +413,30 @@ export default function ApprovalPanel({
         )}
       </div>
 
-      <div className="approval__actions">
-        {a.status === 'review' && (
+      {a.status === 'requested' && current && (
+        <div className="approval__actions">
+          <span className="approval__turn">
+            현재 차례: <b>{current.name}</b>
+            {currentUser && !canDecide && ' (본인만 처리 가능)'}
+          </span>
           <button
             type="button"
             className="approval__btn approval__btn--primary"
-            disabled={a.approvers.length === 0}
-            onClick={request}
+            disabled={!canDecide}
+            onClick={() => decide('approved')}
           >
-            승인 요청
+            승인
           </button>
-        )}
-        {a.status === 'requested' && current && (
-          <>
-            <span className="approval__turn">
-              현재 차례: <b>{current.name}</b>
-              {currentUser && !canDecide && ' (본인만 처리 가능)'}
-            </span>
-            <button
-              type="button"
-              className="approval__btn approval__btn--primary"
-              disabled={!canDecide}
-              onClick={() => decide('approved')}
-            >
-              승인
-            </button>
-            <button
-              type="button"
-              className="approval__btn approval__btn--danger"
-              disabled={!canDecide}
-              onClick={() => decide('rejected')}
-            >
-              반려
-            </button>
-          </>
-        )}
-        {(a.status === 'approved' || a.status === 'rejected') && (
-          <button type="button" className="approval__btn" onClick={reset}>
-            검토 중으로 되돌리기
+          <button
+            type="button"
+            className="approval__btn approval__btn--danger"
+            disabled={!canDecide}
+            onClick={() => decide('rejected')}
+          >
+            반려
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   )
 }

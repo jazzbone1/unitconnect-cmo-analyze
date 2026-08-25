@@ -1286,7 +1286,7 @@ export default function ProjectsView({
       case 'profit':
         return feasById.get(p.id)?.operatingProfit ?? -Infinity
       case 'approval':
-        return p.approval?.status ?? ''
+        return p.approval?.status ?? 'review'
       default:
         return ''
     }
@@ -1432,16 +1432,17 @@ export default function ProjectsView({
                   </td>
                   <td>
                     {(() => {
-                      const st = p.approval?.status
-                      if (!st) return <span className="proj-approval">—</span>
+                      const st = p.approval?.status ?? 'review'
                       const label =
                         st === 'review'
                           ? '검토 중'
-                          : st === 'requested'
-                            ? '진행중'
-                            : st === 'approved'
-                              ? '승인'
-                              : '반려'
+                          : st === 'reviewed'
+                            ? '검토 완료'
+                            : st === 'requested'
+                              ? '승인 요청'
+                              : st === 'approved'
+                                ? '승인 완료'
+                                : '반려'
                       return (
                         <span
                           className={`approval__badge approval__badge--${st} proj-approval`}

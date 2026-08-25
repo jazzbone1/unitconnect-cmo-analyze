@@ -1739,6 +1739,9 @@ tr.row--detail .col-name {
 .approval__badge--review {
   background: var(--text-muted);
 }
+.approval__badge--reviewed {
+  background: #4b6bb0;
+}
 .approval__badge--requested {
   background: #c78a00;
 }
@@ -1747,6 +1750,57 @@ tr.row--detail .col-name {
 }
 .approval__badge--rejected {
   background: var(--warn);
+}
+.approval__status-set {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+}
+.approval__status-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.approval__seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.approval__seg-btn {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.approval__seg-btn:last-child {
+  border-right: none;
+}
+.approval__seg-btn:hover:not(:disabled):not(.is-active) {
+  background: var(--surface-2);
+}
+.approval__seg-btn.is-active {
+  background: var(--accent);
+  color: #1a1a1a;
+}
+.approval__seg-btn--rejected.is-active {
+  background: var(--warn);
+  color: #fff;
+}
+.approval__seg-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.approval__hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: -0.3rem 0 0.7rem;
 }
 .approval__row {
   margin-bottom: 0.7rem;

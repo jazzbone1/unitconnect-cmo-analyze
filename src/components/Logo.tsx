@@ -5,10 +5,10 @@
  */
 export default function Logo({ height = 28 }: { height?: number }) {
   return (
-    <span className="brand-logo" aria-label="UNITCONNECT">
+    <span className="brand-logo" aria-label="위차 분석">
       <svg
         height={height}
-        viewBox="0 0 208 36"
+        viewBox="0 0 150 36"
         role="img"
         aria-hidden="true"
         style={{ display: 'block' }}
@@ -45,9 +45,9 @@ export default function Logo({ height = 28 }: { height?: number }) {
           fontWeight="800"
           fill="currentColor"
           fontFamily="'Pretendard Variable','Pretendard',system-ui,sans-serif"
-          letterSpacing="-0.9"
+          letterSpacing="-0.5"
         >
-          UNITCONNECT
+          위차 분석
         </text>
       </svg>
     </span>
