@@ -142,6 +142,9 @@ export interface SavedSite {
   /** 현장 분석 승인 워크플로(검토중→승인요청→순차승인) */
   approval?: AnalysisApproval
 
+  /** 대체안(변형 분석) 목록 — 사업성~아파트요금을 달리한 별도 저장안 */
+  variants?: AnalysisVariant[]
+
   // ── 프로젝트 관리(파이프라인) 필드 ──
   /** 프로젝트 코드 (예: BF-2608) */
   code?: string

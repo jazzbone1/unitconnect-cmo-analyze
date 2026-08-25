@@ -2919,6 +2919,64 @@ tr.row--detail .col-name {
   flex-wrap: wrap;
   margin-bottom: 0.8rem;
 }
+/* 대체안 바 */
+.variant-bar {
+  padding: 0.8rem 1rem;
+}
+.variant-bar__row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.variant-bar__label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+.variant-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.variant-tab {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.variant-tab--active {
+  background: var(--accent-soft);
+  border-color: var(--ok);
+  box-shadow: inset 0 0 0 1px var(--ok);
+}
+.variant-tab--add {
+  border-style: dashed;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.variant-bar__actions {
+  display: inline-flex;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+.link-button--danger {
+  color: var(--warn);
+}
+.variant-bar__note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0.6rem 0 0;
+}
+.variant-cur {
+  color: var(--ok);
+  font-weight: 700;
+}
 .detail-modes {
   display: inline-flex;
   border: 1px solid var(--border);

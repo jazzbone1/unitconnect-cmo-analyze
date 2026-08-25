@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { SavedSite, AnalysisApproval } from '../lib/sites'
+import type { SavedSite, AnalysisApproval, AnalysisVariant } from '../lib/sites'
 import {
   defaultApproval,
   approvalRequest,
   approvalDecide,
   approvalCanDecide,
+  newSiteId,
 } from '../lib/sites'
+import type { ChargerType } from '../lib/settlement'
 import { ssoCurrentUser, ssoDirectory } from '../lib/sso'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
@@ -442,6 +444,16 @@ function chargerBreakdown(p: SavedSite): string {
 /** 프로젝트 목록 표시용: 사업성 결과(영업이익률·영업이익). 사업성 탭(ProjectDetail)의
  *  파생 계산 체인(제외 반영·요금구조 실효원가·연차별 전기원가·대기전력 전체 종류)을
  *  그대로 재현해 탭 결과와 일치시킨다. */
+/** 한 분석 슬롯(기본안/대체안 공통)의 데이터 묶음. */
+interface AnalysisSet {
+  hours: number
+  chargers: ChargerType[]
+  feas: FeasibilityInputs
+  tariff: TariffInputs
+  standby: StandbyInputs
+  aptBill: ApartmentBillInputs
+}
+
 /** 결재용 요약: 사업성 결과 + CAPEX·영업비 회수기간. 연수(years) override 가능. */
 interface PerChargerRate {
   kw: number
@@ -920,6 +932,98 @@ function ProjectDetail({
     hours: project.hours,
     chargers: project.chargers.map((c) => ({ ...c })),
   })
+
+  // ── 대체안(변형 분석) ──
+  //  이용량 분석·보고서는 기본안 공유. 사업성~아파트요금만 대체안별 별도 저장.
+  //  working 상태(config/feas/tariff/standby/aptBill)는 '현재 선택 슬롯'을 나타낸다.
+  const [variants, setVariants] = useState<AnalysisVariant[]>(
+    () => project.variants ?? [],
+  )
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null)
+  // 기본안 슬롯 데이터(대체안 활성 시 보관·이용량/보고서·저장에 사용).
+  const [baseSet, setBaseSet] = useState<AnalysisSet>(() => ({
+    hours: project.hours,
+    chargers: project.chargers.map((c) => ({ ...c })),
+    feas: project.feas ?? DEFAULT_INPUTS(),
+    tariff: deriveTariff(project),
+    standby: project.standby ?? defaultStandby(),
+    aptBill:
+      project.aptBill ??
+      (() => {
+        const d = defaultApartmentBill()
+        d.households = project.households ?? 0
+        return d
+      })(),
+  }))
+  const readWorking = (): AnalysisSet => ({
+    hours: config.hours,
+    chargers: config.chargers.map((c) => ({ ...c })),
+    feas,
+    tariff,
+    standby,
+    aptBill,
+  })
+  const applySet = (s: AnalysisSet | AnalysisVariant) => {
+    setConfig({ hours: s.hours, chargers: s.chargers.map((c) => ({ ...c })) })
+    setFeas(s.feas ?? DEFAULT_INPUTS())
+    setTariff(s.tariff ?? deriveTariff(project))
+    setStandby(s.standby ?? defaultStandby())
+    setAptBill(s.aptBill ?? defaultApartmentBill())
+  }
+  // 현재 working 을 활성 슬롯에 반영(기본안 or 대체안).
+  const commitActive = (wk: AnalysisSet) => {
+    if (activeVariantId == null) setBaseSet(wk)
+    else
+      setVariants((prev) =>
+        prev.map((v) => (v.id === activeVariantId ? { ...v, ...wk } : v)),
+      )
+  }
+  const switchVariant = (targetId: string | null) => {
+    if (targetId === activeVariantId) return
+    commitActive(readWorking())
+    if (targetId == null) applySet(baseSet)
+    else {
+      const v = variants.find((x) => x.id === targetId)
+      if (v) applySet(v)
+    }
+    setActiveVariantId(targetId)
+    if (targetId != null && subtab === 'report') setSubtab('feasibility')
+  }
+  const addVariant = () => {
+    const wk = readWorking()
+    commitActive(wk)
+    const id = newSiteId()
+    const label = `대체안 ${variants.length + 1}`
+    const nv: AnalysisVariant = {
+      id,
+      label,
+      hours: wk.hours,
+      chargers: wk.chargers.map((c) => ({ ...c })),
+      feas: wk.feas,
+      tariff: wk.tariff,
+      standby: wk.standby,
+      aptBill: wk.aptBill,
+    }
+    setVariants((prev) => [...prev, nv])
+    setActiveVariantId(id)
+    if (subtab === 'report') setSubtab('feasibility')
+    // working 은 그대로(=대체안 시작값) 두고, 여기서 충전기 제외 등을 편집.
+  }
+  const deleteVariant = (id: string) => {
+    if (activeVariantId === id) {
+      applySet(baseSet)
+      setActiveVariantId(null)
+    }
+    setVariants((prev) => prev.filter((v) => v.id !== id))
+  }
+  const renameVariant = (id: string, label: string) =>
+    setVariants((prev) => prev.map((v) => (v.id === id ? { ...v, label } : v)))
+  // 이용량 분석용 config: 항상 기본안 기준(대체안 활성 시 baseSet).
+  const usageConfig: SettlementConfig =
+    activeVariantId == null
+      ? config
+      : { hours: baseSet.hours, chargers: baseSet.chargers }
+
   // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
   const [approval, setApproval] = useState<AnalysisApproval>(
     () => project.approval ?? defaultApproval(),
@@ -987,12 +1091,13 @@ function ProjectDetail({
   // 정산 종류별 자동 비례 배분 가중치 = 대수 × 표준 월 대당 충전량(kWh).
   //  요금 역산 불가(3종류 이상)일 때 총 사용량을 이 비중으로 배분해 이용률 추정.
   //  일반 공동주택 실적 기반이라 사업성 가정 이용률과 분리(사업성 %와 무관).
+  //  이용량 분석은 기본안 기준(usageConfig) — 대체안의 충전기 제외에 영향받지 않음.
   const settleWeights = useMemo(() => {
     const w: Record<string, number> = {}
-    for (const c of config.chargers)
+    for (const c of usageConfig.chargers)
       w[c.id] = c.count * monthlyKwhFromProfile(c.kw, kwhProfile)
     return w
-  }, [config, kwhProfile])
+  }, [usageConfig, kwhProfile])
   // 요금 구조 탭 월 총 충전량: override 있으면 우선, 없으면 사업성 월사용량 자동
   const effMonthlyKwh =
     tariff.monthlyKwhOverride != null &&
@@ -1089,8 +1194,10 @@ function ProjectDetail({
     [site.name, site.households, effConfig, files, tariff, standby, feas, aptBill, kwhProfile],
   )
   useEffect(() => {
+    // 보고서는 기본안 기준. 대체안 활성 중에는 자동연동을 멈춰 기본안 보고서를 보존.
+    if (activeVariantId != null) return
     setReport((m) => mergeLinked(m, linkedSeed))
-  }, [linkedSeed])
+  }, [linkedSeed, activeVariantId])
 
   const settlementFiles = useMemo(
     () => files.filter((f) => detectSettlement(f.dataset)),
@@ -1120,21 +1227,33 @@ function ProjectDetail({
   }
 
   function saveChanges() {
+    // 현재 working 을 활성 슬롯 기준으로 정리 → 기본안 필드 + 대체안 배열 저장.
+    const wk = readWorking()
+    const resolvedBase = activeVariantId == null ? wk : baseSet
+    const resolvedVariants =
+      activeVariantId == null
+        ? variants
+        : variants.map((v) =>
+            v.id === activeVariantId ? { ...v, ...wk } : v,
+          )
     onUpdate(project.id, {
       name: site.name,
       address: site.address,
       households: site.households,
       parking: site.parking,
-      hours: config.hours,
-      chargers: config.chargers.map((c) => ({ ...c })),
+      hours: resolvedBase.hours,
+      chargers: resolvedBase.chargers.map((c) => ({ ...c })),
       files,
-      feas,
+      feas: resolvedBase.feas,
       report,
-      tariff,
-      standby,
-      aptBill,
+      tariff: resolvedBase.tariff,
+      standby: resolvedBase.standby,
+      aptBill: resolvedBase.aptBill,
       approval,
+      variants: resolvedVariants,
     })
+    setBaseSet(resolvedBase)
+    setVariants(resolvedVariants)
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
@@ -1482,9 +1601,80 @@ function ProjectDetail({
 
       {detailMode === 'work' && (
       <>
+      <section className="card variant-bar">
+        <div className="variant-bar__row">
+          <span className="variant-bar__label">분석안</span>
+          <div className="variant-tabs" role="tablist">
+            <button
+              type="button"
+              className={`variant-tab${activeVariantId == null ? ' variant-tab--active' : ''}`}
+              onClick={() => switchVariant(null)}
+            >
+              기본안
+            </button>
+            {variants.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                className={`variant-tab${activeVariantId === v.id ? ' variant-tab--active' : ''}`}
+                onClick={() => switchVariant(v.id)}
+              >
+                {v.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="variant-tab variant-tab--add"
+              onClick={addVariant}
+            >
+              + 대체안 추가
+            </button>
+          </div>
+          {activeVariantId != null && (
+            <div className="variant-bar__actions">
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  const cur = variants.find((v) => v.id === activeVariantId)
+                  const name = window.prompt('대체안 이름', cur?.label ?? '')
+                  if (name && name.trim())
+                    renameVariant(activeVariantId, name.trim())
+                }}
+              >
+                이름 변경
+              </button>
+              <button
+                type="button"
+                className="link-button link-button--danger"
+                onClick={() => {
+                  if (window.confirm('이 대체안을 삭제할까요?'))
+                    deleteVariant(activeVariantId)
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="variant-bar__note">
+          {activeVariantId == null
+            ? '기본안입니다. “대체안 추가”를 누르면 현재 분석을 복제해, 충전기 일부 제외 등으로 사업성~아파트요금을 별도 저장할 수 있습니다. 이용량 분석·보고서는 기본안과 공유됩니다.'
+            : '대체안 편집 중 — 충전기 구성(제외 등)·사업성·요금구조·대기전력·아파트요금이 이 대체안으로 저장됩니다. 이용량 분석·보고서는 기본안 기준이며, 변경 저장을 눌러야 반영됩니다.'}
+        </p>
+      </section>
+
       <section className="card">
         <div className="card__header">
-          <h2>{site.name || '(이름 없음)'} · 편집</h2>
+          <h2>
+            {site.name || '(이름 없음)'} · 편집
+            {activeVariantId != null && (
+              <span className="variant-cur">
+                {' · '}
+                {variants.find((v) => v.id === activeVariantId)?.label}
+              </span>
+            )}
+          </h2>
           <div className="site-edit-actions">
             {saved && <span className="saved-note">저장됨 ✓</span>}
             <button type="button" className="btn-primary" onClick={saveChanges}>
@@ -1542,14 +1732,16 @@ function ProjectDetail({
         >
           아파트 요금 분석
         </button>
-        <button
-          type="button"
-          role="tab"
-          className={`subtab${subtab === 'report' ? ' subtab--active' : ''}`}
-          onClick={() => setSubtab('report')}
-        >
-          보고서
-        </button>
+        {activeVariantId == null && (
+          <button
+            type="button"
+            role="tab"
+            className={`subtab${subtab === 'report' ? ' subtab--active' : ''}`}
+            onClick={() => setSubtab('report')}
+          >
+            보고서
+          </button>
+        )}
       </div>
 
       {subtab === 'report' ? (
@@ -1649,7 +1841,7 @@ function ProjectDetail({
           {settlementFiles.length > 0 && (
             <SettlementAnalysis
               files={settlementFiles}
-              config={config}
+              config={usageConfig}
               site={site}
               autoWeights={settleWeights}
               kwhProfile={kwhProfile}
