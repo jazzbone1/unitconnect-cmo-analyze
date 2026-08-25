@@ -139,11 +139,6 @@ export const REPORT_SECTIONS: { key: string; label: string }[] = [
   { key: '2-3', label: '2-3. 운영비 내역' },
   { key: '2-4', label: '2-4. 요금 하한선 분석' },
   { key: '2-5', label: '2-5. 충전요금 인상 권고안' },
-  { key: '3-0', label: '3-0. 공통 전제' },
-  { key: '3-1', label: '3-1. 자치운영' },
-  { key: '3-2', label: '3-2. CPO 위탁' },
-  { key: '3-3', label: '3-3. CMO 위탁운영' },
-  { key: '3-4', label: '3-4. 3가지 방안 비교' },
 ]
 
 /** 전체 섹션 표시 기본값 (모두 포함) */
