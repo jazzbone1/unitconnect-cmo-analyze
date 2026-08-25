@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { SavedSite } from '../lib/sites'
+import type { SavedSite, AnalysisApproval } from '../lib/sites'
+import { defaultApproval } from '../lib/sites'
+import { ssoCurrentUser } from '../lib/sso'
+import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement, computeAll } from '../lib/settlement'
@@ -813,6 +816,25 @@ function ProjectDetail({
     hours: project.hours,
     chargers: project.chargers.map((c) => ({ ...c })),
   })
+  // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
+  const [approval, setApproval] = useState<AnalysisApproval>(
+    () => project.approval ?? defaultApproval(),
+  )
+  const updateApproval = (next: AnalysisApproval) => {
+    setApproval(next)
+    onUpdate(project.id, { approval: next })
+  }
+  // 로그인 사용자(SSO) — 승인 차례 게이트용.
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    ssoCurrentUser().then((u) => {
+      if (alive) setCurrentUser(u?.name ?? null)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
   // 제외(excluded) 처리된 종류를 대수 0으로 취급한 '유효 설정'.
   //  사업성·요금구조·전기원가·대기전력 등 모든 계산은 이 값을 기준으로 한다.
   const effConfig = useMemo<SettlementConfig>(
@@ -1002,6 +1024,7 @@ function ProjectDetail({
       tariff,
       standby,
       aptBill,
+      approval,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
@@ -1019,6 +1042,12 @@ function ProjectDetail({
       <button type="button" className="link-button back-link" onClick={onBack}>
         ← 프로젝트 목록
       </button>
+
+      <ApprovalPanel
+        approval={approval}
+        onChange={updateApproval}
+        currentUser={currentUser}
+      />
 
       <section className="card">
         <div className="card__header">
@@ -1249,6 +1278,8 @@ export default function ProjectsView({
         return feasById.get(p.id)?.margin ?? -Infinity
       case 'profit':
         return feasById.get(p.id)?.operatingProfit ?? -Infinity
+      case 'approval':
+        return p.approval?.status ?? ''
       default:
         return ''
     }
@@ -1299,6 +1330,7 @@ export default function ProjectsView({
     { key: 'years', label: '계약기간', num: true },
     { key: 'margin', label: '영업이익률', num: true },
     { key: 'profit', label: '영업 이익', num: true },
+    { key: 'approval', label: '승인 상태' },
   ]
   const sortMark = (key: string) =>
     sortKey === key ? (sortDir === 'asc' ? ' ↓' : ' ↑') : ''
@@ -1389,6 +1421,27 @@ export default function ProjectsView({
                       return pr == null || !Number.isFinite(pr)
                         ? '—'
                         : `${Math.round(pr).toLocaleString()}원`
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
+                      const st = p.approval?.status
+                      if (!st) return <span className="proj-approval">—</span>
+                      const label =
+                        st === 'review'
+                          ? '검토 중'
+                          : st === 'requested'
+                            ? '진행중'
+                            : st === 'approved'
+                              ? '승인'
+                              : '반려'
+                      return (
+                        <span
+                          className={`approval__badge approval__badge--${st} proj-approval`}
+                        >
+                          {label}
+                        </span>
+                      )
                     })()}
                   </td>
                   <td>

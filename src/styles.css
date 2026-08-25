@@ -1714,6 +1714,192 @@ tr.row--detail .col-name {
   opacity: 0.5;
   cursor: default;
 }
+/* 현장 분석 승인 패널 */
+.approval {
+  margin-bottom: 1rem;
+}
+.approval__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+.approval__head h2 {
+  margin: 0;
+}
+.approval__badge {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.approval__badge--review {
+  background: var(--text-muted);
+}
+.approval__badge--requested {
+  background: #c78a00;
+}
+.approval__badge--approved {
+  background: var(--ok);
+}
+.approval__badge--rejected {
+  background: var(--warn);
+}
+.approval__row {
+  margin-bottom: 0.7rem;
+}
+.approval__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  max-width: 20rem;
+}
+.approval__field input,
+.approval__add input {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.approval__field input:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.approval__sub {
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+.approval__empty {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem;
+}
+.approval__list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.approval__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.approval__item--current {
+  border-color: #c78a00;
+  background: var(--accent-soft);
+}
+.approval__step {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.approval__name {
+  font-weight: 600;
+  flex: 1;
+}
+.approval__state {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.approval__state--approved {
+  color: var(--ok);
+  font-weight: 700;
+}
+.approval__state--rejected {
+  color: var(--warn);
+  font-weight: 700;
+}
+.approval__state--current {
+  color: #c78a00;
+  font-weight: 700;
+}
+.approval__ctrl {
+  display: flex;
+  gap: 0.2rem;
+}
+.approval__ctrl button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  width: 1.6rem;
+  height: 1.6rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.approval__add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.approval__add input {
+  flex: 1;
+  max-width: 16rem;
+}
+.approval__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+.approval__turn {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.approval__btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+.approval__btn--primary {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+.approval__btn--danger {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+.approval__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.proj-approval {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+}
+.proj-approval:not(.approval__badge) {
+  color: var(--text-muted);
+}
 .report-premise {
   display: flex;
   flex-direction: column;

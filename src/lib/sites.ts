@@ -7,6 +7,34 @@ import type { StandbyInputs } from './standby'
 import type { ApartmentBillInputs } from './apartmentBill'
 import type { FileEntry } from '../types'
 
+/** 순차 승인 단계(승인자 1명) */
+export interface ApprovalStep {
+  /** 승인자 이름 */
+  name: string
+  decision?: 'approved' | 'rejected'
+  /** 처리 시각(ISO) */
+  at?: string
+  comment?: string
+}
+
+/** 현장 분석 승인 워크플로 */
+export interface AnalysisApproval {
+  /** review=검토중, requested=승인요청(진행중), approved=승인완료, rejected=반려 */
+  status: 'review' | 'requested' | 'approved' | 'rejected'
+  /** 담당자 */
+  assignee?: string
+  /** 순차 승인자 목록(앞에서부터 차례로 승인) */
+  approvers: ApprovalStep[]
+  /** 현재 승인 차례(approvers index) */
+  currentStep: number
+  requestedBy?: string
+  requestedAt?: string
+}
+
+export function defaultApproval(): AnalysisApproval {
+  return { status: 'review', approvers: [], currentStep: 0 }
+}
+
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
 export interface SavedSite {
   id: string
@@ -35,6 +63,9 @@ export interface SavedSite {
   aptBill?: ApartmentBillInputs
   /** 저장 시각 (ISO) */
   savedAt?: string
+
+  /** 현장 분석 승인 워크플로(검토중→승인요청→순차승인) */
+  approval?: AnalysisApproval
 
   // ── 프로젝트 관리(파이프라인) 필드 ──
   /** 프로젝트 코드 (예: BF-2608) */

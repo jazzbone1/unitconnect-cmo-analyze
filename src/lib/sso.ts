@@ -82,6 +82,18 @@ export async function ssoDirectLogin(
   return d.user as SsoUser
 }
 
+/** 현재 로그인 사용자만 조회(URL 토큰 소비 없음). 미로그인/비활성 시 null. */
+export async function ssoCurrentUser(): Promise<SsoUser | null> {
+  try {
+    const res = await fetch('/api/sso/me', { credentials: 'same-origin' })
+    if (!res.ok) return null
+    const d = await res.json()
+    return (d.user as SsoUser) ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function ssoLogout(): Promise<void> {
   try {
     await fetch('/api/sso/logout', {
