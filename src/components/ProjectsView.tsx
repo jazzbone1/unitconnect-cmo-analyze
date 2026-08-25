@@ -1142,7 +1142,7 @@ function ProjectDetail({
   }
 
   // ── 현장 요약 (저장된 데이터 기준) ──
-  const summaryYearsList = [3, 4, 5, 6, 7]
+  const summaryYearsList = [3, 5, 7]
   const summaryByYear = useMemo(
     () => summaryYearsList.map((y) => ({ y, full: projectFeasFull(project, y) })),
     [project],
@@ -1336,66 +1336,17 @@ function ProjectDetail({
           </div>
         )}
 
-        {project.feas && summaryCur && (
+        {project.feas && (
           <div className="table-scroll summary-block">
-            <div className="summary-block__h">
-              사업 전체 손익 (P&L · {summaryCur.years}년)
-            </div>
+            <div className="summary-block__h">사업 전체 손익 (P&L · 계약연수별)</div>
             <table className="data-table summary-table summary-pl">
-              <tbody>
-                {(
-                  [
-                    ['매출 (VAT 제외)', summaryCur.r.revenue, false],
-                    ['(−) PG 수수료', summaryCur.r.pgFee, true],
-                    ['(−) 전기원가 (충전)', summaryCur.r.elecCost, true],
-                    ['(−) 전기원가 (대기전력)', summaryCur.r.standbyCost, true],
-                    ['매출총이익', summaryCur.r.grossProfit, false, true],
-                    ['(−) 현장 운영비', summaryCur.r.opsCost, true],
-                    ['(−) 영업비 (총)', summaryCur.r.bizCost, true],
-                    ['(−) CAPEX', summaryCur.r.capex, true],
-                    ['영업이익', summaryCur.r.operatingProfit, false, true],
-                  ] as [string, number, boolean, boolean?][]
-                ).map(([label, val, neg, strong]) => (
-                  <tr key={label} className={strong ? 'summary-pl__strong' : ''}>
-                    <th>{label}</th>
-                    <td className={`proj-num${neg ? ' cell--down' : ''}`}>
-                      {fmtWon(val)}
-                    </td>
-                  </tr>
-                ))}
-                <tr className="summary-pl__strong">
-                  <th>영업이익률</th>
-                  <td
-                    className={`proj-num${summaryCur.r.margin < 0 ? ' cell--down' : ''}`}
-                  >
-                    {fmtPct(summaryCur.r.margin)}
-                  </td>
-                </tr>
-                <tr>
-                  <th>CAPEX·영업비 회수기간</th>
-                  <td
-                    className={`proj-num${summaryCur.paybackReached ? '' : ' cell--down'}`}
-                  >
-                    {summaryCur.paybackText}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {project.feas ? (
-          <div className="summary-block">
-          <div className="summary-block__h">계약연수별 요약 지표</div>
-          <div className="table-scroll">
-            <table className="data-table summary-table">
               <thead>
                 <tr>
-                  <th>지표</th>
+                  <th>항목</th>
                   {summaryByYear.map(({ y }) => (
                     <th
                       key={y}
-                      className={y === curYears ? 'summary-col--cur' : ''}
+                      className={`proj-num${y === curYears ? ' summary-col--cur' : ''}`}
                     >
                       {y}년
                     </th>
@@ -1403,13 +1354,45 @@ function ProjectDetail({
                 </tr>
               </thead>
               <tbody>
-                <tr>
+                {(
+                  [
+                    ['매출 (VAT 제외)', 'revenue', false, false],
+                    ['(−) PG 수수료', 'pgFee', true, false],
+                    ['(−) 전기원가 (충전)', 'elecCost', true, false],
+                    ['(−) 전기원가 (대기전력)', 'standbyCost', true, false],
+                    ['매출총이익', 'grossProfit', false, true],
+                    ['(−) 현장 운영비', 'opsCost', true, false],
+                    ['(−) 영업비 (총)', 'bizCost', true, false],
+                    ['(−) CAPEX', 'capex', true, false],
+                    ['영업이익', 'operatingProfit', false, true],
+                  ] as [
+                    string,
+                    keyof ReturnType<typeof computeFeasibility>,
+                    boolean,
+                    boolean,
+                  ][]
+                ).map(([label, key, neg, strong]) => (
+                  <tr key={label} className={strong ? 'summary-pl__strong' : ''}>
+                    <th>{label}</th>
+                    {summaryByYear.map(({ y, full }) => (
+                      <td
+                        key={y}
+                        className={`proj-num${neg ? ' cell--down' : ''}${
+                          y === curYears ? ' summary-col--cur' : ''
+                        }`}
+                      >
+                        {fmtWon(full?.r[key] as number | undefined)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr className="summary-pl__strong">
                   <th>영업이익률</th>
                   {summaryByYear.map(({ y, full }) => (
                     <td
                       key={y}
-                      className={`proj-num${y === curYears ? ' summary-col--cur' : ''}${
-                        full && full.r.margin < 0 ? ' cell--down' : ''
+                      className={`proj-num${full && full.r.margin < 0 ? ' cell--down' : ''}${
+                        y === curYears ? ' summary-col--cur' : ''
                       }`}
                     >
                       {fmtPct(full?.r.margin)}
@@ -1417,15 +1400,15 @@ function ProjectDetail({
                   ))}
                 </tr>
                 <tr>
-                  <th>영업이익</th>
+                  <th>CAPEX·영업비 회수기간</th>
                   {summaryByYear.map(({ y, full }) => (
                     <td
                       key={y}
-                      className={`proj-num${y === curYears ? ' summary-col--cur' : ''}${
-                        full && full.r.operatingProfit < 0 ? ' cell--down' : ''
+                      className={`proj-num${full && !full.paybackReached ? ' cell--down' : ''}${
+                        y === curYears ? ' summary-col--cur' : ''
                       }`}
                     >
-                      {fmtWon(full?.r.operatingProfit)}
+                      {full?.paybackText ?? '—'}
                     </td>
                   ))}
                 </tr>
@@ -1450,32 +1433,20 @@ function ProjectDetail({
                     </td>
                   ))}
                 </tr>
-                <tr>
-                  <th>CAPEX·영업비 회수기간</th>
-                  {summaryByYear.map(({ y, full }) => (
-                    <td
-                      key={y}
-                      className={`${y === curYears ? 'summary-col--cur' : ''}${
-                        full && !full.paybackReached ? ' cell--down' : ''
-                      }`}
-                    >
-                      {full?.paybackText ?? '—'}
-                    </td>
-                  ))}
-                </tr>
               </tbody>
             </table>
           </div>
-          </div>
-        ) : (
+        )}
+
+        {!project.feas && (
           <p className="summary-empty">
             사업성 입력이 없어 요약 지표를 계산할 수 없습니다. 사업성 분석 탭에서
             먼저 입력·저장해 주세요.
           </p>
         )}
         <p className="summary-note">
-          동일 조건(충전기 구성·이용률·요금)에서 계약연수만 달리해 산출한
-          결과입니다. 영업이익률·영업이익·회수기간은 저장된 데이터 기준입니다.
+          동일 조건(충전기 구성·이용률·요금)에서 계약연수(3·5·7년)만 달리해 산출한
+          결과입니다. 모든 지표는 저장된 데이터 기준입니다.
         </p>
       </section>
 
