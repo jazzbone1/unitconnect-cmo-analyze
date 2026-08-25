@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   defaultApproval,
   type AnalysisApproval,
@@ -155,8 +155,19 @@ export default function ApprovalPanel({
   const nowIso = () => new Date().toISOString()
   const fmt = (iso?: string) =>
     iso ? new Date(iso).toLocaleString('ko-KR', { hour12: false }) : ''
-  // 검토중·검토완료(승인요청 전)일 때만 담당자·승인자 편집.
+  // 검토중·검토완료(승인요청 전)일 때만 승인자 편집.
   const editable = a.status === 'review' || a.status === 'reviewed'
+
+  // 담당자는 로그인한 계정으로 자동 할당(수동 지정 없음).
+  //  - 편집 가능 구간에선 현재 로그인 계정으로 갱신, 잠긴 상태에서도 비어 있으면 채운다.
+  useEffect(() => {
+    if (!currentUser) return
+    if (a.assigneeId === currentUser.sub) return
+    if (!editable && a.assigneeId) return // 승인요청 이후엔 기존 담당자 유지
+    onChange({ ...a, assignee: currentUser.name, assigneeId: currentUser.sub })
+    // a 는 매 렌더 새 객체이므로 assigneeId·상태·로그인 계정 변화에만 반응
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.sub, a.assigneeId, editable])
 
   const addApprover = (acc: { id?: string; name: string }) => {
     const name = acc.name.trim()
@@ -311,41 +322,17 @@ export default function ApprovalPanel({
 
       <div className="approval__row">
         <label className="approval__field">
-          <span>담당자</span>
-          {editable ? (
-            a.assignee ? (
-              <div className="approval__chip">
-                <span className="approval__name">{a.assignee}</span>
-                {a.assigneeId && (
-                  <span className="approval__opt-id">{a.assigneeId}</span>
-                )}
-                <button
-                  type="button"
-                  className="approval__chip-x"
-                  onClick={() =>
-                    onChange({ ...a, assignee: '', assigneeId: undefined })
-                  }
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <AccountPicker
-                accounts={accounts}
-                placeholder="담당자 검색·선택"
-                onPick={(acc) =>
-                  onChange({ ...a, assignee: acc.name, assigneeId: acc.id })
-                }
-              />
-            )
-          ) : (
-            <div className="approval__chip">
-              <span className="approval__name">{a.assignee || '—'}</span>
-              {a.assigneeId && (
-                <span className="approval__opt-id">{a.assigneeId}</span>
-              )}
-            </div>
-          )}
+          <span>담당자 (로그인 계정 자동 지정)</span>
+          <div className="approval__chip">
+            <span className="approval__name">
+              {a.assignee || currentUser?.name || '로그인 필요'}
+            </span>
+            {(a.assigneeId || currentUser?.sub) && (
+              <span className="approval__opt-id">
+                {a.assigneeId || currentUser?.sub}
+              </span>
+            )}
+          </div>
         </label>
       </div>
 
