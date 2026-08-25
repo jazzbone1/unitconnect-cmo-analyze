@@ -145,6 +145,9 @@ export interface SavedSite {
   /** 대체안(변형 분석) 목록 — 사업성~아파트요금을 달리한 별도 저장안 */
   variants?: AnalysisVariant[]
 
+  /** 현장 의견(결재 참고용 메모) */
+  fieldNote?: string
+
   // ── 프로젝트 관리(파이프라인) 필드 ──
   /** 프로젝트 코드 (예: BF-2608) */
   code?: string

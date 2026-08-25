@@ -1251,6 +1251,7 @@ function ProjectDetail({
       aptBill: resolvedBase.aptBill,
       approval,
       variants: resolvedVariants,
+      fieldNote,
     })
     setBaseSet(resolvedBase)
     setVariants(resolvedVariants)
@@ -1266,21 +1267,58 @@ function ProjectDetail({
   }
 
   // ── 현장 요약 (저장된 데이터 기준) ──
+  //  결재 뷰에서 기본안/대체안을 선택해 그 분석을 요약으로 본다(저장된 데이터 기준).
+  const savedVariants = project.variants ?? []
+  const [approvalSlotId, setApprovalSlotId] = useState<string | null>(null)
+  // 현장 의견(결재 참고 메모) — 입력 후 포커스 아웃 시 저장.
+  const [fieldNote, setFieldNote] = useState<string>(project.fieldNote ?? '')
+  const saveFieldNote = () => {
+    if ((project.fieldNote ?? '') !== fieldNote)
+      onUpdate(project.id, { fieldNote })
+  }
+  // 저장 후 사라진 대체안을 가리키면 기본안으로.
+  const approvalSlotValid =
+    approvalSlotId == null || savedVariants.some((v) => v.id === approvalSlotId)
+  const summarySlot = useMemo(() => {
+    const sv =
+      approvalSlotValid && approvalSlotId != null
+        ? savedVariants.find((v) => v.id === approvalSlotId) ?? null
+        : null
+    const site: SavedSite = sv
+      ? {
+          ...project,
+          hours: sv.hours,
+          chargers: sv.chargers,
+          feas: sv.feas ?? project.feas,
+          tariff: sv.tariff,
+          standby: sv.standby,
+          aptBill: sv.aptBill,
+        }
+      : project
+    return { sv, site }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, approvalSlotId, approvalSlotValid])
+  const slotSite = summarySlot.site
   const summaryYearsList = [3, 5, 7]
   const summaryByYear = useMemo(
-    () => summaryYearsList.map((y) => ({ y, full: projectFeasFull(project, y) })),
-    [project],
+    () => summaryYearsList.map((y) => ({ y, full: projectFeasFull(slotSite, y) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slotSite],
   )
   // 현재 계약연수 기준 상세(P&L·충전기별 단가).
-  const summaryCur = useMemo(() => projectFeasFull(project), [project])
-  const effChargers = project.chargers
+  const summaryCur = useMemo(
+    () => projectFeasFull(slotSite),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slotSite],
+  )
+  const effChargers = slotSite.chargers
     .filter((c) => !c.excluded && c.count > 0)
     .slice()
     .sort((a, b) => b.kw - a.kw)
   const summaryTotalUnits = effChargers.reduce((a, c) => a + c.count, 0)
   const summaryInstalledKw = effChargers.reduce((a, c) => a + c.kw * c.count, 0)
-  const curYears = project.feas
-    ? Math.max(1, Math.min(MAX_YEARS, Math.round(project.feas.years)))
+  const curYears = slotSite.feas
+    ? Math.max(1, Math.min(MAX_YEARS, Math.round(slotSite.feas.years)))
     : null
   const fmtWon = (v?: number) =>
     v == null || !Number.isFinite(v) ? '—' : `${Math.round(v).toLocaleString()}원`
@@ -1339,10 +1377,65 @@ function ProjectDetail({
 
       {detailMode === 'approval' && (
       <>
+      <section className="card field-note">
+        <label className="field-note__label" htmlFor="field-note">
+          현장 의견
+        </label>
+        <textarea
+          id="field-note"
+          className="field-note__area"
+          value={fieldNote}
+          onChange={(e) => setFieldNote(e.target.value)}
+          onBlur={saveFieldNote}
+          rows={3}
+          placeholder="현장 관련 의견·특이사항을 입력하세요. (결재 참고용 · 포커스 아웃 시 자동 저장)"
+        />
+      </section>
+
+      {savedVariants.length > 0 && (
+        <section className="card slot-select">
+          <span className="slot-select__label">결재 대상 분석안</span>
+          <div className="variant-tabs" role="tablist">
+            <button
+              type="button"
+              className={`variant-tab${approvalSlotId == null ? ' variant-tab--active' : ''}`}
+              onClick={() => setApprovalSlotId(null)}
+            >
+              기본안
+            </button>
+            {savedVariants.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                className={`variant-tab${approvalSlotId === v.id ? ' variant-tab--active' : ''}`}
+                onClick={() => setApprovalSlotId(v.id)}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <span className="slot-select__cur">
+            선택됨:{' '}
+            <b>
+              {approvalSlotId == null
+                ? '기본안'
+                : (savedVariants.find((v) => v.id === approvalSlotId)?.label ??
+                  '기본안')}
+            </b>
+          </span>
+        </section>
+      )}
+
       <section className="card summary-card">
         <div className="card__header summary-head">
           <div className="summary-head__title">
             <h2>현장 요약</h2>
+            <span className="summary-slot-tag">
+              {approvalSlotId == null
+                ? '기본안'
+                : (savedVariants.find((v) => v.id === approvalSlotId)?.label ??
+                  '기본안')}
+            </span>
             {curYears != null && (
               <span className="summary-cur">계약연수 {curYears}년 기준</span>
             )}
