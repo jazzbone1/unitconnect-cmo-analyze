@@ -260,15 +260,17 @@ export default function ApprovalPanel({
 
   const current = a.status === 'requested' ? a.approvers[a.currentStep] : null
   // 현재 차례 승인자 본인만 처리 가능.
-  //  - 계정 연동(id) 있으면 로그인 계정ID(sub)로 매칭(이름 중복에 안전).
-  //  - id 없으면 이름으로 매칭. 로그인 정보가 없으면 제약 없음.
-  const canDecide =
-    a.status === 'requested' &&
+  //  매칭: 계정ID(sub) 일치 또는 이름 일치 중 하나면 통과.
+  //   - 식별자를 '이름'으로 쓰므로 보통 sub=이름이라 둘 다 맞는다.
+  //   - 메신저가 sub를 사번 등으로 발급해도 이름으로 매칭되어 어긋나지 않는다.
+  //   - 로그인 정보가 없으면(SSO 비활성) 제약 없음.
+  const matchesCurrentUser =
     current != null &&
-    (!currentUser ||
-      (current.id
-        ? current.id === currentUser.sub
-        : current.name.trim() === currentUser.name.trim()))
+    currentUser != null &&
+    ((!!current.id && current.id === currentUser.sub) ||
+      current.name.trim() === (currentUser.name || '').trim())
+  const canDecide =
+    a.status === 'requested' && current != null && (!currentUser || matchesCurrentUser)
 
   const excludeIds = a.approvers.map((s) => s.id).filter(Boolean) as string[]
 
