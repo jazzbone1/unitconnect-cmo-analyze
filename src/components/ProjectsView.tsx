@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SavedSite, AnalysisApproval } from '../lib/sites'
 import { defaultApproval } from '../lib/sites'
-import { ssoCurrentUser } from '../lib/sso'
+import { ssoCurrentUser, ssoDirectory } from '../lib/sso'
+import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
@@ -825,11 +826,16 @@ function ProjectDetail({
     onUpdate(project.id, { approval: next })
   }
   // 로그인 사용자(SSO) — 승인 차례 게이트용.
-  const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<SsoUser | null>(null)
+  // 계정 명부 — 승인자/담당자 지정 드롭다운용.
+  const [accounts, setAccounts] = useState<SsoAccount[]>([])
   useEffect(() => {
     let alive = true
     ssoCurrentUser().then((u) => {
-      if (alive) setCurrentUser(u?.name ?? null)
+      if (alive) setCurrentUser(u ?? null)
+    })
+    ssoDirectory().then((list) => {
+      if (alive) setAccounts(list)
     })
     return () => {
       alive = false
@@ -1047,6 +1053,7 @@ function ProjectDetail({
         approval={approval}
         onChange={updateApproval}
         currentUser={currentUser}
+        accounts={accounts}
       />
 
       <section className="card">

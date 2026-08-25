@@ -1900,6 +1900,97 @@ tr.row--detail .col-name {
 .proj-approval:not(.approval__badge) {
   color: var(--text-muted);
 }
+/* 승인자/담당자 계정 선택기 (검색·자동완성) */
+.approval__picker {
+  position: relative;
+  flex: 1;
+  max-width: 20rem;
+}
+.approval__picker input {
+  width: 100%;
+}
+.approval__dropdown {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  max-height: 15rem;
+  overflow-y: auto;
+}
+.approval__dropdown > li > button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+}
+.approval__dropdown > li > button:hover {
+  background: var(--surface-2);
+}
+.approval__opt-name {
+  font-weight: 600;
+}
+.approval__opt-id {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 0.4rem;
+  font-weight: 400;
+}
+.approval__unlinked {
+  font-size: 0.72rem;
+  color: var(--warn);
+  margin-left: 0.4rem;
+  font-weight: 500;
+}
+.approval__dropdown-empty {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.approval__dropdown-add {
+  border-top: 1px solid var(--border);
+  margin-top: 0.2rem;
+}
+.approval__dropdown-add button em {
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 0.72rem;
+}
+.approval__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  max-width: 20rem;
+}
+.approval__chip .approval__name {
+  flex: 0 1 auto;
+}
+.approval__chip-x {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+}
 .report-premise {
   display: flex;
   flex-direction: column;

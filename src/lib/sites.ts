@@ -9,7 +9,9 @@ import type { FileEntry } from '../types'
 
 /** 순차 승인 단계(승인자 1명) */
 export interface ApprovalStep {
-  /** 승인자 이름 */
+  /** 메신저(DEALERCONNECT) 계정 ID(SSO sub). 계정 연동 시 지정, 차례 게이트 매칭 기준. */
+  id?: string
+  /** 승인자 이름(표시용) */
   name: string
   decision?: 'approved' | 'rejected'
   /** 처리 시각(ISO) */
@@ -21,8 +23,10 @@ export interface ApprovalStep {
 export interface AnalysisApproval {
   /** review=검토중, requested=승인요청(진행중), approved=승인완료, rejected=반려 */
   status: 'review' | 'requested' | 'approved' | 'rejected'
-  /** 담당자 */
+  /** 담당자 이름(표시용) */
   assignee?: string
+  /** 담당자 계정 ID(SSO sub) */
+  assigneeId?: string
   /** 순차 승인자 목록(앞에서부터 차례로 승인) */
   approvers: ApprovalStep[]
   /** 현재 승인 차례(approvers index) */

@@ -115,6 +115,49 @@ const OBJECT_URL = r2Ready
   ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/projects.json`
   : null
 
+// ── 계정 명부(디렉터리) ─────────────────────────────────────────
+// SSO/직접 로그인한 계정을 {id, name} 으로 자동 축적 → 승인자 지정 드롭다운에 사용.
+// R2 가 있으면 R2(sso-directory.json)에 영속, 없으면 컨테이너 메모리에만 유지.
+const DIRECTORY_URL = r2Ready
+  ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/sso-directory.json`
+  : null
+let memDirectory = [] // [{ id, name, at }]
+
+async function loadDirectory() {
+  if (!r2) return memDirectory
+  try {
+    const r = await r2.fetch(DIRECTORY_URL, { method: 'GET' })
+    if (r.status === 404) return []
+    if (!r.ok) return memDirectory
+    const arr = JSON.parse((await r.text()) || '[]')
+    return Array.isArray(arr) ? arr : []
+  } catch {
+    return memDirectory
+  }
+}
+
+/** 로그인 계정을 명부에 upsert (이름 갱신 + 최근 접속 시각). 실패는 무시. */
+async function recordAccount(id, name, at) {
+  const accId = String(id || '').trim()
+  const accName = String(name || '').trim() || accId
+  if (!accId) return
+  const list = await loadDirectory()
+  const i = list.findIndex((e) => e && e.id === accId)
+  if (i > -1) list[i] = { ...list[i], name: accName, at }
+  else list.push({ id: accId, name: accName, at })
+  memDirectory = list
+  if (r2) {
+    try {
+      await r2.fetch(DIRECTORY_URL, {
+        method: 'PUT',
+        body: JSON.stringify(list),
+      })
+    } catch {
+      /* 명부 저장 실패는 로그인 흐름을 막지 않는다 */
+    }
+  }
+}
+
 const app = express()
 
 app.get('/api/projects', async (_req, res) => {
@@ -255,6 +298,7 @@ app.post('/api/sso/login', express.json({ limit: '16kb' }), (req, res) => {
     SSO_SECRET,
   )
   res.setHeader('Set-Cookie', sessionCookie(session, SSO_SESSION_HOURS * 3600))
+  recordAccount(name, name, new Date().toISOString()).catch(() => {})
   res.json({ ok: true, user: { sub: name, name } })
 })
 
@@ -276,7 +320,25 @@ app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
     SSO_SECRET,
   )
   res.setHeader('Set-Cookie', sessionCookie(session, SSO_SESSION_HOURS * 3600))
+  recordAccount(
+    String(payload.sub),
+    String(payload.name || ''),
+    new Date().toISOString(),
+  ).catch(() => {})
   res.json({ ok: true, user: { sub: String(payload.sub), name: String(payload.name || '') } })
+})
+
+// 계정 명부(디렉터리) — 승인자 지정 드롭다운용. 로그인 사용자만 조회.
+app.get('/api/sso/directory', async (req, res) => {
+  if (!ssoReady) return res.json({ accounts: [] })
+  const payload = verifyJwt(readCookie(req, 'uc_sso'), SSO_SECRET)
+  if (!payload) return res.status(401).json({ error: 'unauthorized' })
+  const list = await loadDirectory()
+  const accounts = list
+    .filter((e) => e && e.id)
+    .map((e) => ({ id: String(e.id), name: String(e.name || e.id) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  res.json({ accounts })
 })
 
 // 현재 로그인 사용자(세션 쿠키 기준)

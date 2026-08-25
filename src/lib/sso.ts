@@ -94,6 +94,27 @@ export async function ssoCurrentUser(): Promise<SsoUser | null> {
   }
 }
 
+/** 메신저 계정(승인자 지정용). id=계정ID(sub), name=표시 이름. */
+export interface SsoAccount {
+  id: string
+  name: string
+}
+
+/**
+ * 계정 명부 조회(승인자 드롭다운용). 로그인/직접로그인한 계정이 자동 축적된 목록.
+ * 미로그인·비활성 시 빈 배열.
+ */
+export async function ssoDirectory(): Promise<SsoAccount[]> {
+  try {
+    const res = await fetch('/api/sso/directory', { credentials: 'same-origin' })
+    if (!res.ok) return []
+    const d = await res.json()
+    return Array.isArray(d.accounts) ? (d.accounts as SsoAccount[]) : []
+  } catch {
+    return []
+  }
+}
+
 export async function ssoLogout(): Promise<void> {
   try {
     await fetch('/api/sso/logout', {
