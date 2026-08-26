@@ -13,8 +13,12 @@ import {
  *  - 저장된 명단은 로그인 자동수집 명부와 합쳐져 승인자 검색 드롭다운에 노출된다.
  *  - 계정ID는 메신저 SSO 식별자(=이름)와 동일하므로 이름만 넣으면 로그인 시 자동 매칭된다.
  */
-export default function HqMembersPanel() {
-  const [open, setOpen] = useState(false)
+export default function HqMembersPanel({
+  defaultOpen = false,
+}: {
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   const [loaded, setLoaded] = useState(false)
   const [members, setMembers] = useState<SsoAccount[]>([])
   const [roster, setRoster] = useState<SsoAccount[]>([])

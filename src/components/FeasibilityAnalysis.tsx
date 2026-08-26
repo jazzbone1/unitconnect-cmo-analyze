@@ -209,17 +209,11 @@ export default function FeasibilityAnalysis({
     ? (inputs.elecCostOverride as number)
     : autoElec
 
-  // 영업비 1대분(계약년수별) — 전 프로젝트 공통(일괄) 설정, 직접 기입 가능
-  const [bizFeeByYear, setBizFeeByYear] = usePersistentState<number[]>(
+  // 영업비 전체 기준값(계약년수별) — 설정 탭에서 관리. 여기서는 읽기만(placeholder·fallback).
+  const [bizFeeByYear] = usePersistentState<number[]>(
     'feasibility.bizFeeByYear',
     PROFIT_STANDARD.map((r) => r.bizFee),
   )
-  const setBizFeeAt = (idx: number, v: number) =>
-    setBizFeeByYear((prev) => {
-      const next = [...prev]
-      next[idx] = v
-      return next
-    })
   const setProjectBizFeeAt = (idx: number, v: number | null) => {
     if (!setProjectBizFee) return
     const next: (number | null)[] = [...(projectBizFee ?? [])]
@@ -246,8 +240,6 @@ export default function FeasibilityAnalysis({
   const appliedBizFee = hasBizFeeOverride
     ? (inputs.bizFeeOverride as number)
     : standardBizFee
-  // 전체 기준값 관리 창(모달) 표시 여부.
-  const [showBizStd, setShowBizStd] = useState(false)
 
   // 대수·요금은 단지 정보의 '충전기 종류별 수량·요금'과 자동 연동 (읽기 전용).
   //  제외(excluded) 종류는 대수 0으로 취급하여 사업성 전체에서 빠진다.
@@ -554,13 +546,9 @@ export default function FeasibilityAnalysis({
       <div className="subsection">
         <div className="subsection__head">
           <h3 className="subsection__title">1. 영업이익 기준 (영업비 · 프로젝트별)</h3>
-          <button
-            type="button"
-            className="btn-standard"
-            onClick={() => setShowBizStd(true)}
-          >
-            ⚙ 전체 기준값 관리
-          </button>
+          <span className="settings-hint">
+            전체 기준값은 <b>설정 탭</b>에서 관리
+          </span>
         </div>
         <div className="table-scroll">
           <table className="data-table">
@@ -623,80 +611,6 @@ export default function FeasibilityAnalysis({
           )}
         </div>
       </div>
-
-      {showBizStd && (
-        <div
-          className="biz-modal__backdrop"
-          onClick={() => setShowBizStd(false)}
-        >
-          <div
-            className="biz-modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="biz-modal__head">
-              <h3>영업비 전체 기준값 관리</h3>
-              <button
-                type="button"
-                className="biz-modal__x"
-                aria-label="닫기"
-                onClick={() => setShowBizStd(false)}
-              >
-                ✕
-              </button>
-            </div>
-            <p className="biz-modal__desc">
-              여기서 설정한 값은 <b>모든 현장의 기본 영업비 기준값</b>입니다. 각
-              프로젝트에서 영업비를 따로 기입하지 않은 계약연수에는 이 값이
-              적용됩니다.
-            </p>
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>계약기간</th>
-                    <th>영업비 1대분(원/대) · 기준값</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PROFIT_STANDARD.map((row, i) => (
-                    <tr key={row.years}>
-                      <td className="col-name">{row.years}년</td>
-                      <td>
-                        <DecimalInput
-                          className="cell-input"
-                          value={bizFeeByYear[i] ?? 0}
-                          onValue={(n) => setBizFeeAt(i, n)}
-                          placeholder={`${formatNumber(defaultBizFee(row.years))}`}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="biz-modal__foot">
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() =>
-                  setBizFeeByYear(PROFIT_STANDARD.map((r) => r.bizFee))
-                }
-              >
-                기본값 복원
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setShowBizStd(false)}
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="var-panel">
         <h3 className="subsection__title">① 변수 입력 (좌: 직접 기입 / 우: UC 기준)</h3>

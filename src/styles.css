@@ -3184,6 +3184,33 @@ tr.row--detail .col-name {
 .summary-cmp th {
   text-align: left;
 }
+.settings {
+  max-width: 900px;
+}
+.settings__title {
+  margin: 0 0 0.3rem;
+}
+.settings__sub {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 1.2rem;
+}
+.settings-sec__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.settings-sec__desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0.4rem 0 0.8rem;
+}
+.settings-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 .edit-locked-note {
   font-size: 0.82rem;
   color: #c78a00;

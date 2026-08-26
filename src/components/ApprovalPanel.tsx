@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   defaultApproval,
   type AnalysisApproval,
@@ -158,14 +158,7 @@ export default function ApprovalPanel({
   // 검토중·검토완료(승인요청 전)일 때만 승인자 편집.
   const editable = a.status === 'review' || a.status === 'reviewed'
 
-  // 담당자는 로그인한 계정으로 자동 지정하되, 한 번 지정되면 유지(덮어쓰지 않음).
-  //  → 기본안은 이 담당자만 수정 가능(다른 계정이 열어도 담당자가 바뀌지 않음).
-  useEffect(() => {
-    if (!currentUser) return
-    if (a.assigneeId) return // 이미 담당자 있으면 유지
-    onChange({ ...a, assignee: currentUser.name, assigneeId: currentUser.sub })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.sub, a.assigneeId])
+  // 담당자는 수동 지정(명부에서 선택). 기본안은 이 담당자만 수정 가능.
 
   const addApprover = (acc: { id?: string; name: string }) => {
     const name = acc.name.trim()
@@ -322,17 +315,38 @@ export default function ApprovalPanel({
 
       <div className="approval__row">
         <label className="approval__field">
-          <span>담당자 (로그인 계정 자동 지정)</span>
-          <div className="approval__chip">
-            <span className="approval__name">
-              {a.assignee || currentUser?.name || '로그인 필요'}
-            </span>
-            {(a.assigneeId || currentUser?.sub) && (
-              <span className="approval__opt-id">
-                {a.assigneeId || currentUser?.sub}
-              </span>
-            )}
-          </div>
+          <span>담당자 (기본안 수정 권한)</span>
+          {a.assignee ? (
+            <div className="approval__chip">
+              <span className="approval__name">{a.assignee}</span>
+              {a.assigneeId && (
+                <span className="approval__opt-id">{a.assigneeId}</span>
+              )}
+              {editable && (
+                <button
+                  type="button"
+                  className="approval__chip-x"
+                  onClick={() =>
+                    onChange({ ...a, assignee: '', assigneeId: undefined })
+                  }
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ) : editable ? (
+            <AccountPicker
+              accounts={accounts}
+              placeholder="담당자 검색·선택 (명부)"
+              onPick={(acc) =>
+                onChange({ ...a, assignee: acc.name, assigneeId: acc.id })
+              }
+            />
+          ) : (
+            <div className="approval__chip">
+              <span className="approval__name">미지정</span>
+            </div>
+          )}
         </label>
       </div>
 

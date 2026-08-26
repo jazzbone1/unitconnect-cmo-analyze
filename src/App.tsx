@@ -6,6 +6,7 @@ import SettlementAnalysis from './components/SettlementAnalysis'
 import RegistryAnalysis from './components/RegistryAnalysis'
 import SiteInfoPanel, { EMPTY_SITE, type SiteInfo } from './components/SiteInfoPanel'
 import ProjectsView from './components/ProjectsView'
+import SettingsView from './components/SettingsView'
 import FeasibilityAnalysis from './components/FeasibilityAnalysis'
 import Logo from './components/Logo'
 import { usePersistentState } from './lib/persist'
@@ -19,7 +20,7 @@ import { getStore } from './lib/store'
 import type { AggKind, FileEntry } from './types'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-10'
+const BUILD_TAG = 'v2026.08.26-11'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -35,7 +36,7 @@ const AGG_OPTIONS: { value: AggKind; label: string }[] = [
 ]
 
 export default function App() {
-  const [tab, setTab] = usePersistentState<'analyze' | 'projects'>(
+  const [tab, setTab] = usePersistentState<'analyze' | 'projects' | 'settings'>(
     'tab',
     'analyze',
   )
@@ -271,6 +272,13 @@ export default function App() {
               <span className="sidebar__count">{sites.length}</span>
             )}
           </button>
+          <button
+            type="button"
+            className={`sidebar__tab${tab === 'settings' ? ' sidebar__tab--active' : ''}`}
+            onClick={() => setTab('settings')}
+          >
+            설정
+          </button>
         </nav>
         <div className="sidebar__build" title="빌드 버전">
           {BUILD_TAG}
@@ -278,7 +286,11 @@ export default function App() {
       </aside>
 
       <div className="content">
-        {tab === 'projects' ? (
+        {tab === 'settings' ? (
+          <div className="app">
+            <SettingsView />
+          </div>
+        ) : tab === 'projects' ? (
           <div className="app">
             <ProjectsView
               projects={sites}
