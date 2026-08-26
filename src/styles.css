@@ -3154,9 +3154,25 @@ tr.row--detail .col-name {
   color: #c78a00;
   font-weight: 700;
 }
+.slot-select__note {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.3rem 0 0;
+  line-height: 1.5;
+}
 .variant-tab:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.variant-tab--target {
+  border-color: var(--ok);
+}
+.variant-tab__mark {
+  margin-left: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--ok);
 }
 .summary-cmp th {
   text-align: left;

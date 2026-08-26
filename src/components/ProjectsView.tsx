@@ -1296,14 +1296,19 @@ function ProjectDetail({
   // ── 현장 요약 (저장된 데이터 기준) ──
   //  결재 뷰에서 기본안/대체안을 선택해 그 분석을 요약으로 본다(저장된 데이터 기준).
   const savedVariants = project.variants ?? []
-  // 결재 대상 분석안 — 승인(approval)에 저장되어 유지·잠금. null=기본안.
-  const approvalSlotId = approval.slotId ?? null
-  // 검토중·검토완료·반려일 때만 분석안 변경 가능(승인요청/승인완료면 잠금).
+  // 결재 대상 분석안 — 승인(approval)에 저장. null=기본안. 승인 진행 중 잠금.
+  const targetSlotId = approval.slotId ?? null
   const slotLocked =
     approval.status === 'requested' || approval.status === 'approved'
-  const setApprovalSlot = (id: string | null) => {
-    if (slotLocked) return
-    updateApproval({ ...approval, slotId: id })
+  // 요약 보기 탭 — 결재 대상과 별개로 어떤 안이든 보기 전용 전환 가능. 초기값=결재 대상.
+  const [viewSlotId, setViewSlotId] = useState<string | null>(
+    approval.slotId ?? null,
+  )
+  // 탭 선택: 항상 보기 전환, 편집 가능 상태면 결재 대상도 함께 지정.
+  const selectSlot = (id: string | null) => {
+    setViewSlotId(id)
+    if (!slotLocked && id !== targetSlotId)
+      updateApproval({ ...approval, slotId: id })
   }
   // 프로젝트별 영업비 1대분(계약년수별). 숫자(0 포함)=적용, null=미기입(전체 기준값).
   const [projectBizFee, setProjectBizFee] = useState<(number | null)[]>(
@@ -1345,12 +1350,12 @@ function ProjectDetail({
       onUpdate(project.id, { fieldNote })
   }
   // 저장 후 사라진 대체안을 가리키면 기본안으로.
-  const approvalSlotValid =
-    approvalSlotId == null || savedVariants.some((v) => v.id === approvalSlotId)
+  const viewSlotValid =
+    viewSlotId == null || savedVariants.some((v) => v.id === viewSlotId)
   const summarySlot = useMemo(() => {
     const sv =
-      approvalSlotValid && approvalSlotId != null
-        ? savedVariants.find((v) => v.id === approvalSlotId) ?? null
+      viewSlotValid && viewSlotId != null
+        ? savedVariants.find((v) => v.id === viewSlotId) ?? null
         : null
     const site: SavedSite = sv
       ? {
@@ -1365,7 +1370,7 @@ function ProjectDetail({
       : project
     return { sv, site }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, approvalSlotId, approvalSlotValid])
+  }, [project, viewSlotId, viewSlotValid])
   const slotSite = summarySlot.site
   const summaryYearsList = [3, 5, 7]
   const summaryByYear = useMemo(
@@ -1481,40 +1486,54 @@ function ProjectDetail({
 
       {savedVariants.length > 0 && (
         <section className="card slot-select">
-          <span className="slot-select__label">결재 대상 분석안</span>
+          <span className="slot-select__label">분석안 보기</span>
           <div className="variant-tabs" role="tablist">
-            <button
-              type="button"
-              disabled={slotLocked}
-              className={`variant-tab${approvalSlotId == null ? ' variant-tab--active' : ''}`}
-              onClick={() => setApprovalSlot(null)}
-            >
-              기본안
-            </button>
-            {savedVariants.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                disabled={slotLocked}
-                className={`variant-tab${approvalSlotId === v.id ? ' variant-tab--active' : ''}`}
-                onClick={() => setApprovalSlot(v.id)}
-              >
-                {v.label}
-              </button>
-            ))}
+            {[{ id: null as string | null, label: '기본안' }, ...savedVariants].map(
+              (opt) => (
+                <button
+                  key={opt.id ?? 'base'}
+                  type="button"
+                  className={`variant-tab${viewSlotId === opt.id ? ' variant-tab--active' : ''}${
+                    targetSlotId === opt.id ? ' variant-tab--target' : ''
+                  }`}
+                  onClick={() => selectSlot(opt.id)}
+                  title={
+                    targetSlotId === opt.id ? '현재 결재 대상' : undefined
+                  }
+                >
+                  {opt.label}
+                  {targetSlotId === opt.id && (
+                    <span className="variant-tab__mark">★ 결재대상</span>
+                  )}
+                </button>
+              ),
+            )}
           </div>
           <span className="slot-select__cur">
-            선택됨:{' '}
+            보기:{' '}
             <b>
-              {approvalSlotId == null
+              {viewSlotId == null
                 ? '기본안'
-                : (savedVariants.find((v) => v.id === approvalSlotId)?.label ??
+                : (savedVariants.find((v) => v.id === viewSlotId)?.label ??
+                  '기본안')}
+            </b>
+            {' · 결재 대상: '}
+            <b>
+              {targetSlotId == null
+                ? '기본안'
+                : (savedVariants.find((v) => v.id === targetSlotId)?.label ??
                   '기본안')}
             </b>
             {slotLocked && (
-              <span className="slot-select__lock"> · 승인 진행 중 잠금 🔒</span>
+              <span className="slot-select__lock"> 🔒 잠금(승인 진행 중)</span>
             )}
           </span>
+          {slotLocked && (
+            <p className="slot-select__note">
+              결재 대상은 승인 진행 중이라 고정됩니다. 탭은 <b>보기 전용</b>으로
+              자유롭게 전환해 각 안의 요약을 확인할 수 있습니다.
+            </p>
+          )}
         </section>
       )}
 
@@ -1523,10 +1542,11 @@ function ProjectDetail({
           <div className="summary-head__title">
             <h2>현장 요약</h2>
             <span className="summary-slot-tag">
-              {approvalSlotId == null
+              {viewSlotId == null
                 ? '기본안'
-                : (savedVariants.find((v) => v.id === approvalSlotId)?.label ??
+                : (savedVariants.find((v) => v.id === viewSlotId)?.label ??
                   '기본안')}
+              {viewSlotId !== targetSlotId && ' · 보기 전용'}
             </span>
             {curYears != null && (
               <span className="summary-cur">계약연수 {curYears}년 기준</span>
@@ -1622,7 +1642,7 @@ function ProjectDetail({
           </div>
         </div>
 
-        {approvalSlotId != null && summarySlot.sv && (
+        {viewSlotId != null && summarySlot.sv && (
           <div className="table-scroll summary-block">
             <div className="summary-block__h">
               기본안 vs 선택안 비교
@@ -1720,8 +1740,11 @@ function ProjectDetail({
               </tbody>
             </table>
             <p className="summary-note">
-              결재 대상으로 <b>{summarySlot.sv.label}</b>이(가) 선택되어
-              있습니다. 아래 손익·단가도 이 선택안 기준입니다.
+              지금 <b>{summarySlot.sv.label}</b>을(를) 보고 있습니다
+              {viewSlotId === targetSlotId
+                ? ' — 현재 결재 대상입니다.'
+                : ' (보기 전용).'}{' '}
+              아래 손익·단가도 이 보기 기준입니다.
             </p>
           </div>
         )}
