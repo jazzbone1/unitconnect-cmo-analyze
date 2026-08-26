@@ -3227,10 +3227,16 @@ tr.row--detail .col-name {
 .proj-slot-tag {
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--ok);
-  border: 1px solid var(--ok);
   border-radius: 999px;
   padding: 0.05rem 0.4rem;
+}
+.proj-slot-tag--variant {
+  color: var(--ok);
+  border: 1px solid var(--ok);
+}
+.proj-slot-tag--base {
+  color: var(--text-muted);
+  border: 1px solid var(--border);
 }
 .summary-slot-tag {
   padding: 0.15rem 0.6rem;

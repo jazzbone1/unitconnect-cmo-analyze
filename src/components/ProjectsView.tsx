@@ -2472,11 +2472,13 @@ export default function ProjectsView({
                               : st === 'approved'
                                 ? '승인 완료'
                                 : '반려'
-                      const slot = p.approval?.slotId
-                        ? (p.variants ?? []).find(
-                            (v) => v.id === p.approval?.slotId,
-                          )?.label
-                        : null
+                      // 대체안이 있는 프로젝트만 분석안 배지 표시(기본안/대체안 구분).
+                      const variants = p.variants ?? []
+                      const isBaseSlot = !p.approval?.slotId
+                      const slotLabel = isBaseSlot
+                        ? '기본안'
+                        : (variants.find((v) => v.id === p.approval?.slotId)
+                            ?.label ?? '기본안')
                       return (
                         <span className="proj-approval-wrap">
                           <span
@@ -2484,7 +2486,13 @@ export default function ProjectsView({
                           >
                             {label}
                           </span>
-                          {slot && <span className="proj-slot-tag">{slot}</span>}
+                          {variants.length > 0 && (
+                            <span
+                              className={`proj-slot-tag proj-slot-tag--${isBaseSlot ? 'base' : 'variant'}`}
+                            >
+                              {slotLabel}
+                            </span>
+                          )}
                         </span>
                       )
                     })()}
