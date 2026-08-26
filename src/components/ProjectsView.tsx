@@ -1284,6 +1284,17 @@ function ProjectDetail({
   const [projectBizFee, setProjectBizFee] = useState<number[]>(
     project.bizFeeByYear ?? [],
   )
+  // 영업비 표는 입력 즉시 자동 저장(디바운스) — '변경 저장' 없이도 유지.
+  useEffect(() => {
+    const cur = JSON.stringify(projectBizFee)
+    const saved = JSON.stringify(project.bizFeeByYear ?? [])
+    if (cur === saved) return
+    const t = setTimeout(() => {
+      onUpdate(project.id, { bizFeeByYear: projectBizFee })
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectBizFee])
   // 현장 의견(결재 참고 메모) — 입력 후 포커스 아웃 시 저장.
   const [fieldNote, setFieldNote] = useState<string>(project.fieldNote ?? '')
   const saveFieldNote = () => {
