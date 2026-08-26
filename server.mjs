@@ -454,8 +454,23 @@ app.post('/api/sso/logout', (_req, res) => {
 })
 
 // 정적 파일 + SPA 폴백
-app.use(express.static(DIST))
-app.use((_req, res) => res.sendFile(path.join(DIST, 'index.html')))
+// 해시된 에셋(js/css)은 불변 → 장기 캐시. index.html 은 항상 재검증(no-cache)
+//  → 새 배포 시 iframe 임베드(강제 새로고침 어려움)에서도 최신 번들을 받는다.
+app.use(
+  express.static(DIST, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate')
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      }
+    },
+  }),
+)
+app.use((_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate')
+  res.sendFile(path.join(DIST, 'index.html'))
+})
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(

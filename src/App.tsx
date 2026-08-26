@@ -87,6 +87,11 @@ export default function App() {
   const [sites, setSites] = useState<SavedSite[]>([])
   const [sitesLoaded, setSitesLoaded] = useState(false)
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
+  // 저장 상태 표시(원격 저장 실패/401 진단용).
+  const [saveState, setSaveState] = useState<{
+    status: 'idle' | 'saving' | 'saved' | 'error'
+    msg?: string
+  }>({ status: 'idle' })
 
   useEffect(() => {
     let alive = true
@@ -106,7 +111,17 @@ export default function App() {
 
   useEffect(() => {
     // 최초 로드 완료 전에는 저장하지 않는다(빈 배열로 덮어쓰기 방지)
-    if (sitesLoaded) store.save(sites).catch(() => {})
+    if (!sitesLoaded) return
+    setSaveState({ status: 'saving' })
+    store
+      .save(sites)
+      .then(() => setSaveState({ status: 'saved' }))
+      .catch((e) =>
+        setSaveState({
+          status: 'error',
+          msg: e instanceof Error ? e.message : String(e),
+        }),
+      )
   }, [sites, sitesLoaded, store])
 
   function saveCurrentSite() {
@@ -215,6 +230,18 @@ export default function App() {
 
   return (
     <div className="layout">
+      {store.kind === 'remote' && saveState.status !== 'idle' && (
+        <div
+          className={`save-toast save-toast--${saveState.status}`}
+          role="status"
+        >
+          {saveState.status === 'saving'
+            ? '저장 중…'
+            : saveState.status === 'saved'
+              ? '저장됨 ✓'
+              : `저장 실패: ${saveState.msg ?? '알 수 없음'}`}
+        </div>
+      )}
       <aside className="sidebar">
         <div className="sidebar__brand">
           <Logo height={28} />
