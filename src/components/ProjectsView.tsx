@@ -2472,7 +2472,7 @@ export default function ProjectsView({
                               : st === 'approved'
                                 ? '승인 완료'
                                 : '반려'
-                      // 대체안이 있는 프로젝트만 분석안 배지 표시(기본안/대체안 구분).
+                      // 분석안 배지 — 모든 행에 일관 표시(기본안/대체안 구분).
                       const variants = p.variants ?? []
                       const isBaseSlot = !p.approval?.slotId
                       const slotLabel = isBaseSlot
@@ -2486,13 +2486,11 @@ export default function ProjectsView({
                           >
                             {label}
                           </span>
-                          {variants.length > 0 && (
-                            <span
-                              className={`proj-slot-tag proj-slot-tag--${isBaseSlot ? 'base' : 'variant'}`}
-                            >
-                              {slotLabel}
-                            </span>
-                          )}
+                          <span
+                            className={`proj-slot-tag proj-slot-tag--${isBaseSlot ? 'base' : 'variant'}`}
+                          >
+                            {slotLabel}
+                          </span>
                         </span>
                       )
                     })()}
