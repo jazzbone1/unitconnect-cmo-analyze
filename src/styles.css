@@ -2852,16 +2852,23 @@ tr.row--detail .col-name {
 }
 .summary-overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 0.5rem 1.4rem;
   margin: 0.6rem 0 1rem;
+  align-items: stretch;
 }
 .summary-overview > div {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding: 0.4rem 0;
+  padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
+  /* 분석안 전환 시 충전기 구성 등 값 길이가 달라도 칸 높이를 고정해 양식 통일 */
+  min-height: 3.4rem;
+  justify-content: flex-start;
+}
+.summary-overview .summary-v {
+  overflow-wrap: anywhere;
 }
 .summary-k {
   font-size: 0.75rem;
@@ -3176,6 +3183,40 @@ tr.row--detail .col-name {
 }
 .summary-cmp th {
   text-align: left;
+}
+.slot-note {
+  margin: 0 0 0.4rem;
+}
+.slot-note__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+.summary-years {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.summary-years select {
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+}
+.summary-cur--set {
+  background: var(--accent-soft);
+  color: var(--text);
+  border: 1px solid var(--ok);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-weight: 800;
 }
 .proj-approval-wrap {
   display: inline-flex;

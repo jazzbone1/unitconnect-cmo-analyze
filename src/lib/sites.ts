@@ -38,6 +38,8 @@ export interface AnalysisApproval {
   requestedAt?: string
   /** 결재 대상 분석안 id — null/undefined=기본안, 그 외=대체안 variant id */
   slotId?: string | null
+  /** 결재 계약기간(년). 미설정 가능; 설정 시 요약에서 해당 연도 지표 강조 */
+  contractYears?: number
 }
 
 export function defaultApproval(): AnalysisApproval {
@@ -147,8 +149,11 @@ export interface SavedSite {
   /** 대체안(변형 분석) 목록 — 사업성~아파트요금을 달리한 별도 저장안 */
   variants?: AnalysisVariant[]
 
-  /** 현장 의견(결재 참고용 메모) */
+  /** 현장 의견(결재 참고용 공통 메모) */
   fieldNote?: string
+
+  /** 분석안별 의견 — 키 'base'=기본안, 그 외=대체안 variant id. 변형 배열과 독립 저장. */
+  slotNotes?: Record<string, string>
 
   /**
    * 프로젝트별 영업비 1대분(계약년수별, 1~7년).

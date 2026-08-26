@@ -705,11 +705,21 @@ function siteForSlot(
   }
 }
 
-/** 목록·정렬용: 최종 결재 선택안 기준 사업성 결과. (projectFeasFull 래퍼) */
+/** 목록·정렬용: 최종 결재 선택안(+결재 계약기간) 기준 사업성 결과. */
 function projectFeas(
   p: SavedSite,
 ): ReturnType<typeof computeFeasibility> | null {
-  return projectFeasFull(siteForSlot(p, p.approval?.slotId))?.r ?? null
+  return (
+    projectFeasFull(
+      siteForSlot(p, p.approval?.slotId),
+      p.approval?.contractYears,
+    )?.r ?? null
+  )
+}
+/** 목록 표시용 계약기간: 결재 계약기간(설정 시) 또는 선택안의 계약연수. */
+function projectYears(p: SavedSite): number | null {
+  if (p.approval?.contractYears != null) return p.approval.contractYears
+  return siteForSlot(p, p.approval?.slotId).feas?.years ?? null
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
@@ -1390,8 +1400,27 @@ function ProjectDetail({
     .sort((a, b) => b.kw - a.kw)
   const summaryTotalUnits = effChargers.reduce((a, c) => a + c.count, 0)
   const summaryInstalledKw = effChargers.reduce((a, c) => a + c.kw * c.count, 0)
-  // 비교표(기본안 vs 선택 대체안) — 대체안 선택 시에만.
-  const cmpBaseFull = useMemo(() => projectFeasFull(project), [project])
+  // 강조 연도: 결재 계약기간(설정 시) 우선, 없으면 보는 안의 계약연수.
+  const highlightYears =
+    approval.contractYears ??
+    (slotSite.feas
+      ? Math.max(1, Math.min(MAX_YEARS, Math.round(slotSite.feas.years)))
+      : null)
+  // 비교 연도: 대체안(보는 안)의 계약연수(또는 결재 계약기간) — 기본안도 이 연도로 동일 비교.
+  const cmpYears =
+    highlightYears ??
+    (slotSite.feas ? Math.round(slotSite.feas.years) : 5)
+  // 비교표(기본안 vs 선택 대체안) — 양쪽 모두 cmpYears 기준으로 산출해 동일 비교.
+  const cmpBaseFull = useMemo(
+    () => projectFeasFull(project, cmpYears),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project, cmpYears],
+  )
+  const cmpSelFull = useMemo(
+    () => projectFeasFull(slotSite, cmpYears),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slotSite, cmpYears],
+  )
   const cmpEffCount = (site: SavedSite, kw: number) => {
     const c = site.chargers.find((x) => x.kw === kw)
     return c && !c.excluded ? c.count : 0
@@ -1409,6 +1438,26 @@ function ProjectDetail({
     (a, c) => a + (c.excluded ? 0 : c.kw * c.count),
     0,
   )
+
+  // 분석안별 의견(slotNotes) — 키 'base'=기본안, 그 외=variant id. 변형 배열과 독립.
+  const slotNoteKey = viewSlotId ?? 'base'
+  const slotNoteSaved = project.slotNotes?.[slotNoteKey] ?? ''
+  const [slotNoteDraft, setSlotNoteDraft] = useState(slotNoteSaved)
+  useEffect(() => {
+    setSlotNoteDraft(slotNoteSaved)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotNoteKey, slotNoteSaved])
+  const saveSlotNote = () => {
+    if (slotNoteDraft === slotNoteSaved) return
+    onUpdate(project.id, {
+      slotNotes: { ...(project.slotNotes ?? {}), [slotNoteKey]: slotNoteDraft },
+    })
+  }
+  // 결재 계약기간 변경(잠금 시 불가).
+  const setApprovalYears = (y: number | undefined) => {
+    if (slotLocked) return
+    updateApproval({ ...approval, contractYears: y })
+  }
   const curYears = slotSite.feas
     ? Math.max(1, Math.min(MAX_YEARS, Math.round(slotSite.feas.years)))
     : null
@@ -1548,8 +1597,33 @@ function ProjectDetail({
                   '기본안')}
               {viewSlotId !== targetSlotId && ' · 보기 전용'}
             </span>
-            {curYears != null && (
-              <span className="summary-cur">계약연수 {curYears}년 기준</span>
+            <label className="summary-years">
+              결재 계약기간
+              <select
+                value={approval.contractYears ?? ''}
+                disabled={slotLocked}
+                onChange={(e) =>
+                  setApprovalYears(
+                    e.target.value === '' ? undefined : Number(e.target.value),
+                  )
+                }
+              >
+                <option value="">미설정</option>
+                {[1, 2, 3, 4, 5, 6, 7].map((y) => (
+                  <option key={y} value={y}>
+                    {y}년
+                  </option>
+                ))}
+              </select>
+            </label>
+            {approval.contractYears != null ? (
+              <span className="summary-cur summary-cur--set">
+                결재 {approval.contractYears}년 강조
+              </span>
+            ) : (
+              curYears != null && (
+                <span className="summary-cur">계약연수 {curYears}년(안 기준)</span>
+              )
             )}
           </div>
           <div className="summary-approve">
@@ -1642,6 +1716,23 @@ function ProjectDetail({
           </div>
         </div>
 
+        <div className="slot-note">
+          <label className="slot-note__label" htmlFor="slot-note">
+            {viewSlotId == null
+              ? '기본안 의견'
+              : `${savedVariants.find((v) => v.id === viewSlotId)?.label ?? '대체안'} 의견`}
+          </label>
+          <textarea
+            id="slot-note"
+            className="field-note__area"
+            value={slotNoteDraft}
+            onChange={(e) => setSlotNoteDraft(e.target.value)}
+            onBlur={saveSlotNote}
+            rows={2}
+            placeholder="이 분석안에 대한 의견을 입력하세요. (분석안별 저장 · 포커스 아웃 시 자동 저장)"
+          />
+        </div>
+
         {viewSlotId != null && summarySlot.sv && (
           <div className="table-scroll summary-block">
             <div className="summary-block__h">
@@ -1696,13 +1787,9 @@ function ProjectDetail({
                   </td>
                 </tr>
                 <tr>
-                  <th>계약연수</th>
-                  <td className="proj-num">
-                    {cmpBaseFull ? `${cmpBaseFull.years}년` : '—'}
-                  </td>
-                  <td className="proj-num summary-col--cur">
-                    {summaryCur ? `${summaryCur.years}년` : '—'}
-                  </td>
+                  <th>계약연수(동일 기준)</th>
+                  <td className="proj-num">{cmpYears}년</td>
+                  <td className="proj-num summary-col--cur">{cmpYears}년</td>
                 </tr>
                 <tr className="summary-pl__strong">
                   <th>영업이익률</th>
@@ -1712,9 +1799,9 @@ function ProjectDetail({
                     {fmtPct(cmpBaseFull?.r.margin)}
                   </td>
                   <td
-                    className={`proj-num summary-col--cur${summaryCur && summaryCur.r.margin < 0 ? ' cell--down' : ''}`}
+                    className={`proj-num summary-col--cur${cmpSelFull && cmpSelFull.r.margin < 0 ? ' cell--down' : ''}`}
                   >
-                    {fmtPct(summaryCur?.r.margin)}
+                    {fmtPct(cmpSelFull?.r.margin)}
                   </td>
                 </tr>
                 <tr className="summary-pl__strong">
@@ -1725,16 +1812,16 @@ function ProjectDetail({
                     {fmtWon(cmpBaseFull?.r.operatingProfit)}
                   </td>
                   <td
-                    className={`proj-num summary-col--cur${summaryCur && summaryCur.r.operatingProfit < 0 ? ' cell--down' : ''}`}
+                    className={`proj-num summary-col--cur${cmpSelFull && cmpSelFull.r.operatingProfit < 0 ? ' cell--down' : ''}`}
                   >
-                    {fmtWon(summaryCur?.r.operatingProfit)}
+                    {fmtWon(cmpSelFull?.r.operatingProfit)}
                   </td>
                 </tr>
                 <tr>
                   <th>CAPEX·영업비 회수기간</th>
                   <td className="proj-num">{cmpBaseFull?.paybackText ?? '—'}</td>
                   <td className="proj-num summary-col--cur">
-                    {summaryCur?.paybackText ?? '—'}
+                    {cmpSelFull?.paybackText ?? '—'}
                   </td>
                 </tr>
               </tbody>
@@ -1744,7 +1831,9 @@ function ProjectDetail({
               {viewSlotId === targetSlotId
                 ? ' — 현재 결재 대상입니다.'
                 : ' (보기 전용).'}{' '}
-              아래 손익·단가도 이 보기 기준입니다.
+              비교는 <b>{cmpYears}년</b>(대체안 계약연수
+              {approval.contractYears != null ? ' · 결재 계약기간' : ''}) 기준으로
+              기본안·대체안을 <b>동일 조건</b>으로 산출했습니다.
             </p>
           </div>
         )}
@@ -1797,7 +1886,7 @@ function ProjectDetail({
                   {summaryByYear.map(({ y }) => (
                     <th
                       key={y}
-                      className={`proj-num${y === curYears ? ' summary-col--cur' : ''}`}
+                      className={`proj-num${y === highlightYears ? ' summary-col--cur' : ''}`}
                     >
                       {y}년
                     </th>
@@ -1829,7 +1918,7 @@ function ProjectDetail({
                       <td
                         key={y}
                         className={`proj-num${neg ? ' cell--down' : ''}${
-                          y === curYears ? ' summary-col--cur' : ''
+                          y === highlightYears ? ' summary-col--cur' : ''
                         }`}
                       >
                         {fmtWon(full?.r[key] as number | undefined)}
@@ -1843,7 +1932,7 @@ function ProjectDetail({
                     <td
                       key={y}
                       className={`proj-num${full && full.r.margin < 0 ? ' cell--down' : ''}${
-                        y === curYears ? ' summary-col--cur' : ''
+                        y === highlightYears ? ' summary-col--cur' : ''
                       }`}
                     >
                       {fmtPct(full?.r.margin)}
@@ -1856,7 +1945,7 @@ function ProjectDetail({
                     <td
                       key={y}
                       className={`proj-num${full && !full.paybackReached ? ' cell--down' : ''}${
-                        y === curYears ? ' summary-col--cur' : ''
+                        y === highlightYears ? ' summary-col--cur' : ''
                       }`}
                     >
                       {full?.paybackText ?? '—'}
@@ -1868,7 +1957,7 @@ function ProjectDetail({
                   {summaryByYear.map(({ y, full }) => (
                     <td
                       key={y}
-                      className={y === curYears ? 'summary-col--cur' : ''}
+                      className={y === highlightYears ? 'summary-col--cur' : ''}
                     >
                       <span
                         className={`summary-verdict summary-verdict--${
@@ -2214,7 +2303,7 @@ export default function ProjectsView({
       case 'parking':
         return p.parking ?? 0
       case 'years':
-        return siteForSlot(p, p.approval?.slotId).feas?.years ?? 0
+        return projectYears(p) ?? 0
       case 'margin':
         return feasById.get(p.id)?.margin ?? -Infinity
       case 'profit':
@@ -2350,7 +2439,7 @@ export default function ProjectsView({
                   </td>
                   <td className="proj-num">
                     {(() => {
-                      const yrs = siteForSlot(p, p.approval?.slotId).feas?.years
+                      const yrs = projectYears(p)
                       return yrs ? `${yrs}년` : '—'
                     })()}
                   </td>
