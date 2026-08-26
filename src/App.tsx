@@ -18,6 +18,9 @@ import { newSiteId, type SavedSite } from './lib/sites'
 import { getStore } from './lib/store'
 import type { AggKind, FileEntry } from './types'
 
+/** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
+const BUILD_TAG = 'v2026.08.26-3'
+
 function cloneDefaultConfig(): SettlementConfig {
   return {
     hours: DEFAULT_CONFIG.hours,
@@ -269,6 +272,9 @@ export default function App() {
             )}
           </button>
         </nav>
+        <div className="sidebar__build" title="빌드 버전">
+          {BUILD_TAG}
+        </div>
       </aside>
 
       <div className="content">

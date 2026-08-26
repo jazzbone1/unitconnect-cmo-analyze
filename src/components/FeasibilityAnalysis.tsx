@@ -513,10 +513,10 @@ export default function FeasibilityAnalysis({
           <h3 className="subsection__title">1. 영업이익 기준 (영업비 · 프로젝트별)</h3>
           <button
             type="button"
-            className="btn-link"
+            className="btn-standard"
             onClick={() => setShowBizStd(true)}
           >
-            전체 기준값 관리
+            ⚙ 전체 기준값 관리
           </button>
         </div>
         <div className="table-scroll">
@@ -560,9 +560,10 @@ export default function FeasibilityAnalysis({
         </div>
         <div className="table-note table-note--row">
           <span>
-            영업비 1대분은 <b>프로젝트별로 저장</b>됩니다. 빈 칸은{' '}
-            <b>전체 기준값</b>(전체 기준값 관리에서 설정)이 자동 적용됩니다.
-            계약년수(
+            영업비 1대분은 <b>프로젝트별로 저장</b>됩니다. <b>0 또는 빈 칸</b>은{' '}
+            <b>전체 기준값</b>(우측 상단 <b>⚙ 전체 기준값 관리</b>에서 설정)이 자동
+            적용됩니다. 프로젝트 개별 금액을 넣으려면 <b>0보다 큰 값</b>을
+            입력하세요. 계약년수(
             {Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))}년)에
             해당하는 값이 손익의 영업비로 반영됩니다. (현재 적용:{' '}
             {formatNumber(appliedBizFee)}원 ·{' '}
