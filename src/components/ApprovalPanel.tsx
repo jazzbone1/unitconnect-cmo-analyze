@@ -158,16 +158,14 @@ export default function ApprovalPanel({
   // 검토중·검토완료(승인요청 전)일 때만 승인자 편집.
   const editable = a.status === 'review' || a.status === 'reviewed'
 
-  // 담당자는 로그인한 계정으로 자동 할당(수동 지정 없음).
-  //  - 편집 가능 구간에선 현재 로그인 계정으로 갱신, 잠긴 상태에서도 비어 있으면 채운다.
+  // 담당자는 로그인한 계정으로 자동 지정하되, 한 번 지정되면 유지(덮어쓰지 않음).
+  //  → 기본안은 이 담당자만 수정 가능(다른 계정이 열어도 담당자가 바뀌지 않음).
   useEffect(() => {
     if (!currentUser) return
-    if (a.assigneeId === currentUser.sub) return
-    if (!editable && a.assigneeId) return // 승인요청 이후엔 기존 담당자 유지
+    if (a.assigneeId) return // 이미 담당자 있으면 유지
     onChange({ ...a, assignee: currentUser.name, assigneeId: currentUser.sub })
-    // a 는 매 렌더 새 객체이므로 assigneeId·상태·로그인 계정 변화에만 반응
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.sub, a.assigneeId, editable])
+  }, [currentUser?.sub, a.assigneeId])
 
   const addApprover = (acc: { id?: string; name: string }) => {
     const name = acc.name.trim()

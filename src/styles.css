@@ -3184,6 +3184,15 @@ tr.row--detail .col-name {
 .summary-cmp th {
   text-align: left;
 }
+.edit-locked-note {
+  font-size: 0.82rem;
+  color: #c78a00;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  margin: 0 0 0.8rem;
+}
 .slot-note {
   margin: 0 0 0.4rem;
 }

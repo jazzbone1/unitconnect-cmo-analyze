@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SavedSite, AnalysisApproval, AnalysisVariant } from '../lib/sites'
 import {
   defaultApproval,
@@ -1262,7 +1262,25 @@ function ProjectDetail({
     setLoading(false)
   }
 
+  // 기본안(활성=기본안)은 담당자만 수정 가능. 비로그인/담당자 미지정이면 제약 없음.
+  const assigneeMatch =
+    currentUser != null &&
+    (approval.assigneeId
+      ? approval.assigneeId === currentUser.sub
+      : (approval.assignee ?? '').trim() === (currentUser.name ?? '').trim())
+  const canEditBase =
+    activeVariantId != null || // 대체안은 제약 없음
+    !currentUser || // 비로그인(로컬)
+    !approval.assignee || // 담당자 미지정
+    assigneeMatch
+
   function saveChanges() {
+    if (!canEditBase) {
+      window.alert(
+        `기본안은 담당자(${approval.assignee})만 수정할 수 있습니다.`,
+      )
+      return
+    }
     // 현재 working 을 활성 슬롯 기준으로 정리 → 기본안 필드 + 대체안 배열 저장.
     const wk = readWorking()
     const resolvedBase = activeVariantId == null ? wk : baseSet
@@ -1321,38 +1339,10 @@ function ProjectDetail({
       updateApproval({ ...approval, slotId: id })
   }
   // 프로젝트별 영업비 1대분(계약년수별). 숫자(0 포함)=적용, null=미기입(전체 기준값).
+  //  자동저장 없음 — '변경 저장'을 눌러야 반영(saveChanges에서 함께 저장).
   const [projectBizFee, setProjectBizFee] = useState<(number | null)[]>(
     project.bizFeeByYear ?? [],
   )
-  // 영업비 표는 입력 즉시 자동 저장(짧은 디바운스) — '변경 저장' 없이도 유지.
-  //  언마운트(목록으로 이동) 시 미저장분을 반드시 flush 해서 빠른 이동에도 유실 없음.
-  const bizSaveRef = useRef({
-    latest: projectBizFee,
-    savedJson: JSON.stringify(project.bizFeeByYear ?? []),
-    projectId: project.id,
-  })
-  bizSaveRef.current.latest = projectBizFee
-  bizSaveRef.current.projectId = project.id
-  useEffect(() => {
-    bizSaveRef.current.savedJson = JSON.stringify(project.bizFeeByYear ?? [])
-  }, [project.bizFeeByYear])
-  useEffect(() => {
-    if (JSON.stringify(projectBizFee) === bizSaveRef.current.savedJson) return
-    const t = setTimeout(() => {
-      onUpdate(project.id, { bizFeeByYear: projectBizFee })
-    }, 250)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectBizFee])
-  useEffect(() => {
-    // 언마운트 시 미저장분 flush
-    return () => {
-      const r = bizSaveRef.current
-      if (JSON.stringify(r.latest) !== r.savedJson)
-        onUpdate(r.projectId, { bizFeeByYear: r.latest })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
   // 현장 의견(결재 참고 메모) — 입력 후 포커스 아웃 시 저장.
   const [fieldNote, setFieldNote] = useState<string>(project.fieldNote ?? '')
   const saveFieldNote = () => {
@@ -2078,11 +2068,27 @@ function ProjectDetail({
           </h2>
           <div className="site-edit-actions">
             {saved && <span className="saved-note">저장됨 ✓</span>}
-            <button type="button" className="btn-primary" onClick={saveChanges}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={saveChanges}
+              disabled={!canEditBase}
+              title={
+                !canEditBase
+                  ? `기본안은 담당자(${approval.assignee})만 수정할 수 있습니다.`
+                  : undefined
+              }
+            >
               변경 저장
             </button>
           </div>
         </div>
+        {!canEditBase && (
+          <p className="edit-locked-note">
+            🔒 기본안은 담당자 <b>{approval.assignee}</b>만 수정할 수 있습니다.
+            입력은 가능하지만 저장되지 않습니다.
+          </p>
+        )}
         <SiteConfigForm
           site={site}
           setSite={setSite}
