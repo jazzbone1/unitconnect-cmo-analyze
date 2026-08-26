@@ -36,6 +36,8 @@ export interface AnalysisApproval {
   currentStep: number
   requestedBy?: string
   requestedAt?: string
+  /** 결재 대상 분석안 id — null/undefined=기본안, 그 외=대체안 variant id */
+  slotId?: string | null
 }
 
 export function defaultApproval(): AnalysisApproval {
@@ -148,8 +150,11 @@ export interface SavedSite {
   /** 현장 의견(결재 참고용 메모) */
   fieldNote?: string
 
-  /** 프로젝트별 영업비 1대분(계약년수별, 1~7년). 값>0 인 칸만 적용, 나머지는 전체 기준값. */
-  bizFeeByYear?: number[]
+  /**
+   * 프로젝트별 영업비 1대분(계약년수별, 1~7년).
+   *  숫자(0 포함)=명시적 적용, null/undefined=미기입(전체 기준값 사용).
+   */
+  bizFeeByYear?: (number | null)[]
 
   // ── 프로젝트 관리(파이프라인) 필드 ──
   /** 프로젝트 코드 (예: BF-2608) */

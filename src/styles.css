@@ -3150,6 +3150,31 @@ tr.row--detail .col-name {
 .slot-select__cur b {
   color: var(--ok);
 }
+.slot-select__lock {
+  color: #c78a00;
+  font-weight: 700;
+}
+.variant-tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.summary-cmp th {
+  text-align: left;
+}
+.proj-approval-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.proj-slot-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
 .summary-slot-tag {
   padding: 0.15rem 0.6rem;
   border-radius: 999px;

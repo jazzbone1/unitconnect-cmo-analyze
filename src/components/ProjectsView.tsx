@@ -588,10 +588,8 @@ function projectFeasFull(
     globalBiz = null
   }
   const yearIdx = years - 1
-  const projBizVal =
-    p.bizFeeByYear && p.bizFeeByYear[yearIdx] > 0
-      ? p.bizFeeByYear[yearIdx]
-      : undefined
+  const projBizRaw = p.bizFeeByYear?.[yearIdx]
+  const projBizVal = projBizRaw != null ? projBizRaw : undefined // 0 포함, null만 제외
   const globalBizVal =
     globalBiz && globalBiz[yearIdx] > 0 ? globalBiz[yearIdx] : undefined
   const standardBiz = projBizVal ?? globalBizVal ?? defaultBizFee(years)
@@ -688,11 +686,30 @@ function projectFeasFull(
   }
 }
 
-/** 목록·정렬용: 사업성 결과만. (projectFeasFull 래퍼) */
+/** 분석안(기본안/대체안) 기준의 SavedSite 를 만든다. slotId=null/미매칭이면 기본안. */
+function siteForSlot(
+  p: SavedSite,
+  slotId: string | null | undefined,
+): SavedSite {
+  if (!slotId) return p
+  const v = (p.variants ?? []).find((x) => x.id === slotId)
+  if (!v) return p
+  return {
+    ...p,
+    hours: v.hours,
+    chargers: v.chargers,
+    feas: v.feas ?? p.feas,
+    tariff: v.tariff,
+    standby: v.standby,
+    aptBill: v.aptBill,
+  }
+}
+
+/** 목록·정렬용: 최종 결재 선택안 기준 사업성 결과. (projectFeasFull 래퍼) */
 function projectFeas(
   p: SavedSite,
 ): ReturnType<typeof computeFeasibility> | null {
-  return projectFeasFull(p)?.r ?? null
+  return projectFeasFull(siteForSlot(p, p.approval?.slotId))?.r ?? null
 }
 
 /** 프로젝트로부터 요금 구조(계약전력·월충전량) 기본값을 유도 */
@@ -1279,9 +1296,17 @@ function ProjectDetail({
   // ── 현장 요약 (저장된 데이터 기준) ──
   //  결재 뷰에서 기본안/대체안을 선택해 그 분석을 요약으로 본다(저장된 데이터 기준).
   const savedVariants = project.variants ?? []
-  const [approvalSlotId, setApprovalSlotId] = useState<string | null>(null)
-  // 프로젝트별 영업비 1대분(계약년수별). 값>0 칸만 적용, 나머지는 전체 기준값.
-  const [projectBizFee, setProjectBizFee] = useState<number[]>(
+  // 결재 대상 분석안 — 승인(approval)에 저장되어 유지·잠금. null=기본안.
+  const approvalSlotId = approval.slotId ?? null
+  // 검토중·검토완료·반려일 때만 분석안 변경 가능(승인요청/승인완료면 잠금).
+  const slotLocked =
+    approval.status === 'requested' || approval.status === 'approved'
+  const setApprovalSlot = (id: string | null) => {
+    if (slotLocked) return
+    updateApproval({ ...approval, slotId: id })
+  }
+  // 프로젝트별 영업비 1대분(계약년수별). 숫자(0 포함)=적용, null=미기입(전체 기준값).
+  const [projectBizFee, setProjectBizFee] = useState<(number | null)[]>(
     project.bizFeeByYear ?? [],
   )
   // 영업비 표는 입력 즉시 자동 저장(짧은 디바운스) — '변경 저장' 없이도 유지.
@@ -1360,6 +1385,25 @@ function ProjectDetail({
     .sort((a, b) => b.kw - a.kw)
   const summaryTotalUnits = effChargers.reduce((a, c) => a + c.count, 0)
   const summaryInstalledKw = effChargers.reduce((a, c) => a + c.kw * c.count, 0)
+  // 비교표(기본안 vs 선택 대체안) — 대체안 선택 시에만.
+  const cmpBaseFull = useMemo(() => projectFeasFull(project), [project])
+  const cmpEffCount = (site: SavedSite, kw: number) => {
+    const c = site.chargers.find((x) => x.kw === kw)
+    return c && !c.excluded ? c.count : 0
+  }
+  const cmpKws = useMemo(() => {
+    const s = new Set<number>()
+    for (const c of project.chargers)
+      if (!c.excluded && c.count > 0) s.add(c.kw)
+    for (const c of slotSite.chargers)
+      if (!c.excluded && c.count > 0) s.add(c.kw)
+    return [...s].sort((a, b) => b - a)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, slotSite])
+  const cmpBaseKw = project.chargers.reduce(
+    (a, c) => a + (c.excluded ? 0 : c.kw * c.count),
+    0,
+  )
   const curYears = slotSite.feas
     ? Math.max(1, Math.min(MAX_YEARS, Math.round(slotSite.feas.years)))
     : null
@@ -1441,8 +1485,9 @@ function ProjectDetail({
           <div className="variant-tabs" role="tablist">
             <button
               type="button"
+              disabled={slotLocked}
               className={`variant-tab${approvalSlotId == null ? ' variant-tab--active' : ''}`}
-              onClick={() => setApprovalSlotId(null)}
+              onClick={() => setApprovalSlot(null)}
             >
               기본안
             </button>
@@ -1450,8 +1495,9 @@ function ProjectDetail({
               <button
                 key={v.id}
                 type="button"
+                disabled={slotLocked}
                 className={`variant-tab${approvalSlotId === v.id ? ' variant-tab--active' : ''}`}
-                onClick={() => setApprovalSlotId(v.id)}
+                onClick={() => setApprovalSlot(v.id)}
               >
                 {v.label}
               </button>
@@ -1465,6 +1511,9 @@ function ProjectDetail({
                 : (savedVariants.find((v) => v.id === approvalSlotId)?.label ??
                   '기본안')}
             </b>
+            {slotLocked && (
+              <span className="slot-select__lock"> · 승인 진행 중 잠금 🔒</span>
+            )}
           </span>
         </section>
       )}
@@ -1572,6 +1621,110 @@ function ProjectDetail({
             </span>
           </div>
         </div>
+
+        {approvalSlotId != null && summarySlot.sv && (
+          <div className="table-scroll summary-block">
+            <div className="summary-block__h">
+              기본안 vs 선택안 비교
+            </div>
+            <table className="data-table summary-table summary-cmp">
+              <thead>
+                <tr>
+                  <th>항목</th>
+                  <th className="proj-num">기본안</th>
+                  <th className="proj-num summary-col--cur">
+                    {summarySlot.sv.label}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {cmpKws.map((kw) => {
+                  const b = cmpEffCount(project, kw)
+                  const s = cmpEffCount(slotSite, kw)
+                  return (
+                    <tr key={kw}>
+                      <th>{kw}kW 대수</th>
+                      <td className="proj-num">{b}기</td>
+                      <td
+                        className={`proj-num summary-col--cur${s !== b ? ' cell--down' : ''}`}
+                      >
+                        {s}기
+                      </td>
+                    </tr>
+                  )
+                })}
+                <tr className="summary-pl__strong">
+                  <th>총 대수</th>
+                  <td className="proj-num">
+                    {project.chargers.reduce(
+                      (a, c) => a + (c.excluded ? 0 : c.count),
+                      0,
+                    )}
+                    기
+                  </td>
+                  <td className="proj-num summary-col--cur">
+                    {summaryTotalUnits}기
+                  </td>
+                </tr>
+                <tr>
+                  <th>총 설비용량</th>
+                  <td className="proj-num">
+                    {cmpBaseKw.toLocaleString()} kW
+                  </td>
+                  <td className="proj-num summary-col--cur">
+                    {summaryInstalledKw.toLocaleString()} kW
+                  </td>
+                </tr>
+                <tr>
+                  <th>계약연수</th>
+                  <td className="proj-num">
+                    {cmpBaseFull ? `${cmpBaseFull.years}년` : '—'}
+                  </td>
+                  <td className="proj-num summary-col--cur">
+                    {summaryCur ? `${summaryCur.years}년` : '—'}
+                  </td>
+                </tr>
+                <tr className="summary-pl__strong">
+                  <th>영업이익률</th>
+                  <td
+                    className={`proj-num${cmpBaseFull && cmpBaseFull.r.margin < 0 ? ' cell--down' : ''}`}
+                  >
+                    {fmtPct(cmpBaseFull?.r.margin)}
+                  </td>
+                  <td
+                    className={`proj-num summary-col--cur${summaryCur && summaryCur.r.margin < 0 ? ' cell--down' : ''}`}
+                  >
+                    {fmtPct(summaryCur?.r.margin)}
+                  </td>
+                </tr>
+                <tr className="summary-pl__strong">
+                  <th>영업이익</th>
+                  <td
+                    className={`proj-num${cmpBaseFull && cmpBaseFull.r.operatingProfit < 0 ? ' cell--down' : ''}`}
+                  >
+                    {fmtWon(cmpBaseFull?.r.operatingProfit)}
+                  </td>
+                  <td
+                    className={`proj-num summary-col--cur${summaryCur && summaryCur.r.operatingProfit < 0 ? ' cell--down' : ''}`}
+                  >
+                    {fmtWon(summaryCur?.r.operatingProfit)}
+                  </td>
+                </tr>
+                <tr>
+                  <th>CAPEX·영업비 회수기간</th>
+                  <td className="proj-num">{cmpBaseFull?.paybackText ?? '—'}</td>
+                  <td className="proj-num summary-col--cur">
+                    {summaryCur?.paybackText ?? '—'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="summary-note">
+              결재 대상으로 <b>{summarySlot.sv.label}</b>이(가) 선택되어
+              있습니다. 아래 손익·단가도 이 선택안 기준입니다.
+            </p>
+          </div>
+        )}
 
         {project.feas && summaryCur && summaryCur.perCharger.length > 0 && (
           <div className="table-scroll summary-block">
@@ -2038,7 +2191,7 @@ export default function ProjectsView({
       case 'parking':
         return p.parking ?? 0
       case 'years':
-        return p.feas?.years ?? 0
+        return siteForSlot(p, p.approval?.slotId).feas?.years ?? 0
       case 'margin':
         return feasById.get(p.id)?.margin ?? -Infinity
       case 'profit':
@@ -2173,7 +2326,10 @@ export default function ProjectsView({
                     {p.parking ? p.parking.toLocaleString() : '—'}
                   </td>
                   <td className="proj-num">
-                    {p.feas?.years ? `${p.feas.years}년` : '—'}
+                    {(() => {
+                      const yrs = siteForSlot(p, p.approval?.slotId).feas?.years
+                      return yrs ? `${yrs}년` : '—'
+                    })()}
                   </td>
                   <td className="proj-num">
                     {(() => {
@@ -2204,11 +2360,19 @@ export default function ProjectsView({
                               : st === 'approved'
                                 ? '승인 완료'
                                 : '반려'
+                      const slot = p.approval?.slotId
+                        ? (p.variants ?? []).find(
+                            (v) => v.id === p.approval?.slotId,
+                          )?.label
+                        : null
                       return (
-                        <span
-                          className={`approval__badge approval__badge--${st} proj-approval`}
-                        >
-                          {label}
+                        <span className="proj-approval-wrap">
+                          <span
+                            className={`approval__badge approval__badge--${st} proj-approval`}
+                          >
+                            {label}
+                          </span>
+                          {slot && <span className="proj-slot-tag">{slot}</span>}
                         </span>
                       )
                     })()}

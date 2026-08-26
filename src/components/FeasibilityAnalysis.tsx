@@ -34,10 +34,10 @@ interface FeasibilityAnalysisProps {
     effCost: number
     loadFactor: number
   }[]
-  /** 프로젝트별 영업비 1대분(계약년수별) override. 값>0인 칸만 적용, 나머지는 전체 기준값. */
-  projectBizFee?: number[]
+  /** 프로젝트별 영업비 1대분(계약년수별). 숫자(0 포함)=적용, null=미기입(전체 기준값). */
+  projectBizFee?: (number | null)[]
   /** 프로젝트별 영업비 저장 콜백 */
-  setProjectBizFee?: (arr: number[]) => void
+  setProjectBizFee?: (arr: (number | null)[]) => void
 }
 
 /**
@@ -84,6 +84,47 @@ function DecimalInput({
         }
         const n = Number(raw)
         if (Number.isFinite(n)) onValue(n)
+      }}
+    />
+  )
+}
+
+/** 빈칸(null=기준값 사용)과 명시적 0을 구분하는 정수 입력. */
+function NullableIntInput({
+  className,
+  value,
+  onValue,
+  placeholder,
+}: {
+  className?: string
+  value: number | null
+  onValue: (n: number | null) => void
+  placeholder?: string
+}) {
+  const [focused, setFocused] = useState(false)
+  const [text, setText] = useState('')
+  const modelText = value == null ? '' : String(value)
+  return (
+    <input
+      className={className}
+      type="text"
+      inputMode="numeric"
+      placeholder={placeholder}
+      value={focused ? text : modelText}
+      onFocus={() => {
+        setText(modelText)
+        setFocused(true)
+      }}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^0-9.]/g, '')
+        setText(raw)
+        if (raw === '' || raw === '.') {
+          onValue(null) // 빈칸 = 미기입(기준값 사용)
+          return
+        }
+        const n = Number(raw)
+        if (Number.isFinite(n)) onValue(n) // 0 포함 명시적 값
       }}
     />
   )
@@ -179,18 +220,20 @@ export default function FeasibilityAnalysis({
       next[idx] = v
       return next
     })
-  const setProjectBizFeeAt = (idx: number, v: number) => {
+  const setProjectBizFeeAt = (idx: number, v: number | null) => {
     if (!setProjectBizFee) return
-    const next = [...(projectBizFee ?? [])]
-    while (next.length < MAX_YEARS) next.push(0)
+    const next: (number | null)[] = [...(projectBizFee ?? [])]
+    while (next.length < MAX_YEARS) next.push(null)
     next[idx] = v
     setProjectBizFee(next)
   }
   const yearIdx = Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years))) - 1
-  // 영업비 1대분 결정 순서(값>0 만 유효):
-  //  1) 프로젝트별 개별 기준표(projectBizFee) → 2) 전체 기준값(bizFeeByYear) → 3) 기본값
-  const projBizAt = (i: number) =>
-    projectBizFee && projectBizFee[i] > 0 ? projectBizFee[i] : undefined
+  // 영업비 1대분 결정 순서:
+  //  1) 프로젝트별(projectBizFee, 0 포함 명시값) → 2) 전체 기준값(bizFeeByYear) → 3) 기본값
+  const projBizAt = (i: number): number | undefined => {
+    const v = projectBizFee?.[i]
+    return v != null ? v : undefined // null/미기입만 제외, 0은 유효
+  }
   const globalBizAt = (i: number) =>
     bizFeeByYear[i] > 0 ? bizFeeByYear[i] : undefined
   const standardBizFee =
@@ -539,9 +582,9 @@ export default function FeasibilityAnalysis({
                   <tr key={row.years} className={isYear ? 'row--selected' : ''}>
                     <td className="col-name">{row.years}년</td>
                     <td>
-                      <DecimalInput
+                      <NullableIntInput
                         className="cell-input"
-                        value={projectBizFee?.[i] ?? 0}
+                        value={projectBizFee?.[i] ?? null}
                         onValue={(n) => setProjectBizFeeAt(i, n)}
                         placeholder={`기준값 ${formatNumber(globalVal)}`}
                       />
@@ -560,16 +603,16 @@ export default function FeasibilityAnalysis({
         </div>
         <div className="table-note table-note--row">
           <span>
-            영업비 1대분은 <b>프로젝트별로 저장</b>됩니다. <b>0 또는 빈 칸</b>은{' '}
+            영업비 1대분은 <b>프로젝트별로 저장</b>됩니다. <b>빈 칸</b>은{' '}
             <b>전체 기준값</b>(우측 상단 <b>⚙ 전체 기준값 관리</b>에서 설정)이 자동
-            적용됩니다. 프로젝트 개별 금액을 넣으려면 <b>0보다 큰 값</b>을
-            입력하세요. 계약년수(
+            적용되고, <b>0을 입력하면 영업비 0원(명시적)</b>으로 저장됩니다(빈칸과
+            별개). 계약년수(
             {Math.max(1, Math.min(MAX_YEARS, Math.round(inputs.years)))}년)에
             해당하는 값이 손익의 영업비로 반영됩니다. (현재 적용:{' '}
             {formatNumber(appliedBizFee)}원 ·{' '}
             {inputs.rateVat >= 244 ? '249원 기준' : '239원 기준'})
           </span>
-          {projectBizFee && projectBizFee.some((v) => v > 0) && setProjectBizFee && (
+          {projectBizFee && projectBizFee.some((v) => v != null) && setProjectBizFee && (
             <button
               type="button"
               className="btn-link"
