@@ -2310,6 +2310,11 @@ export default function ProjectsView({
         return feasById.get(p.id)?.operatingProfit ?? -Infinity
       case 'approval':
         return p.approval?.status ?? 'review'
+      case 'slot':
+        return p.approval?.slotId
+          ? ((p.variants ?? []).find((v) => v.id === p.approval?.slotId)
+              ?.label ?? '기본안')
+          : '기본안'
       default:
         return ''
     }
@@ -2361,6 +2366,7 @@ export default function ProjectsView({
     { key: 'margin', label: '영업이익률', num: true },
     { key: 'profit', label: '영업 이익', num: true },
     { key: 'approval', label: '승인 상태' },
+    { key: 'slot', label: '분석안' },
   ]
   const sortMark = (key: string) =>
     sortKey === key ? (sortDir === 'asc' ? ' ↓' : ' ↑') : ''
@@ -2472,25 +2478,28 @@ export default function ProjectsView({
                               : st === 'approved'
                                 ? '승인 완료'
                                 : '반려'
-                      // 분석안 배지 — 모든 행에 일관 표시(기본안/대체안 구분).
-                      const variants = p.variants ?? []
+                      return (
+                        <span
+                          className={`approval__badge approval__badge--${st} proj-approval`}
+                        >
+                          {label}
+                        </span>
+                      )
+                    })()}
+                  </td>
+                  <td>
+                    {(() => {
                       const isBaseSlot = !p.approval?.slotId
                       const slotLabel = isBaseSlot
                         ? '기본안'
-                        : (variants.find((v) => v.id === p.approval?.slotId)
-                            ?.label ?? '기본안')
+                        : ((p.variants ?? []).find(
+                            (v) => v.id === p.approval?.slotId,
+                          )?.label ?? '기본안')
                       return (
-                        <span className="proj-approval-wrap">
-                          <span
-                            className={`approval__badge approval__badge--${st} proj-approval`}
-                          >
-                            {label}
-                          </span>
-                          <span
-                            className={`proj-slot-tag proj-slot-tag--${isBaseSlot ? 'base' : 'variant'}`}
-                          >
-                            {slotLabel}
-                          </span>
+                        <span
+                          className={`proj-slot-tag proj-slot-tag--${isBaseSlot ? 'base' : 'variant'}`}
+                        >
+                          {slotLabel}
                         </span>
                       )
                     })()}
