@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SavedSite, AnalysisApproval, AnalysisVariant } from '../lib/sites'
 import {
   defaultApproval,
@@ -1284,17 +1284,35 @@ function ProjectDetail({
   const [projectBizFee, setProjectBizFee] = useState<number[]>(
     project.bizFeeByYear ?? [],
   )
-  // 영업비 표는 입력 즉시 자동 저장(디바운스) — '변경 저장' 없이도 유지.
+  // 영업비 표는 입력 즉시 자동 저장(짧은 디바운스) — '변경 저장' 없이도 유지.
+  //  언마운트(목록으로 이동) 시 미저장분을 반드시 flush 해서 빠른 이동에도 유실 없음.
+  const bizSaveRef = useRef({
+    latest: projectBizFee,
+    savedJson: JSON.stringify(project.bizFeeByYear ?? []),
+    projectId: project.id,
+  })
+  bizSaveRef.current.latest = projectBizFee
+  bizSaveRef.current.projectId = project.id
   useEffect(() => {
-    const cur = JSON.stringify(projectBizFee)
-    const saved = JSON.stringify(project.bizFeeByYear ?? [])
-    if (cur === saved) return
+    bizSaveRef.current.savedJson = JSON.stringify(project.bizFeeByYear ?? [])
+  }, [project.bizFeeByYear])
+  useEffect(() => {
+    if (JSON.stringify(projectBizFee) === bizSaveRef.current.savedJson) return
     const t = setTimeout(() => {
       onUpdate(project.id, { bizFeeByYear: projectBizFee })
-    }, 500)
+    }, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectBizFee])
+  useEffect(() => {
+    // 언마운트 시 미저장분 flush
+    return () => {
+      const r = bizSaveRef.current
+      if (JSON.stringify(r.latest) !== r.savedJson)
+        onUpdate(r.projectId, { bizFeeByYear: r.latest })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // 현장 의견(결재 참고 메모) — 입력 후 포커스 아웃 시 저장.
   const [fieldNote, setFieldNote] = useState<string>(project.fieldNote ?? '')
   const saveFieldNote = () => {
