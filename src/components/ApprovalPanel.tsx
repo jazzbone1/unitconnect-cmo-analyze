@@ -315,36 +315,16 @@ export default function ApprovalPanel({
 
       <div className="approval__row approval__assignee">
         <label className="approval__field">
-          <span>담당자 · 기본안 수정 권한 (승인자와 별개, 1명)</span>
-          {a.assignee ? (
-            <div className="approval__chip">
-              <span className="approval__name">{a.assignee}</span>
-              {a.assigneeId && (
-                <span className="approval__opt-id">{a.assigneeId}</span>
-              )}
-              <button
-                type="button"
-                className="approval__chip-x"
-                title="담당자 해제"
-                onClick={() =>
-                  onChange({ ...a, assignee: '', assigneeId: undefined })
-                }
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <AccountPicker
-              accounts={accounts}
-              placeholder="담당자 검색·선택 (명부에서 1명)"
-              onPick={(acc) =>
-                onChange({ ...a, assignee: acc.name, assigneeId: acc.id })
-              }
-            />
-          )}
+          <span>담당자 · 기본안 수정 권한 (승인자와 별개)</span>
+          <div className="approval__chip">
+            <span className="approval__name">{a.assignee || '미지정'}</span>
+            {a.assigneeId && (
+              <span className="approval__opt-id">{a.assigneeId}</span>
+            )}
+          </div>
           <span className="approval__hint-sm">
-            지정 시 이 담당자만 <b>기본안</b>을 수정·저장할 수 있습니다. 미지정이면
-            누구나 수정 가능.
+            담당자는 <b>설정 탭 → 담당자 지정</b>에서 프로젝트별로 지정합니다.
+            지정 시 그 담당자만 <b>기본안</b>을 수정·저장할 수 있습니다.
           </span>
         </label>
       </div>

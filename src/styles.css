@@ -3224,6 +3224,15 @@ tr.row--detail .col-name {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+.assignee-select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  min-width: 12rem;
+}
 .edit-locked-note {
   font-size: 0.82rem;
   color: #c78a00;

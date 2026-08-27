@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react'
 import { usePersistentState } from '../lib/persist'
 import { PROFIT_STANDARD } from '../lib/feasibility'
 import { formatNumber } from '../lib/stats'
+import { defaultApproval, type SavedSite } from '../lib/sites'
+import { ssoDirectory, type SsoAccount } from '../lib/sso'
 import HqMembersPanel from './HqMembersPanel'
 
 function fmt(n: number) {
@@ -70,25 +73,124 @@ function BizStandardTable() {
   )
 }
 
-/** 설정 화면 — 관리 기능 모음(본사 명단, 영업비 기준값 등). */
-export default function SettingsView() {
+/** 프로젝트별 담당자(기본안 관리) 일괄 지정. */
+function AssigneeManager({
+  projects,
+  onUpdate,
+  accounts,
+}: {
+  projects: SavedSite[]
+  onUpdate: (id: string, patch: Partial<SavedSite>) => void
+  accounts: SsoAccount[]
+}) {
+  const setAssignee = (p: SavedSite, id: string) => {
+    const acc = accounts.find((a) => a.id === id)
+    const base = p.approval ?? defaultApproval()
+    onUpdate(p.id, {
+      approval: id
+        ? { ...base, assignee: acc?.name ?? id, assigneeId: id }
+        : { ...base, assignee: '', assigneeId: undefined },
+    })
+  }
+  return (
+    <section className="card">
+      <h2>담당자 지정 (기본안 관리)</h2>
+      <p className="settings-sec__desc">
+        프로젝트별로 <b>기본안</b>을 수정·저장할 수 있는 담당자를 지정합니다.
+        명부(본사 명단·로그인 계정)에서 1명 선택. 지정 시 그 담당자만 기본안을
+        수정할 수 있고, 미지정이면 누구나 수정 가능합니다.
+      </p>
+      {projects.length === 0 ? (
+        <p className="settings-sec__desc">등록된 프로젝트가 없습니다.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>단지명</th>
+                <th>담당자 (기본안 관리)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((p) => {
+                const curId = p.approval?.assigneeId ?? ''
+                const opts = accounts.slice()
+                if (curId && !opts.find((a) => a.id === curId))
+                  opts.unshift({
+                    id: curId,
+                    name: p.approval?.assignee || curId,
+                  })
+                return (
+                  <tr key={p.id}>
+                    <td className="col-name">{p.name || '(이름 없음)'}</td>
+                    <td>
+                      <select
+                        className="assignee-select"
+                        value={curId}
+                        onChange={(e) => setAssignee(p, e.target.value)}
+                      >
+                        <option value="">미지정 (누구나 수정)</option>
+                        {opts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {accounts.length === 0 && (
+        <p className="settings-sec__desc">
+          선택 가능한 계정이 없습니다. 위 <b>본사 명단</b>에 인원을 등록하거나,
+          로그인 이력이 쌓이면 표시됩니다.
+        </p>
+      )}
+    </section>
+  )
+}
+
+/** 설정 화면 — 관리 기능 모음(본사 명단, 담당자 지정, 영업비 기준값 등). */
+export default function SettingsView({
+  projects,
+  onUpdate,
+}: {
+  projects: SavedSite[]
+  onUpdate: (id: string, patch: Partial<SavedSite>) => void
+}) {
+  const [accounts, setAccounts] = useState<SsoAccount[]>([])
+  useEffect(() => {
+    let alive = true
+    ssoDirectory().then((list) => alive && setAccounts(list))
+    return () => {
+      alive = false
+    }
+  }, [])
   return (
     <div className="settings">
       <h1 className="settings__title">설정 · 관리</h1>
       <p className="settings__sub">
-        본사 명단과 영업비 전체 기준값 등 공통 관리 항목입니다. 로그인 후 변경할 수
-        있습니다.
+        본사 명단·담당자 지정·영업비 전체 기준값 등 공통 관리 항목입니다. 로그인 후
+        변경할 수 있습니다.
       </p>
       <section className="card">
         <h2>본사 명단 관리 (승인자·담당자 명부)</h2>
         <p className="settings-sec__desc">
           결재의 <b>승인자</b>와 <b>담당자(기본안 관리)</b>로 지정할 본사 인원을
-          등록합니다. 여기 등록한 이름이 결재 패널의 <b>승인자 검색</b>과{' '}
-          <b>담당자 검색</b> 목록에 나타납니다. (승인자·담당자는 프로젝트별로 결재
-          패널에서 각각 지정)
+          등록합니다. 여기 등록한 이름이 <b>담당자 지정</b> 목록과 결재 패널의{' '}
+          <b>승인자 검색</b>에 나타납니다.
         </p>
         <HqMembersPanel defaultOpen />
       </section>
+      <AssigneeManager
+        projects={projects}
+        onUpdate={onUpdate}
+        accounts={accounts}
+      />
       <BizStandardTable />
     </div>
   )
