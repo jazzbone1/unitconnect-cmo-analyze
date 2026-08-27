@@ -3187,6 +3187,19 @@ tr.row--detail .col-name {
 .settings {
   max-width: 900px;
 }
+.approval__assignee {
+  border: 1px solid var(--ok);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  background: var(--accent-soft);
+}
+.approval__hint-sm {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  font-weight: 400;
+}
 .settings__title {
   margin: 0 0 0.3rem;
 }

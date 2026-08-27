@@ -313,40 +313,39 @@ export default function ApprovalPanel({
         </p>
       )}
 
-      <div className="approval__row">
+      <div className="approval__row approval__assignee">
         <label className="approval__field">
-          <span>담당자 (기본안 수정 권한)</span>
+          <span>담당자 · 기본안 수정 권한 (승인자와 별개, 1명)</span>
           {a.assignee ? (
             <div className="approval__chip">
               <span className="approval__name">{a.assignee}</span>
               {a.assigneeId && (
                 <span className="approval__opt-id">{a.assigneeId}</span>
               )}
-              {editable && (
-                <button
-                  type="button"
-                  className="approval__chip-x"
-                  onClick={() =>
-                    onChange({ ...a, assignee: '', assigneeId: undefined })
-                  }
-                >
-                  ✕
-                </button>
-              )}
+              <button
+                type="button"
+                className="approval__chip-x"
+                title="담당자 해제"
+                onClick={() =>
+                  onChange({ ...a, assignee: '', assigneeId: undefined })
+                }
+              >
+                ✕
+              </button>
             </div>
-          ) : editable ? (
+          ) : (
             <AccountPicker
               accounts={accounts}
-              placeholder="담당자 검색·선택 (명부)"
+              placeholder="담당자 검색·선택 (명부에서 1명)"
               onPick={(acc) =>
                 onChange({ ...a, assignee: acc.name, assigneeId: acc.id })
               }
             />
-          ) : (
-            <div className="approval__chip">
-              <span className="approval__name">미지정</span>
-            </div>
           )}
+          <span className="approval__hint-sm">
+            지정 시 이 담당자만 <b>기본안</b>을 수정·저장할 수 있습니다. 미지정이면
+            누구나 수정 가능.
+          </span>
         </label>
       </div>
 

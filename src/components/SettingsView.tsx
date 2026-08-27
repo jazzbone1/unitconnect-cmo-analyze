@@ -80,10 +80,12 @@ export default function SettingsView() {
         있습니다.
       </p>
       <section className="card">
-        <h2>본사 명단 관리</h2>
+        <h2>본사 명단 관리 (승인자·담당자 명부)</h2>
         <p className="settings-sec__desc">
-          승인자·담당자로 지정할 본사 인원을 등록합니다. 여기 등록한 이름이 결재
-          패널의 담당자·승인자 선택 목록에 나타납니다.
+          결재의 <b>승인자</b>와 <b>담당자(기본안 관리)</b>로 지정할 본사 인원을
+          등록합니다. 여기 등록한 이름이 결재 패널의 <b>승인자 검색</b>과{' '}
+          <b>담당자 검색</b> 목록에 나타납니다. (승인자·담당자는 프로젝트별로 결재
+          패널에서 각각 지정)
         </p>
         <HqMembersPanel defaultOpen />
       </section>
