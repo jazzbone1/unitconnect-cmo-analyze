@@ -315,16 +315,15 @@ export default function ApprovalPanel({
 
       <div className="approval__row approval__assignee">
         <label className="approval__field">
-          <span>담당자 · 기본안 수정 권한 (승인자와 별개)</span>
+          <span>결재 요청자 (상신 계정)</span>
           <div className="approval__chip">
-            <span className="approval__name">{a.assignee || '미지정'}</span>
-            {a.assigneeId && (
-              <span className="approval__opt-id">{a.assigneeId}</span>
-            )}
+            <span className="approval__name">
+              {a.requestedBy || currentUser?.name || '로그인 필요'}
+            </span>
           </div>
           <span className="approval__hint-sm">
-            담당자는 <b>설정 탭 → 담당자 지정</b>에서 프로젝트별로 지정합니다.
-            지정 시 그 담당자만 <b>기본안</b>을 수정·저장할 수 있습니다.
+            결재를 올리는(상신하는) 로그인 계정입니다. 기본안 수정 권한을 가진{' '}
+            <b>기본안 담당자</b>는 설정 탭에서 별도로 지정합니다.
           </span>
         </label>
       </div>

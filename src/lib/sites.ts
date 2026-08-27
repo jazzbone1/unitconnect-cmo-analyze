@@ -56,7 +56,7 @@ export function approvalRequest(
     ...a,
     status: 'requested',
     currentStep: 0,
-    requestedBy: byName || a.assignee || '',
+    requestedBy: byName || a.requestedBy || '',
     requestedAt: nowIso,
     approvers: a.approvers.map((s) => ({ id: s.id, name: s.name })),
   }

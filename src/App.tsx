@@ -20,7 +20,7 @@ import { getStore } from './lib/store'
 import type { AggKind, FileEntry } from './types'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-13'
+const BUILD_TAG = 'v2026.08.26-14'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -288,7 +288,7 @@ export default function App() {
       <div className="content">
         {tab === 'settings' ? (
           <div className="app">
-            <SettingsView projects={sites} onUpdate={updateProject} />
+            <SettingsView />
           </div>
         ) : tab === 'projects' ? (
           <div className="app">

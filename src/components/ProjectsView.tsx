@@ -8,7 +8,7 @@ import {
   newSiteId,
 } from '../lib/sites'
 import type { ChargerType } from '../lib/settlement'
-import { ssoCurrentUser, ssoDirectory } from '../lib/sso'
+import { ssoCurrentUser, ssoDirectory, ssoGetSettings } from '../lib/sso'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
@@ -1069,8 +1069,10 @@ function ProjectDetail({
   }
   // 로그인 사용자(SSO) — 승인 차례 게이트용.
   const [currentUser, setCurrentUser] = useState<SsoUser | null>(null)
-  // 계정 명부 — 승인자/담당자 지정 드롭다운용.
+  // 계정 명부 — 승인자 지정 드롭다운용.
   const [accounts, setAccounts] = useState<SsoAccount[]>([])
+  // 기본안 담당자(전체 공통) — 설정에서 지정. 기본안 수정 권한 게이트용.
+  const [baseManagers, setBaseManagers] = useState<SsoAccount[]>([])
   useEffect(() => {
     let alive = true
     ssoCurrentUser().then((u) => {
@@ -1078,6 +1080,9 @@ function ProjectDetail({
     })
     ssoDirectory().then((list) => {
       if (alive) setAccounts(list)
+    })
+    ssoGetSettings().then((s) => {
+      if (alive) setBaseManagers(s.baseManagers)
     })
     return () => {
       alive = false
@@ -1261,22 +1266,25 @@ function ProjectDetail({
     setLoading(false)
   }
 
-  // 기본안(활성=기본안)은 담당자만 수정 가능. 비로그인/담당자 미지정이면 제약 없음.
-  const assigneeMatch =
+  // 기본안(활성=기본안)은 '기본안 담당자(전체 공통)'만 수정 가능.
+  //  담당자 미지정/비로그인이면 제약 없음. 대체안은 누구나.
+  const isBaseManager =
     currentUser != null &&
-    (approval.assigneeId
-      ? approval.assigneeId === currentUser.sub
-      : (approval.assignee ?? '').trim() === (currentUser.name ?? '').trim())
+    baseManagers.some(
+      (m) =>
+        m.id === currentUser.sub ||
+        m.name.trim() === (currentUser.name ?? '').trim(),
+    )
   const canEditBase =
     activeVariantId != null || // 대체안은 제약 없음
+    baseManagers.length === 0 || // 담당자 미지정
     !currentUser || // 비로그인(로컬)
-    !approval.assignee || // 담당자 미지정
-    assigneeMatch
+    isBaseManager
 
   function saveChanges() {
     if (!canEditBase) {
       window.alert(
-        `기본안은 담당자(${approval.assignee})만 수정할 수 있습니다.`,
+        `기본안은 지정된 담당자(${baseManagers.map((m) => m.name).join(', ')})만 수정할 수 있습니다. (설정 · 기본안 담당자)`,
       )
       return
     }
@@ -2084,8 +2092,9 @@ function ProjectDetail({
         </div>
         {!canEditBase && (
           <p className="edit-locked-note">
-            🔒 기본안은 담당자 <b>{approval.assignee}</b>만 수정할 수 있습니다.
-            입력은 가능하지만 저장되지 않습니다.
+            🔒 기본안은 지정된 담당자(
+            <b>{baseManagers.map((m) => m.name).join(', ')}</b>)만 수정할 수
+            있습니다. 입력은 가능하지만 저장되지 않습니다. (설정 · 기본안 담당자)
           </p>
         )}
         <SiteConfigForm

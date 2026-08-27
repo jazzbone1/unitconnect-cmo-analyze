@@ -151,6 +151,51 @@ export async function ssoSaveHqMembers(
   return Array.isArray(d.members) ? (d.members as SsoAccount[]) : []
 }
 
+/** 전역 앱 설정. baseManagers=기본안 수정 담당자(전체 공통). */
+export interface AppSettings {
+  baseManagers: SsoAccount[]
+}
+
+export async function ssoGetSettings(): Promise<AppSettings> {
+  try {
+    const res = await fetch('/api/sso/settings', { credentials: 'same-origin' })
+    if (!res.ok) return { baseManagers: [] }
+    const d = await res.json()
+    return {
+      baseManagers: Array.isArray(d.baseManagers)
+        ? (d.baseManagers as SsoAccount[])
+        : [],
+    }
+  } catch {
+    return { baseManagers: [] }
+  }
+}
+
+export async function ssoSaveSettings(s: AppSettings): Promise<AppSettings> {
+  const res = await fetch('/api/sso/settings', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(s),
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    let msg = `저장 실패 (${res.status})`
+    try {
+      const e = await res.json()
+      if (e?.error) msg = e.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg)
+  }
+  const d = await res.json()
+  return {
+    baseManagers: Array.isArray(d.baseManagers)
+      ? (d.baseManagers as SsoAccount[])
+      : [],
+  }
+}
+
 export async function ssoLogout(): Promise<void> {
   try {
     await fetch('/api/sso/logout', {

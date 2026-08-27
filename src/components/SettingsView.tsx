@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePersistentState } from '../lib/persist'
 import { PROFIT_STANDARD } from '../lib/feasibility'
 import { formatNumber } from '../lib/stats'
-import { defaultApproval, type SavedSite } from '../lib/sites'
-import { ssoDirectory, type SsoAccount } from '../lib/sso'
+import {
+  ssoDirectory,
+  ssoGetSettings,
+  ssoSaveSettings,
+  type SsoAccount,
+} from '../lib/sso'
 import HqMembersPanel from './HqMembersPanel'
 
 function fmt(n: number) {
@@ -73,95 +77,94 @@ function BizStandardTable() {
   )
 }
 
-/** 프로젝트별 담당자(기본안 관리) 일괄 지정. */
-function AssigneeManager({
-  projects,
-  onUpdate,
-  accounts,
-}: {
-  projects: SavedSite[]
-  onUpdate: (id: string, patch: Partial<SavedSite>) => void
-  accounts: SsoAccount[]
-}) {
-  const setAssignee = (p: SavedSite, id: string) => {
-    const acc = accounts.find((a) => a.id === id)
-    const base = p.approval ?? defaultApproval()
-    onUpdate(p.id, {
-      approval: id
-        ? { ...base, assignee: acc?.name ?? id, assigneeId: id }
-        : { ...base, assignee: '', assigneeId: undefined },
-    })
+/** 기본안 담당자(전체 공통) 관리 — 여기 지정된 계정만 모든 프로젝트의 기본안을 수정. */
+function BaseManagersManager({ accounts }: { accounts: SsoAccount[] }) {
+  const [managers, setManagers] = useState<SsoAccount[]>([])
+  const [sel, setSel] = useState('')
+  const [msg, setMsg] = useState('')
+  useEffect(() => {
+    let alive = true
+    ssoGetSettings().then((s) => alive && setManagers(s.baseManagers))
+    return () => {
+      alive = false
+    }
+  }, [])
+  const persist = (next: SsoAccount[]) => {
+    setManagers(next)
+    setMsg('저장 중…')
+    ssoSaveSettings({ baseManagers: next })
+      .then((s) => {
+        setManagers(s.baseManagers)
+        setMsg(`저장 완료 · 담당자 ${s.baseManagers.length}명`)
+      })
+      .catch((e) => setMsg(e instanceof Error ? e.message : String(e)))
   }
+  const addable = useMemo(() => {
+    const have = new Set(managers.map((m) => m.id))
+    return accounts.filter((a) => !have.has(a.id))
+  }, [accounts, managers])
+  const add = (id: string) => {
+    const acc = accounts.find((a) => a.id === id)
+    if (!acc) return
+    persist([...managers, acc])
+    setSel('')
+  }
+  const remove = (id: string) =>
+    persist(managers.filter((m) => m.id !== id))
   return (
     <section className="card">
-      <h2>담당자 지정 (기본안 관리)</h2>
+      <h2>기본안 담당자 (전체 공통)</h2>
       <p className="settings-sec__desc">
-        프로젝트별로 <b>기본안</b>을 수정·저장할 수 있는 담당자를 지정합니다.
-        명부(본사 명단·로그인 계정)에서 1명 선택. 지정 시 그 담당자만 기본안을
-        수정할 수 있고, 미지정이면 누구나 수정 가능합니다.
+        여기 지정된 계정만 <b>모든 프로젝트의 기본안</b>을 수정·저장할 수 있습니다.
+        아무도 지정하지 않으면 누구나 수정 가능합니다. (대체안 추가·편집·결재는
+        담당자와 무관하게 누구나)
       </p>
-      {projects.length === 0 ? (
-        <p className="settings-sec__desc">등록된 프로젝트가 없습니다.</p>
+      {managers.length === 0 ? (
+        <p className="settings-sec__desc">지정된 담당자가 없습니다.</p>
       ) : (
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>단지명</th>
-                <th>담당자 (기본안 관리)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((p) => {
-                const curId = p.approval?.assigneeId ?? ''
-                const opts = accounts.slice()
-                if (curId && !opts.find((a) => a.id === curId))
-                  opts.unshift({
-                    id: curId,
-                    name: p.approval?.assignee || curId,
-                  })
-                return (
-                  <tr key={p.id}>
-                    <td className="col-name">{p.name || '(이름 없음)'}</td>
-                    <td>
-                      <select
-                        className="assignee-select"
-                        value={curId}
-                        onChange={(e) => setAssignee(p, e.target.value)}
-                      >
-                        <option value="">미지정 (누구나 수정)</option>
-                        {opts.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ul className="hq-panel__list">
+          {managers.map((m) => (
+            <li key={m.id} className="hq-panel__item">
+              <span className="hq-panel__name">{m.name}</span>
+              <button
+                type="button"
+                className="hq-panel__x"
+                aria-label={`${m.name} 제거`}
+                onClick={() => remove(m.id)}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
+      <div className="settings-add-row">
+        <select
+          className="assignee-select"
+          value={sel}
+          onChange={(e) => e.target.value && add(e.target.value)}
+        >
+          <option value="">+ 담당자 추가 (명부에서 선택)</option>
+          {addable.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        {msg && <span className="hq-panel__msg">{msg}</span>}
+      </div>
       {accounts.length === 0 && (
         <p className="settings-sec__desc">
-          선택 가능한 계정이 없습니다. 위 <b>본사 명단</b>에 인원을 등록하거나,
-          로그인 이력이 쌓이면 표시됩니다.
+          선택 가능한 계정이 없습니다. 위 <b>본사 명단</b>에 등록하거나 로그인
+          이력이 쌓이면 표시됩니다.
         </p>
       )}
     </section>
   )
 }
 
-/** 설정 화면 — 관리 기능 모음(본사 명단, 담당자 지정, 영업비 기준값 등). */
-export default function SettingsView({
-  projects,
-  onUpdate,
-}: {
-  projects: SavedSite[]
-  onUpdate: (id: string, patch: Partial<SavedSite>) => void
-}) {
+/** 설정 화면 — 관리 기능 모음(본사 명단, 기본안 담당자, 영업비 기준값 등). */
+export default function SettingsView() {
   const [accounts, setAccounts] = useState<SsoAccount[]>([])
   useEffect(() => {
     let alive = true
@@ -181,16 +184,12 @@ export default function SettingsView({
         <h2>본사 명단 관리 (승인자·담당자 명부)</h2>
         <p className="settings-sec__desc">
           결재의 <b>승인자</b>와 <b>담당자(기본안 관리)</b>로 지정할 본사 인원을
-          등록합니다. 여기 등록한 이름이 <b>담당자 지정</b> 목록과 결재 패널의{' '}
+          등록합니다. 여기 등록한 이름이 <b>기본안 담당자</b> 선택과 결재 패널의{' '}
           <b>승인자 검색</b>에 나타납니다.
         </p>
         <HqMembersPanel defaultOpen />
       </section>
-      <AssigneeManager
-        projects={projects}
-        onUpdate={onUpdate}
-        accounts={accounts}
-      />
+      <BaseManagersManager accounts={accounts} />
       <BizStandardTable />
     </div>
   )

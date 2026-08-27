@@ -159,6 +159,29 @@ async function saveHqMembers(list) {
   await r2.fetch(HQ_URL, { method: 'PUT', body: JSON.stringify(list) })
 }
 
+// 전역 앱 설정(app-settings.json). baseManagers=기본안 수정 담당자(전체 공통).
+const SETTINGS_URL = r2Ready
+  ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/app-settings.json`
+  : null
+let memSettings = {}
+async function loadSettings() {
+  if (!r2) return memSettings
+  try {
+    const r = await r2.fetch(SETTINGS_URL, { method: 'GET' })
+    if (r.status === 404) return {}
+    if (!r.ok) return memSettings
+    const obj = JSON.parse((await r.text()) || '{}')
+    return obj && typeof obj === 'object' ? obj : {}
+  } catch {
+    return memSettings
+  }
+}
+async function saveSettings(obj) {
+  memSettings = obj
+  if (!r2) return
+  await r2.fetch(SETTINGS_URL, { method: 'PUT', body: JSON.stringify(obj) })
+}
+
 /** 본사 명단 + 로그인 자동수집 명부를 합쳐(계정ID 기준 중복 제거) 반환. 본사 명단 이름 우선. */
 async function mergedAccounts() {
   const [hq, dir] = await Promise.all([loadHqMembers(), loadDirectory()])
@@ -430,6 +453,46 @@ app.put('/api/sso/hq', express.json({ limit: '256kb' }), async (req, res) => {
   try {
     await saveHqMembers(members)
     res.json({ ok: true, members })
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
+// 전역 설정 조회 — 기본안 담당자(baseManagers) 등. 로그인 사용자만.
+app.get('/api/sso/settings', async (req, res) => {
+  if (!ssoReady) return res.json({ baseManagers: [] })
+  const payload = requireSession(req)
+  if (!payload) return res.status(401).json({ error: 'unauthorized' })
+  const s = await loadSettings()
+  const baseManagers = Array.isArray(s.baseManagers)
+    ? s.baseManagers
+        .filter((m) => m && (m.id || m.name))
+        .map((m) => ({
+          id: String(m.id || m.name).trim(),
+          name: String(m.name || m.id).trim(),
+        }))
+    : []
+  res.json({ baseManagers })
+})
+
+// 전역 설정 저장(기본안 담당자). 로그인 사용자만.
+app.put('/api/sso/settings', express.json({ limit: '256kb' }), async (req, res) => {
+  if (!ssoReady) return res.status(503).json({ error: 'SSO not configured' })
+  const payload = requireSession(req)
+  if (!payload) return res.status(401).json({ error: 'unauthorized' })
+  const raw = Array.isArray(req.body?.baseManagers) ? req.body.baseManagers : []
+  const seen = new Set()
+  const baseManagers = []
+  for (const e of raw) {
+    const name = String(e?.name || '').trim()
+    const id = String(e?.id || name).trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    baseManagers.push({ id, name: name || id })
+  }
+  try {
+    await saveSettings({ baseManagers })
+    res.json({ ok: true, baseManagers })
   } catch (e) {
     res.status(502).json({ error: String(e) })
   }
