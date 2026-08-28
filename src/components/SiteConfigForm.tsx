@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChargerType, SettlementConfig } from '../lib/settlement'
+import type { PreInstalledCharger } from '../lib/sites'
 import { parseBuildingPdf } from '../lib/buildingRegister'
 import Dropzone from './Dropzone'
 
@@ -24,6 +25,9 @@ interface SiteConfigFormProps {
   config: SettlementConfig
   setConfig: (c: SettlementConfig) => void
   onReset: () => void
+  /** 기설치 충전기(기존 설치분) — 종류별 수량·운영사 */
+  preInstalled?: PreInstalledCharger[]
+  setPreInstalled?: (arr: PreInstalledCharger[]) => void
 }
 
 /** 단지 정보 + 충전기 종류별 수량·요금 편집 폼 (리스트/저장 버튼 제외) */
@@ -33,6 +37,8 @@ export default function SiteConfigForm({
   config,
   setConfig,
   onReset,
+  preInstalled = [],
+  setPreInstalled,
 }: SiteConfigFormProps) {
   const totalCount = config.chargers.reduce((acc, c) => acc + c.count, 0)
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -46,6 +52,17 @@ export default function SiteConfigForm({
       ),
     })
   }
+
+  const preOf = (kw: number) => preInstalled.find((p) => p.kw === kw)
+  const updatePre = (kw: number, patch: Partial<PreInstalledCharger>) => {
+    if (!setPreInstalled) return
+    const i = preInstalled.findIndex((p) => p.kw === kw)
+    const next = [...preInstalled]
+    if (i > -1) next[i] = { ...next[i], ...patch }
+    else next.push({ kw, count: 0, operator: '', ...patch })
+    setPreInstalled(next)
+  }
+  const preTotal = preInstalled.reduce((a, p) => a + (p.count || 0), 0)
 
   async function handlePdf(file: File) {
     setPdfBusy(true)
@@ -210,6 +227,65 @@ export default function SiteConfigForm({
           </tbody>
         </table>
       </div>
+
+      {setPreInstalled && (
+        <>
+          <h3 className="subsection__title">
+            기설치 충전기 (기존 설치분){' '}
+            <span className="subsection__sub">합계 {preTotal}기</span>
+          </h3>
+          <div className="table-scroll">
+            <table className="data-table charger-table">
+              <thead>
+                <tr>
+                  <th>충전기 종류</th>
+                  <th>수량(기)</th>
+                  <th>운영사(제조사)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {config.chargers.map((c) => {
+                  const pre = preOf(c.kw)
+                  return (
+                    <tr key={`pre-${c.id}`}>
+                      <td className="col-name">{c.name}</td>
+                      <td>
+                        <input
+                          className="cell-input"
+                          type="number"
+                          min={0}
+                          placeholder="0"
+                          value={pre?.count || ''}
+                          onChange={(e) =>
+                            updatePre(c.kw, {
+                              count: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="cell-input cell-input--text"
+                          type="text"
+                          placeholder="예: 유닛커넥트 / 제조사"
+                          value={pre?.operator ?? ''}
+                          onChange={(e) =>
+                            updatePre(c.kw, { operator: e.target.value })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="var-hint">
+            현장에 <b>이미 설치된</b> 충전기(타 운영사 포함)를 참고용으로 기록합니다.
+            요금·모자분리와 무관하며, 사업성 계산에는 반영되지 않습니다.
+          </p>
+        </>
+      )}
 
       <div className="var-actions">
         <label className="hours-field">

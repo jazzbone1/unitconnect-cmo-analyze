@@ -122,6 +122,15 @@ export interface AnalysisVariant {
   aptBill?: ApartmentBillInputs
 }
 
+/** 기설치(기존 설치) 충전기 — 종류별 수량 + 운영사(제조사). 참고용(계산 미반영). */
+export interface PreInstalledCharger {
+  /** 정격(kW) — 5종(3/3.5/7/50/100)과 매칭 */
+  kw: number
+  count: number
+  /** 운영사(제조사) */
+  operator: string
+}
+
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */
 export interface SavedSite {
   id: string
@@ -156,6 +165,9 @@ export interface SavedSite {
 
   /** 대체안(변형 분석) 목록 — 사업성~아파트요금을 달리한 별도 저장안 */
   variants?: AnalysisVariant[]
+
+  /** 기설치 충전기(기존 설치분) — 종류별 수량·운영사. 참고용. */
+  preInstalled?: PreInstalledCharger[]
 
   /** 현장 의견(결재 참고용 공통 메모) */
   fieldNote?: string

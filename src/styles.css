@@ -1753,6 +1753,11 @@ tr.row--detail .col-name {
   color: var(--text-muted);
   white-space: nowrap;
 }
+.subsection__sub {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
 .approval__badge--requested {
   background: #c78a00;
 }

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { SavedSite, AnalysisApproval, AnalysisVariant } from '../lib/sites'
+import type {
+  SavedSite,
+  AnalysisApproval,
+  AnalysisVariant,
+  PreInstalledCharger,
+} from '../lib/sites'
 import {
   defaultApproval,
   approvalRequest,
@@ -1064,6 +1069,10 @@ function ProjectDetail({
   const [salesStatus, setSalesStatus] = useState<string>(
     project.salesStatus ?? '',
   )
+  // 기설치 충전기(기존 설치분) — '변경 저장' 시 반영.
+  const [preInstalled, setPreInstalled] = useState<PreInstalledCharger[]>(
+    project.preInstalled ?? [],
+  )
   // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
   const [approval, setApproval] = useState<AnalysisApproval>(
     () => project.approval ?? defaultApproval(),
@@ -1420,6 +1429,7 @@ function ProjectDetail({
       variants: resolvedVariants,
       fieldNote,
       bizFeeByYear: projectBizFee,
+      preInstalled,
     })
     setBaseSet(resolvedBase)
     setVariants(resolvedVariants)
@@ -2219,6 +2229,8 @@ function ProjectDetail({
           config={config}
           setConfig={setConfig}
           onReset={resetConfig}
+          preInstalled={preInstalled}
+          setPreInstalled={setPreInstalled}
         />
       </section>
 
