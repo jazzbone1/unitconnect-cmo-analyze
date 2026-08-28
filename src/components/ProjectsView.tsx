@@ -2526,6 +2526,8 @@ export default function ProjectsView({
     { key: 'etcChargers', label: '기타 충전기', num: true },
     { key: 'totalChargers', label: '총 충전기', num: true },
     { key: 'parking', label: '총 주차면', num: true },
+    { key: 'pct2', label: '2%', num: true },
+    { key: 'pct5', label: '5%', num: true },
     { key: 'ev', label: 'EV 등록', num: true },
     { key: 'years', label: '계약기간', num: true },
     { key: 'margin', label: '영업이익률', num: true },
@@ -2611,6 +2613,16 @@ export default function ProjectsView({
                   </td>
                   <td className="proj-num">
                     {p.parking ? p.parking.toLocaleString() : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {p.parking
+                      ? Math.round(p.parking * 0.02).toLocaleString()
+                      : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {p.parking
+                      ? Math.round(p.parking * 0.05).toLocaleString()
+                      : '—'}
                   </td>
                   <td className="proj-num">
                     {p.evCount ? p.evCount.toLocaleString() : '—'}
