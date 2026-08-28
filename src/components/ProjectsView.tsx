@@ -2522,17 +2522,13 @@ export default function ProjectsView({
   const cols: { key: string; label: string; num?: boolean }[] = [
     { key: 'name', label: '단지명' },
     { key: 'address', label: '주소' },
-    { key: 'chargers', label: '위차 적용 충전기 수량', num: true },
-    { key: 'etcChargers', label: '기타 충전기 수량', num: true },
-    { key: 'totalChargers', label: '총 충전기 수량', num: true },
-    { key: 'households', label: '세대수', num: true },
-    { key: 'parking', label: '총 주차면 수', num: true },
-    { key: 'pct2', label: '2%', num: true },
-    { key: 'pct5', label: '5%', num: true },
+    { key: 'chargers', label: '위차 충전기', num: true },
+    { key: 'etcChargers', label: '기타 충전기', num: true },
+    { key: 'totalChargers', label: '총 충전기', num: true },
+    { key: 'parking', label: '총 주차면', num: true },
     { key: 'ev', label: 'EV 등록', num: true },
     { key: 'years', label: '계약기간', num: true },
     { key: 'margin', label: '영업이익률', num: true },
-    { key: 'profit', label: '영업 이익', num: true },
     { key: 'approval', label: '승인 상태' },
     { key: 'salesStatus', label: '영업 상태' },
     { key: 'slot', label: '분석안' },
@@ -2614,16 +2610,7 @@ export default function ProjectsView({
                       : '—'}
                   </td>
                   <td className="proj-num">
-                    {p.households ? p.households.toLocaleString() : '—'}
-                  </td>
-                  <td className="proj-num">
                     {p.parking ? p.parking.toLocaleString() : '—'}
-                  </td>
-                  <td className="proj-num">
-                    {p.parking ? Math.round(p.parking * 0.02).toLocaleString() : '—'}
-                  </td>
-                  <td className="proj-num">
-                    {p.parking ? Math.round(p.parking * 0.05).toLocaleString() : '—'}
                   </td>
                   <td className="proj-num">
                     {p.evCount ? p.evCount.toLocaleString() : '—'}
@@ -2640,14 +2627,6 @@ export default function ProjectsView({
                       return mg == null || !Number.isFinite(mg)
                         ? '—'
                         : `${(mg * 100).toFixed(2)}%`
-                    })()}
-                  </td>
-                  <td className="proj-num">
-                    {(() => {
-                      const pr = feasById.get(p.id)?.operatingProfit
-                      return pr == null || !Number.isFinite(pr)
-                        ? '—'
-                        : `${Math.round(pr).toLocaleString()}원`
                     })()}
                   </td>
                   <td>

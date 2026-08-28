@@ -181,6 +181,18 @@ export default function SiteConfigForm({
           </label>
         )}
         <div className="var-field">
+          <span className="var-field__label">2% (주차면 기준·자동)</span>
+          <div className="var-field__auto">
+            {Math.round((site.parking || 0) * 0.02).toLocaleString()}기
+          </div>
+        </div>
+        <div className="var-field">
+          <span className="var-field__label">5% (주차면 기준·자동)</span>
+          <div className="var-field__auto">
+            {Math.round((site.parking || 0) * 0.05).toLocaleString()}기
+          </div>
+        </div>
+        <div className="var-field">
           <span className="var-field__label">위차 적용 충전기 (자동합계)</span>
           <div className="var-field__auto">{totalCount.toLocaleString()}기</div>
         </div>
