@@ -20,7 +20,7 @@ import { getStore } from './lib/store'
 import type { AggKind, FileEntry } from './types'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-14'
+const BUILD_TAG = 'v2026.08.26-15'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -75,6 +75,22 @@ export default function App() {
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 알림 딥링크(?project=<id>) — 결재 알림 '원본 보기'로 해당 프로젝트 결재 화면 열기.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const pid = url.searchParams.get('project')
+    if (!pid) return
+    setTab('projects')
+    setSelectedProjectId(pid)
+    url.searchParams.delete('project')
+    window.history.replaceState(
+      {},
+      '',
+      url.pathname + (url.search || '') + url.hash,
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

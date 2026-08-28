@@ -9,6 +9,7 @@ import {
 } from '../lib/sites'
 import type { ChargerType } from '../lib/settlement'
 import { ssoCurrentUser, ssoDirectory, ssoGetSettings } from '../lib/sso'
+import { notifyApproval } from '../lib/notify'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
@@ -1064,8 +1065,109 @@ function ProjectDetail({
     () => project.approval ?? defaultApproval(),
   )
   const updateApproval = (next: AnalysisApproval) => {
+    const prev = approval
     setApproval(next)
     onUpdate(project.id, { approval: next })
+    fireApprovalNotify(prev, next)
+  }
+  // 결재 상태 전이 → 메신저 알림(상신/승인/반려/최종승인). 실패는 무시.
+  const fireApprovalNotify = (
+    prev: AnalysisApproval,
+    next: AnalysisApproval,
+  ) => {
+    const pjName = project.name || '(이름 없음)'
+    const requestedAt = next.requestedAt ?? prev.requestedAt ?? ''
+    const refId = `appr-${project.id}-${requestedAt}`.slice(0, 100)
+    const sourceUrl = `${window.location.origin}/?project=${project.id}`
+    const resolveAcct = (
+      name: string | undefined,
+      id?: string,
+    ): { name?: string; uid?: string; email?: string } => {
+      const a = accounts.find(
+        (x) =>
+          (id && x.id === id) ||
+          x.name.trim() === (name ?? '').trim(),
+      )
+      // 요청자가 현재 로그인 사용자면 그 계정의 uid/email 우선.
+      const cu =
+        currentUser && currentUser.name.trim() === (name ?? '').trim()
+          ? currentUser
+          : null
+      return {
+        name: name || a?.name,
+        uid: cu?.uid || a?.uid,
+        email: cu?.email || a?.email,
+      }
+    }
+    const requesterName = next.requestedBy || currentUser?.name || ''
+
+    // 1) 검토→승인요청(상신): 1번 승인자에게
+    if (prev.status !== 'requested' && next.status === 'requested') {
+      const cur = next.approvers[next.currentStep]
+      if (cur)
+        notifyApproval({
+          projectName: pjName,
+          requesterName,
+          eventType: 'requested',
+          status: '상신',
+          title: '결재 승인 요청',
+          message: `${pjName} 현장 결재가 상신되었습니다. 승인 바랍니다.`,
+          refId,
+          sourceUrl,
+          recipients: [resolveAcct(cur.name, cur.id)],
+        })
+      return
+    }
+    // 2) 진행 중 승인 → 다음 차례 승인자에게
+    if (
+      prev.status === 'requested' &&
+      next.status === 'requested' &&
+      next.currentStep > prev.currentStep
+    ) {
+      const cur = next.approvers[next.currentStep]
+      if (cur)
+        notifyApproval({
+          projectName: pjName,
+          requesterName,
+          eventType: 'approved',
+          status: '승인',
+          title: '결재 승인 진행 · 다음 승인 요청',
+          message: `${pjName} 현장, 승인 차례입니다.`,
+          refId,
+          sourceUrl,
+          recipients: [resolveAcct(cur.name, cur.id)],
+        })
+      return
+    }
+    // 3) 최종 승인 완료 → 요청자에게
+    if (prev.status === 'requested' && next.status === 'approved') {
+      notifyApproval({
+        projectName: pjName,
+        requesterName,
+        eventType: 'completed',
+        status: '승인',
+        title: '결재 최종 승인 완료',
+        message: `${pjName} 현장 결재가 최종 승인되었습니다.`,
+        refId,
+        sourceUrl,
+        recipients: [resolveAcct(requesterName)],
+      })
+      return
+    }
+    // 4) 반려 → 요청자에게
+    if (prev.status !== 'rejected' && next.status === 'rejected') {
+      notifyApproval({
+        projectName: pjName,
+        requesterName,
+        eventType: 'rejected',
+        status: '반려',
+        title: '결재 반려',
+        message: `${pjName} 현장 결재가 반려되었습니다.`,
+        refId,
+        sourceUrl,
+        recipients: [resolveAcct(requesterName)],
+      })
+    }
   }
   // 로그인 사용자(SSO) — 승인 차례 게이트용.
   const [currentUser, setCurrentUser] = useState<SsoUser | null>(null)

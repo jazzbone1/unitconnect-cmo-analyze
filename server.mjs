@@ -53,6 +53,74 @@ const SSO_SESSION_HOURS = 8
 const DIRECT_LOGIN_PASSWORD = process.env.DIRECT_LOGIN_PASSWORD
 const directLoginReady = ssoReady && !!DIRECT_LOGIN_PASSWORD
 
+// ── 결재 알림(DealerConnect 메신저) ──────────────────────────────
+// 결재 상신/승인/반려 시 메신저로 알림 발송. 키 미설정 시 비활성(no-op).
+const WECHA_APPROVAL_API_KEY = process.env.WECHA_APPROVAL_API_KEY
+const APPROVAL_NOTIFY_URL =
+  process.env.APPROVAL_NOTIFY_URL ||
+  'https://dealerconnect-production.up.railway.app/internal/erp/notifications'
+const approvalNotifyReady = !!WECHA_APPROVAL_API_KEY
+
+/** DealerConnect 알림 1회 발송(10초 타임아웃). 반환: {status, body} 또는 throw(네트워크·타임아웃). */
+async function postApprovalNotify(payload) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 10000)
+  try {
+    const r = await fetch(APPROVAL_NOTIFY_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-api-key': WECHA_APPROVAL_API_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    })
+    let body = null
+    try {
+      body = await r.json()
+    } catch {
+      /* 비 JSON 응답 */
+    }
+    return { status: r.status, body }
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+/**
+ * 결재 알림 발송 + 배경 재시도. 결재 흐름을 막지 않도록 첫 시도 결과만 반환하고,
+ * 5xx·타임아웃은 같은 requestId 로 배경 재시도(30초→2분→10분). 400·403 은 중단.
+ */
+async function sendApprovalNotification(payload) {
+  const delays = [30000, 120000, 600000]
+  const attempt = async (n) => {
+    try {
+      const { status, body } = await postApprovalNotify(payload)
+      if (status >= 200 && status < 300) {
+        if (body && Array.isArray(body.unresolved) && body.unresolved.length)
+          console.warn('[approval-notify] unresolved', payload.requestId, JSON.stringify(body.unresolved))
+        return { ok: true, status, body }
+      }
+      // 400·403 등 클라이언트 오류 → 재시도 무의미
+      if (status < 500) {
+        console.warn('[approval-notify] rejected', status, JSON.stringify(body))
+        return { ok: false, status, body }
+      }
+      throw new Error(`retryable ${status}`)
+    } catch (e) {
+      if (n < delays.length) {
+        setTimeout(() => {
+          attempt(n + 1).catch(() => {})
+        }, delays[n])
+        return { ok: false, retrying: true, error: String(e) }
+      }
+      console.warn('[approval-notify] giving up', payload.requestId, String(e))
+      return { ok: false, error: String(e) }
+    }
+  }
+  return attempt(0)
+}
+
 function safeEqual(a, b) {
   const ha = crypto.createHash('sha256').update(String(a)).digest()
   const hb = crypto.createHash('sha256').update(String(b)).digest()
@@ -532,6 +600,60 @@ app.put('/api/sso/settings', express.json({ limit: '256kb' }), async (req, res) 
   }
 })
 
+// 결재 알림 발송 — 클라이언트가 결재 이벤트를 보내면 DealerConnect 메신저로 전달.
+//  키(WECHA_APPROVAL_API_KEY)는 서버에만 두고, 브라우저엔 노출하지 않는다.
+app.post(
+  '/api/approval/notify',
+  requireAuth,
+  express.json({ limit: '256kb' }),
+  async (req, res) => {
+    if (!approvalNotifyReady) return res.json({ enabled: false })
+    const b = req.body || {}
+    const title = String(b.title || '').trim()
+    if (!title) return res.status(400).json({ error: 'title required' })
+    // 수신자 → 정밀 식별자 우선(uid > email > name)
+    const assigneeNames = []
+    const assigneeUserIds = []
+    const assigneeEmails = []
+    for (const r of Array.isArray(b.recipients) ? b.recipients : []) {
+      if (!r) continue
+      const uid = String(r.uid || '').trim()
+      const email = String(r.email || '').trim()
+      const name = String(r.name || '').trim()
+      if (uid) assigneeUserIds.push(uid)
+      else if (email) assigneeEmails.push(email)
+      else if (name) assigneeNames.push(name)
+    }
+    if (!assigneeNames.length && !assigneeUserIds.length && !assigneeEmails.length)
+      return res.status(400).json({ error: 'no recipients' })
+    const fields = []
+    if (b.projectName)
+      fields.push({ label: '현장', value: String(b.projectName).slice(0, 200) })
+    if (b.requesterName)
+      fields.push({ label: '요청자', value: String(b.requesterName).slice(0, 200) })
+    const payload = {
+      category: 'APPROVAL',
+      title: title.slice(0, 200),
+      ...(b.message ? { message: String(b.message).slice(0, 5000) } : {}),
+      ...(b.status ? { status: String(b.status).slice(0, 40) } : {}),
+      ...(b.eventType ? { eventType: String(b.eventType).slice(0, 50) } : {}),
+      ...(b.refId ? { refId: String(b.refId).slice(0, 100) } : {}),
+      ...(b.requestId ? { requestId: String(b.requestId).slice(0, 80) } : {}),
+      ...(b.sourceUrl ? { sourceUrl: String(b.sourceUrl).slice(0, 500) } : {}),
+      ...(fields.length ? { fields: fields.slice(0, 12) } : {}),
+      ...(assigneeNames.length ? { assigneeNames: assigneeNames.slice(0, 50) } : {}),
+      ...(assigneeUserIds.length
+        ? { assigneeUserIds: assigneeUserIds.slice(0, 50) }
+        : {}),
+      ...(assigneeEmails.length
+        ? { assigneeEmails: assigneeEmails.slice(0, 50) }
+        : {}),
+    }
+    const result = await sendApprovalNotification(payload)
+    res.json({ enabled: true, ...result })
+  },
+)
+
 // 현재 로그인 사용자(세션 쿠키 기준)
 app.get('/api/sso/me', (req, res) => {
   if (!ssoReady) return res.json({ enabled: false, user: null, directLogin: false })
@@ -582,6 +704,6 @@ app.listen(PORT, '0.0.0.0', () => {
       ssoReady
         ? `ON${directLoginReady ? '+직접로그인' : ''}`
         : 'OFF(no SSO_SECRET)'
-    }`,
+    } · 결재알림 ${approvalNotifyReady ? 'ON' : 'OFF(no WECHA_APPROVAL_API_KEY)'}`,
   )
 })
