@@ -8,6 +8,9 @@
 export interface SsoUser {
   sub: string
   name: string
+  /** 메신저 계정 uid(알림 발송용 userId). 미제공 시 빈 문자열. */
+  uid?: string
+  email?: string
 }
 export interface SsoState {
   /** 서버에 SSO_SECRET이 설정되어 SSO가 켜져 있는지 */
@@ -98,6 +101,9 @@ export async function ssoCurrentUser(): Promise<SsoUser | null> {
 export interface SsoAccount {
   id: string
   name: string
+  /** 메신저 계정 uid(알림 발송 userId). 로그인 이력에서 수집. */
+  uid?: string
+  email?: string
 }
 
 /**

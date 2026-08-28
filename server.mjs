@@ -182,28 +182,53 @@ async function saveSettings(obj) {
   await r2.fetch(SETTINGS_URL, { method: 'PUT', body: JSON.stringify(obj) })
 }
 
-/** 본사 명단 + 로그인 자동수집 명부를 합쳐(계정ID 기준 중복 제거) 반환. 본사 명단 이름 우선. */
+/** 본사 명단 + 로그인 자동수집 명부를 합쳐(계정ID 기준 중복 제거) 반환. uid/email 포함. */
 async function mergedAccounts() {
   const [hq, dir] = await Promise.all([loadHqMembers(), loadDirectory()])
   const map = new Map()
-  for (const e of dir) {
-    if (e && e.id) map.set(String(e.id), { id: String(e.id), name: String(e.name || e.id) })
+  const put = (e) => {
+    if (!e || !e.id) return
+    const id = String(e.id)
+    const prev = map.get(id) || {}
+    map.set(id, {
+      id,
+      name: String(e.name || e.id),
+      // uid/email 은 어느 소스든 값이 있으면 보존.
+      uid: e.uid || prev.uid || undefined,
+      email: e.email || prev.email || undefined,
+    })
   }
-  for (const e of hq) {
-    if (e && e.id) map.set(String(e.id), { id: String(e.id), name: String(e.name || e.id) })
-  }
+  for (const e of dir) put(e) // 로그인 명부(uid/email 보유 가능)
+  for (const e of hq) put(e) // 본사 명단(이름 우선 덮어쓰기)
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 }
 
 /** 로그인 계정을 명부에 upsert (이름 갱신 + 최근 접속 시각). 실패는 무시. */
-async function recordAccount(id, name, at) {
+async function recordAccount(id, name, at, extra) {
   const accId = String(id || '').trim()
   const accName = String(name || '').trim() || accId
   if (!accId) return
+  // uid/email 은 값이 있을 때만 갱신(직접로그인 등 미제공 시 기존 값 보존).
+  const uid = extra && extra.uid ? String(extra.uid) : undefined
+  const email = extra && extra.email ? String(extra.email) : undefined
   const list = await loadDirectory()
   const i = list.findIndex((e) => e && e.id === accId)
-  if (i > -1) list[i] = { ...list[i], name: accName, at }
-  else list.push({ id: accId, name: accName, at })
+  if (i > -1)
+    list[i] = {
+      ...list[i],
+      name: accName,
+      at,
+      ...(uid ? { uid } : {}),
+      ...(email ? { email } : {}),
+    }
+  else
+    list.push({
+      id: accId,
+      name: accName,
+      at,
+      ...(uid ? { uid } : {}),
+      ...(email ? { email } : {}),
+    })
   memDirectory = list
   if (r2) {
     try {
@@ -391,10 +416,15 @@ app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
     return res.status(401).json({ error: 'invalid token' })
   }
   const now = Math.floor(Date.now() / 1000)
+  // 메신저가 넣어준 uid 클레임 보관 → 알림 발송 시 userId 로 되돌려 보냄.
+  const uid = payload.uid != null ? String(payload.uid) : ''
+  const email = payload.email != null ? String(payload.email) : ''
   const session = signJwt(
     {
       sub: String(payload.sub),
       name: String(payload.name || ''),
+      uid,
+      email,
       iat: now,
       exp: now + SSO_SESSION_HOURS * 3600,
     },
@@ -405,8 +435,12 @@ app.post('/api/sso/verify', express.json({ limit: '64kb' }), (req, res) => {
     String(payload.sub),
     String(payload.name || ''),
     new Date().toISOString(),
+    { uid, email },
   ).catch(() => {})
-  res.json({ ok: true, user: { sub: String(payload.sub), name: String(payload.name || '') } })
+  res.json({
+    ok: true,
+    user: { sub: String(payload.sub), name: String(payload.name || ''), uid, email },
+  })
 })
 
 // 계정 명부(디렉터리) — 승인자 지정 드롭다운용. 본사 명단 + 로그인 명부 합본. 로그인 사용자만 조회.
@@ -506,7 +540,12 @@ app.get('/api/sso/me', (req, res) => {
     return res.status(401).json({ enabled: true, user: null, directLogin: directLoginReady })
   res.json({
     enabled: true,
-    user: { sub: payload.sub, name: payload.name || '' },
+    user: {
+      sub: payload.sub,
+      name: payload.name || '',
+      uid: payload.uid || '',
+      email: payload.email || '',
+    },
     directLogin: directLoginReady,
   })
 })
