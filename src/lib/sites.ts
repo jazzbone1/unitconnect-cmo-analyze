@@ -169,6 +169,9 @@ export interface SavedSite {
   /** 기설치 충전기(기존 설치분) — 종류별 수량·운영사. 참고용. */
   preInstalled?: PreInstalledCharger[]
 
+  /** EV 등록 대수(단지 내 전기차 등록 수) */
+  evCount?: number
+
   /** 현장 의견(결재 참고용 공통 메모) */
   fieldNote?: string
 

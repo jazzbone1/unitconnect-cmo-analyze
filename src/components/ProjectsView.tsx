@@ -1073,6 +1073,8 @@ function ProjectDetail({
   const [preInstalled, setPreInstalled] = useState<PreInstalledCharger[]>(
     project.preInstalled ?? [],
   )
+  // EV 등록 대수 — '변경 저장' 시 반영.
+  const [evCount, setEvCount] = useState<number>(project.evCount ?? 0)
   // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
   const [approval, setApproval] = useState<AnalysisApproval>(
     () => project.approval ?? defaultApproval(),
@@ -1430,6 +1432,7 @@ function ProjectDetail({
       fieldNote,
       bizFeeByYear: projectBizFee,
       preInstalled,
+      evCount,
     })
     setBaseSet(resolvedBase)
     setVariants(resolvedVariants)
@@ -2231,6 +2234,8 @@ function ProjectDetail({
           onReset={resetConfig}
           preInstalled={preInstalled}
           setPreInstalled={setPreInstalled}
+          evCount={evCount}
+          setEvCount={setEvCount}
         />
       </section>
 
@@ -2426,6 +2431,10 @@ export default function ProjectsView({
 
   const chargerCount = (p: SavedSite) =>
     p.chargers.reduce((a, c) => a + c.count, 0)
+  const etcChargerCount = (p: SavedSite) =>
+    (p.preInstalled ?? []).reduce((a, c) => a + (c.count || 0), 0)
+  const totalChargerCount = (p: SavedSite) =>
+    chargerCount(p) + etcChargerCount(p)
   // 목록 표시용 파생값(영업이익률·영업이익)은 프로젝트 변경 시에만 재계산.
   const feasById = useMemo(() => {
     const m = new Map<string, ReturnType<typeof computeFeasibility> | null>()
@@ -2440,10 +2449,20 @@ export default function ProjectsView({
         return p.address ?? ''
       case 'chargers':
         return chargerCount(p)
+      case 'etcChargers':
+        return etcChargerCount(p)
+      case 'totalChargers':
+        return totalChargerCount(p)
       case 'households':
         return p.households ?? 0
       case 'parking':
         return p.parking ?? 0
+      case 'pct2':
+        return Math.round((p.parking ?? 0) * 0.02)
+      case 'pct5':
+        return Math.round((p.parking ?? 0) * 0.05)
+      case 'ev':
+        return p.evCount ?? 0
       case 'years':
         return projectYears(p) ?? 0
       case 'margin':
@@ -2503,9 +2522,14 @@ export default function ProjectsView({
   const cols: { key: string; label: string; num?: boolean }[] = [
     { key: 'name', label: '단지명' },
     { key: 'address', label: '주소' },
-    { key: 'chargers', label: '충전기 수량', num: true },
+    { key: 'chargers', label: '위차 적용 충전기 수량', num: true },
+    { key: 'etcChargers', label: '기타 충전기 수량', num: true },
+    { key: 'totalChargers', label: '총 충전기 수량', num: true },
     { key: 'households', label: '세대수', num: true },
-    { key: 'parking', label: '총 주차대수', num: true },
+    { key: 'parking', label: '총 주차면 수', num: true },
+    { key: 'pct2', label: '2%', num: true },
+    { key: 'pct5', label: '5%', num: true },
+    { key: 'ev', label: 'EV 등록', num: true },
     { key: 'years', label: '계약기간', num: true },
     { key: 'margin', label: '영업이익률', num: true },
     { key: 'profit', label: '영업 이익', num: true },
@@ -2580,10 +2604,29 @@ export default function ProjectsView({
                     )}
                   </td>
                   <td className="proj-num">
+                    {etcChargerCount(p)
+                      ? `${etcChargerCount(p).toLocaleString()}기`
+                      : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {totalChargerCount(p)
+                      ? `${totalChargerCount(p).toLocaleString()}기`
+                      : '—'}
+                  </td>
+                  <td className="proj-num">
                     {p.households ? p.households.toLocaleString() : '—'}
                   </td>
                   <td className="proj-num">
                     {p.parking ? p.parking.toLocaleString() : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {p.parking ? Math.round(p.parking * 0.02).toLocaleString() : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {p.parking ? Math.round(p.parking * 0.05).toLocaleString() : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {p.evCount ? p.evCount.toLocaleString() : '—'}
                   </td>
                   <td className="proj-num">
                     {(() => {

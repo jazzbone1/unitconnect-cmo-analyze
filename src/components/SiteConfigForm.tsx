@@ -28,6 +28,9 @@ interface SiteConfigFormProps {
   /** 기설치 충전기(기존 설치분) — 종류별 수량·운영사 */
   preInstalled?: PreInstalledCharger[]
   setPreInstalled?: (arr: PreInstalledCharger[]) => void
+  /** EV 등록 대수 */
+  evCount?: number
+  setEvCount?: (n: number) => void
 }
 
 /** 단지 정보 + 충전기 종류별 수량·요금 편집 폼 (리스트/저장 버튼 제외) */
@@ -39,6 +42,8 @@ export default function SiteConfigForm({
   onReset,
   preInstalled = [],
   setPreInstalled,
+  evCount = 0,
+  setEvCount,
 }: SiteConfigFormProps) {
   const totalCount = config.chargers.reduce((acc, c) => acc + c.count, 0)
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -150,7 +155,7 @@ export default function SiteConfigForm({
           />
         </label>
         <label className="var-field">
-          <span className="var-field__label">총 주차대수</span>
+          <span className="var-field__label">총 주차면 수</span>
           <input
             className="var-field__input"
             type="number"
@@ -162,8 +167,21 @@ export default function SiteConfigForm({
             }
           />
         </label>
+        {setEvCount && (
+          <label className="var-field">
+            <span className="var-field__label">EV 등록 대수</span>
+            <input
+              className="var-field__input"
+              type="number"
+              min={0}
+              value={evCount || ''}
+              placeholder="0"
+              onChange={(e) => setEvCount(Number(e.target.value) || 0)}
+            />
+          </label>
+        )}
         <div className="var-field">
-          <span className="var-field__label">충전기 수량 (자동합계)</span>
+          <span className="var-field__label">위차 적용 충전기 (자동합계)</span>
           <div className="var-field__auto">{totalCount.toLocaleString()}기</div>
         </div>
       </div>
