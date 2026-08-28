@@ -1742,6 +1742,17 @@ tr.row--detail .col-name {
 .approval__badge--reviewed {
   background: #4b6bb0;
 }
+.approval__badge--sales_review {
+  background: #8a5cc7;
+}
+.approval__badge--sales_reviewed {
+  background: #6a3fb0;
+}
+.proj-sales-tag {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 .approval__badge--requested {
   background: #c78a00;
 }

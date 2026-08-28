@@ -22,10 +22,18 @@ export interface ApprovalStep {
 /** 현장 분석 승인 워크플로 */
 export interface AnalysisApproval {
   /**
-   * review=검토중, reviewed=검토완료, requested=승인요청(진행중),
+   * review=분석중, reviewed=분석완료, sales_review=영업분석중,
+   * sales_reviewed=영업분석완료, requested=승인요청(진행중),
    * approved=승인완료(승인자 전원 승인 시 자동), rejected=반려
    */
-  status: 'review' | 'reviewed' | 'requested' | 'approved' | 'rejected'
+  status:
+    | 'review'
+    | 'reviewed'
+    | 'sales_review'
+    | 'sales_reviewed'
+    | 'requested'
+    | 'approved'
+    | 'rejected'
   /** 담당자 이름(표시용) */
   assignee?: string
   /** 담당자 계정 ID(SSO sub) */
@@ -182,14 +190,18 @@ export interface SavedSite {
   safetyCheckDate?: string
 }
 
-/** 상태 선택지 */
+/** 영업 상태 선택지 (파이프라인) */
 export const SALES_STATUS = [
-  '계약진행필요',
-  '영업중',
-  '계약완료',
-  '보류',
-  '해당없음',
+  '컨설팅보고서 미제출',
+  '컨설팅보고서 제출',
+  '입대의 예정',
+  '입대의 완료',
+  '입대의 반려',
+  '계약 예정',
+  '계약 완료',
 ]
+/** 영업 상태 기본값(미설정 시) */
+export const DEFAULT_SALES_STATUS = SALES_STATUS[0]
 export const SURVEY_STATUS = ['미실사', '실사예정', '실사완료']
 export const CONSTRUCTION_STATUS = ['미시공', '시공예정', '시공중', '시공완료']
 export const CPO_OPTIONS = [

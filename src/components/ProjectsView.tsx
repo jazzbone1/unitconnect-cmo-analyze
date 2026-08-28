@@ -1060,6 +1060,10 @@ function ProjectDetail({
       ? config
       : { hours: baseSet.hours, chargers: baseSet.chargers }
 
+  // 영업 상태(파이프라인) — 변경 즉시 저장.
+  const [salesStatus, setSalesStatus] = useState<string>(
+    project.salesStatus ?? '',
+  )
   // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
   const [approval, setApproval] = useState<AnalysisApproval>(
     () => project.approval ?? defaultApproval(),
@@ -1582,12 +1586,17 @@ function ProjectDetail({
   const decideApprovalSummary = (d: 'approved' | 'rejected') =>
     updateApproval(approvalDecide(approval, d, new Date().toISOString()))
   const APPROVAL_LABEL: Record<AnalysisApproval['status'], string> = {
-    review: '검토 중',
-    reviewed: '검토 완료',
+    review: '분석 중',
+    reviewed: '분석 완료',
+    sales_review: '영업 분석 중',
+    sales_reviewed: '영업 분석 완료',
     requested: '승인 요청(진행중)',
     approved: '승인 완료',
     rejected: '반려',
   }
+  const canRequest = (
+    ['review', 'reviewed', 'sales_review', 'sales_reviewed'] as const
+  ).includes(approval.status as 'review')
 
   return (
     <div className="projects">
@@ -1731,7 +1740,7 @@ function ProjectDetail({
             >
               {APPROVAL_LABEL[approval.status]}
             </span>
-            {(approval.status === 'review' || approval.status === 'reviewed') && (
+            {canRequest && (
               <button
                 type="button"
                 className="approval__btn approval__btn--primary"
@@ -2095,6 +2104,11 @@ function ProjectDetail({
         onChange={updateApproval}
         currentUser={currentUser}
         accounts={accounts}
+        salesStatus={salesStatus}
+        onSalesStatus={(s) => {
+          setSalesStatus(s)
+          onUpdate(project.id, { salesStatus: s })
+        }}
       />
       </>
       )}
@@ -2426,6 +2440,8 @@ export default function ProjectsView({
         return feasById.get(p.id)?.operatingProfit ?? -Infinity
       case 'approval':
         return p.approval?.status ?? 'review'
+      case 'salesStatus':
+        return p.salesStatus ?? ''
       case 'slot':
         return p.approval?.slotId
           ? ((p.variants ?? []).find((v) => v.id === p.approval?.slotId)
@@ -2482,6 +2498,7 @@ export default function ProjectsView({
     { key: 'margin', label: '영업이익률', num: true },
     { key: 'profit', label: '영업 이익', num: true },
     { key: 'approval', label: '승인 상태' },
+    { key: 'salesStatus', label: '영업 상태' },
     { key: 'slot', label: '분석안' },
   ]
   const sortMark = (key: string) =>
@@ -2583,14 +2600,18 @@ export default function ProjectsView({
                       const st = p.approval?.status ?? 'review'
                       const label =
                         st === 'review'
-                          ? '검토 중'
+                          ? '분석 중'
                           : st === 'reviewed'
-                            ? '검토 완료'
-                            : st === 'requested'
-                              ? '승인 요청'
-                              : st === 'approved'
-                                ? '승인 완료'
-                                : '반려'
+                            ? '분석 완료'
+                            : st === 'sales_review'
+                              ? '영업 분석 중'
+                              : st === 'sales_reviewed'
+                                ? '영업 분석 완료'
+                                : st === 'requested'
+                                  ? '승인 요청'
+                                  : st === 'approved'
+                                    ? '승인 완료'
+                                    : '반려'
                       return (
                         <span
                           className={`approval__badge approval__badge--${st} proj-approval`}
@@ -2599,6 +2620,11 @@ export default function ProjectsView({
                         </span>
                       )
                     })()}
+                  </td>
+                  <td>
+                    <span className="proj-sales-tag">
+                      {p.salesStatus || '—'}
+                    </span>
                   </td>
                   <td>
                     {(() => {

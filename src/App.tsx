@@ -20,7 +20,7 @@ import { getStore } from './lib/store'
 import type { AggKind, FileEntry } from './types'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-15'
+const BUILD_TAG = 'v2026.08.26-16'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {

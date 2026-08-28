@@ -1,14 +1,18 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   defaultApproval,
+  SALES_STATUS,
+  DEFAULT_SALES_STATUS,
   type AnalysisApproval,
   type ApprovalStep,
 } from '../lib/sites'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 
 const STATUS_LABEL: Record<AnalysisApproval['status'], string> = {
-  review: '검토 중',
-  reviewed: '검토 완료',
+  review: '분석 중',
+  reviewed: '분석 완료',
+  sales_review: '영업 분석 중',
+  sales_reviewed: '영업 분석 완료',
   requested: '승인 요청(진행중)',
   approved: '승인 완료',
   rejected: '반려',
@@ -18,16 +22,27 @@ const STATUS_LABEL: Record<AnalysisApproval['status'], string> = {
 const STATUS_CHOICES: AnalysisApproval['status'][] = [
   'review',
   'reviewed',
+  'sales_review',
+  'sales_reviewed',
   'requested',
   'approved',
 ]
 const STATUS_CHOICE_LABEL: Record<AnalysisApproval['status'], string> = {
-  review: '검토 중',
-  reviewed: '검토 완료',
+  review: '분석 중',
+  reviewed: '분석 완료',
+  sales_review: '영업 분석 중',
+  sales_reviewed: '영업 분석 완료',
   requested: '승인 요청',
   approved: '승인 완료',
   rejected: '반려',
 }
+/** 승인요청 전(편집 가능) 상태 집합. */
+const PRE_APPROVAL_STATUSES: AnalysisApproval['status'][] = [
+  'review',
+  'reviewed',
+  'sales_review',
+  'sales_reviewed',
+]
 
 interface Props {
   approval?: AnalysisApproval
@@ -36,6 +51,9 @@ interface Props {
   currentUser?: SsoUser | null
   /** 메신저 계정 명부(승인자/담당자 지정용). */
   accounts?: SsoAccount[]
+  /** 영업 상태(파이프라인) — 프로젝트 필드. */
+  salesStatus?: string
+  onSalesStatus?: (s: string) => void
 }
 
 /**
@@ -149,14 +167,16 @@ export default function ApprovalPanel({
   onChange,
   currentUser,
   accounts = [],
+  salesStatus,
+  onSalesStatus,
 }: Props) {
   const a = approval ?? defaultApproval()
 
   const nowIso = () => new Date().toISOString()
   const fmt = (iso?: string) =>
     iso ? new Date(iso).toLocaleString('ko-KR', { hour12: false }) : ''
-  // 검토중·검토완료(승인요청 전)일 때만 승인자 편집.
-  const editable = a.status === 'review' || a.status === 'reviewed'
+  // 승인요청 전(분석·영업분석 단계)일 때만 승인자 편집.
+  const editable = PRE_APPROVAL_STATUSES.includes(a.status)
 
   // 담당자는 수동 지정(명부에서 선택). 기본안은 이 담당자만 수정 가능.
 
@@ -311,6 +331,23 @@ export default function ApprovalPanel({
         <p className="approval__hint">
           승인자 전원 승인이 완료되면 자동으로 “승인 완료”로 전환됩니다.
         </p>
+      )}
+
+      {onSalesStatus && (
+        <div className="approval__status-set">
+          <span className="approval__status-label">영업 상태</span>
+          <select
+            className="assignee-select"
+            value={salesStatus || DEFAULT_SALES_STATUS}
+            onChange={(e) => onSalesStatus(e.target.value)}
+          >
+            {SALES_STATUS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div className="approval__row approval__assignee">
