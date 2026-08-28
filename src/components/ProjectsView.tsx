@@ -11,6 +11,7 @@ import {
   approvalDecide,
   approvalCanDecide,
   newSiteId,
+  SALES_STATUS,
 } from '../lib/sites'
 import type { ChargerType } from '../lib/settlement'
 import { ssoCurrentUser, ssoDirectory, ssoGetSettings } from '../lib/sso'
@@ -2424,6 +2425,9 @@ export default function ProjectsView({
 }: ProjectsViewProps) {
   const setSelectedId = onSelect
   const [query, setQuery] = useState('')
+  const [filterApproval, setFilterApproval] = useState('')
+  const [filterSales, setFilterSales] = useState('')
+  const [filterSlot, setFilterSlot] = useState('')
   const [sortKey, setSortKey] = useState<string>('name')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -2484,12 +2488,20 @@ export default function ProjectsView({
   }
 
   const q = query.trim().toLowerCase()
-  const filtered = projects.filter(
-    (p) =>
+  const filtered = projects.filter((p) => {
+    const matchQ =
       !q ||
       p.name.toLowerCase().includes(q) ||
-      (p.address ?? '').toLowerCase().includes(q),
-  )
+      (p.address ?? '').toLowerCase().includes(q)
+    const matchApproval =
+      !filterApproval || (p.approval?.status ?? 'review') === filterApproval
+    const matchSales = !filterSales || (p.salesStatus ?? '') === filterSales
+    const slotIsVariant = !!p.approval?.slotId
+    const matchSlot =
+      !filterSlot ||
+      (filterSlot === 'base' ? !slotIsVariant : slotIsVariant)
+    return matchQ && matchApproval && matchSales && matchSlot
+  })
 
   const sorted = [...filtered].sort((a, b) => {
     const va = val(a, sortKey)
@@ -2540,7 +2552,7 @@ export default function ProjectsView({
 
   return (
     <div className="projects">
-      {/* 검색 */}
+      {/* 검색 + 필터 */}
       <div className="proj-panel">
         <input
           type="search"
@@ -2549,6 +2561,65 @@ export default function ProjectsView({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <div className="proj-filters">
+          <select
+            className="proj-filter"
+            value={filterApproval}
+            onChange={(e) => setFilterApproval(e.target.value)}
+          >
+            <option value="">승인 상태 전체</option>
+            {(
+              [
+                ['review', '분석 중'],
+                ['reviewed', '분석 완료'],
+                ['sales_review', '영업 분석 중'],
+                ['sales_reviewed', '영업 분석 완료'],
+                ['requested', '승인 요청'],
+                ['approved', '승인 완료'],
+                ['rejected', '반려'],
+              ] as [string, string][]
+            ).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <select
+            className="proj-filter"
+            value={filterSales}
+            onChange={(e) => setFilterSales(e.target.value)}
+          >
+            <option value="">영업 상태 전체</option>
+            {SALES_STATUS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select
+            className="proj-filter"
+            value={filterSlot}
+            onChange={(e) => setFilterSlot(e.target.value)}
+          >
+            <option value="">분석안 전체</option>
+            <option value="base">기본안</option>
+            <option value="variant">대체안</option>
+          </select>
+          {(filterApproval || filterSales || filterSlot || query) && (
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => {
+                setFilterApproval('')
+                setFilterSales('')
+                setFilterSlot('')
+                setQuery('')
+              }}
+            >
+              필터 초기화
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 건수 + 정렬 안내 */}
