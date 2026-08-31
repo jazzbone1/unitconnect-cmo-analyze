@@ -1232,6 +1232,123 @@ export default function FeasibilityAnalysis({
             <Field label="모자분리" unit="원/대" value={inputs.mojaBunri} onChange={(v) => set({ mojaBunri: v })} standard={`${formatNumber(STD.mojaBunri)}원`} />
             <Field label="미니PC" unit="원/단지" value={inputs.miniPc} onChange={(v) => set({ miniPc: v })} standard={`${formatNumber(STD.miniPc)}원`} />
           </div>
+
+          <h4 className="summary-block__title" style={{ marginTop: '1rem' }}>
+            추가 CAPEX{' '}
+            <span className="count-tag">합계 {won(r.capexExtra)}</span>
+          </h4>
+          <div className="table-scroll">
+            <table className="data-table opex-table">
+              <colgroup>
+                <col />
+                <col className="opex-col-cost" />
+                <col className="opex-col-cost" />
+                <col className="opex-col-inc" />
+                <col className="opex-col-del" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>항목</th>
+                  <th>금액(원)</th>
+                  <th>단위</th>
+                  <th>포함</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(inputs.capexExtra ?? []).map((c, i) => {
+                  const list = inputs.capexExtra ?? []
+                  const patchAt = (patch: Partial<(typeof list)[number]>) =>
+                    set({
+                      capexExtra: list.map((x, j) =>
+                        j === i ? { ...x, ...patch } : x,
+                      ),
+                    })
+                  return (
+                    <tr key={c.id} className={c.included ? '' : 'row--off'}>
+                      <td>
+                        <input
+                          className="cell-input opex-label-input"
+                          type="text"
+                          value={c.label}
+                          placeholder="항목명 (예: 케이블·부대공사)"
+                          onChange={(e) => patchAt({ label: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="cell-input"
+                          type="number"
+                          min={0}
+                          value={Math.round(c.amount) || ''}
+                          onChange={(e) =>
+                            patchAt({ amount: Number(e.target.value) || 0 })
+                          }
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className="cell-input"
+                          value={c.unit}
+                          onChange={(e) =>
+                            patchAt({
+                              unit: e.target.value === 'site' ? 'site' : 'unit',
+                            })
+                          }
+                        >
+                          <option value="unit">원/대</option>
+                          <option value="site">원/단지</option>
+                        </select>
+                      </td>
+                      <td className="opex-inc-cell">
+                        <input
+                          type="checkbox"
+                          checked={c.included}
+                          onChange={(e) =>
+                            patchAt({ included: e.target.checked })
+                          }
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="remove-button"
+                          aria-label="항목 삭제"
+                          onClick={() =>
+                            set({
+                              capexExtra: list.filter((_, j) => j !== i),
+                            })
+                          }
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() =>
+              set({
+                capexExtra: [
+                  ...(inputs.capexExtra ?? []),
+                  {
+                    id: 'cx' + Date.now(),
+                    label: '',
+                    amount: 0,
+                    unit: 'unit',
+                    included: true,
+                  },
+                ],
+              })
+            }
+          >
+            + 추가 CAPEX 항목
+          </button>
         </div>
       </div>
 

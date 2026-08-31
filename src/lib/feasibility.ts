@@ -9,6 +9,17 @@ export interface OpexItem {
   included: boolean
 }
 
+/** 추가 CAPEX 항목 (일회성). 단위: 대당 or 단지당. */
+export interface CapexItem {
+  id: string
+  label: string
+  /** 금액 (원) */
+  amount: number
+  /** 'unit'=원/대(대수 곱), 'site'=원/단지(1회) */
+  unit: 'unit' | 'site'
+  included: boolean
+}
+
 export interface FeasibilityInputs {
   /** 계약년수 (1~5) */
   years: number
@@ -73,6 +84,8 @@ export interface FeasibilityInputs {
   opex: OpexItem[]
   /** 추가 대당 월 운영비 항목 (사용자 추가) */
   opexExtra: OpexItem[]
+  /** 추가 CAPEX 항목 (사용자 추가, 일회성) */
+  capexExtra?: CapexItem[]
 }
 
 // 고정 상수
@@ -223,6 +236,8 @@ export interface FeasibilityResult {
   opsCost: number
   bizCost: number
   capex: number
+  /** 추가 CAPEX 합계 (부호 양수, 표시용) */
+  capexExtra: number
   operatingProfit: number
   margin: number
   targetMargin: number
@@ -362,7 +377,11 @@ export function computeFeasibility(
   const grossProfit = revenue + pgFee + elecCost + standbyCost
   const opsCost = -total * opexPerUnit * 3 * 4 * Math.min(inp.years, MAX_YEARS)
   const bizCost = -total * inp.bizFeePerUnit * convFactor
-  const capex = -(total * inp.mojaBunri + inp.miniPc)
+  // 추가 CAPEX 항목: 단위(대당/단지당) 반영해 합산.
+  const capexExtra = (inp.capexExtra ?? [])
+    .filter((c) => c.included)
+    .reduce((a, c) => a + c.amount * (c.unit === 'site' ? 1 : total), 0)
+  const capex = -(total * inp.mojaBunri + inp.miniPc + capexExtra)
   const operatingProfit = grossProfit + opsCost + bizCost + capex
   const margin = revenue !== 0 ? operatingProfit / revenue : 0
 
@@ -437,6 +456,7 @@ export function computeFeasibility(
     opsCost,
     bizCost,
     capex,
+    capexExtra,
     operatingProfit,
     margin,
     targetMargin,
