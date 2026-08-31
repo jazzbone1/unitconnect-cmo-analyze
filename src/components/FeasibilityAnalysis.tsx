@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { usePersistentState } from '../lib/persist'
+import NumberInput from './NumberInput'
 import type { SettlementConfig } from '../lib/settlement'
 import {
   computeFeasibility,
@@ -61,16 +62,20 @@ function DecimalInput({
 }) {
   const [focused, setFocused] = useState(false)
   const [text, setText] = useState('')
-  const modelText = Number.isFinite(value) && value !== 0 ? String(value) : ''
+  const has = Number.isFinite(value) && value !== 0
+  const rawText = has ? String(value) : ''
+  const shownText = has
+    ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    : ''
   return (
     <input
       className={className}
       type="text"
       inputMode="decimal"
       placeholder={placeholder}
-      value={focused ? text : modelText}
+      value={focused ? text : shownText}
       onFocus={() => {
-        setText(modelText)
+        setText(rawText)
         setFocused(true)
       }}
       onBlur={() => setFocused(false)}
@@ -103,16 +108,18 @@ function NullableIntInput({
 }) {
   const [focused, setFocused] = useState(false)
   const [text, setText] = useState('')
-  const modelText = value == null ? '' : String(value)
+  const rawText = value == null ? '' : String(value)
+  const shownText =
+    value == null ? '' : value.toLocaleString(undefined, { maximumFractionDigits: 2 })
   return (
     <input
       className={className}
       type="text"
       inputMode="numeric"
       placeholder={placeholder}
-      value={focused ? text : modelText}
+      value={focused ? text : shownText}
       onFocus={() => {
-        setText(modelText)
+        setText(rawText)
         setFocused(true)
       }}
       onBlur={() => setFocused(false)}
@@ -1315,14 +1322,11 @@ export default function FeasibilityAnalysis({
                         />
                       </td>
                       <td>
-                        <input
+                        <NumberInput
                           className="cell-input"
-                          type="number"
-                          min={0}
-                          value={Math.round(c.amount) || ''}
-                          onChange={(e) =>
-                            patchAt({ amount: Number(e.target.value) || 0 })
-                          }
+                          value={Math.round(c.amount)}
+                          onValue={(n) => patchAt({ amount: n })}
+                          maxFractionDigits={0}
                         />
                       </td>
                       <td>
@@ -1425,14 +1429,13 @@ export default function FeasibilityAnalysis({
                     <span className="opex-label-static">{o.label}</span>
                   </td>
                   <td>
-                    <input
+                    <NumberInput
                       className="cell-input"
-                      type="number"
-                      min={0}
-                      value={Math.round(o.monthly) || ''}
-                      onChange={(e) => {
+                      value={Math.round(o.monthly)}
+                      maxFractionDigits={0}
+                      onValue={(n) => {
                         const opex = inputs.opex.map((x, j) =>
-                          j === i ? { ...x, monthly: Number(e.target.value) || 0 } : x,
+                          j === i ? { ...x, monthly: n } : x,
                         )
                         set({ opex })
                       }}
@@ -1494,14 +1497,13 @@ export default function FeasibilityAnalysis({
                     />
                   </td>
                   <td>
-                    <input
+                    <NumberInput
                       className="cell-input"
-                      type="number"
-                      min={0}
-                      value={Math.round(o.monthly) || ''}
-                      onChange={(e) => {
+                      value={Math.round(o.monthly)}
+                      maxFractionDigits={0}
+                      onValue={(n) => {
                         const opexExtra = inputs.opexExtra.map((x, j) =>
-                          j === i ? { ...x, monthly: Number(e.target.value) || 0 } : x,
+                          j === i ? { ...x, monthly: n } : x,
                         )
                         set({ opexExtra })
                       }}

@@ -3,6 +3,7 @@ import type { ChargerType, SettlementConfig } from '../lib/settlement'
 import type { PreInstalledCharger } from '../lib/sites'
 import { parseBuildingPdf } from '../lib/buildingRegister'
 import Dropzone from './Dropzone'
+import NumberInput from './NumberInput'
 
 export interface SiteInfo {
   name: string
@@ -143,40 +144,33 @@ export default function SiteConfigForm({
         </label>
         <label className="var-field">
           <span className="var-field__label">세대수</span>
-          <input
+          <NumberInput
             className="var-field__input"
-            type="number"
-            min={0}
-            value={site.households || ''}
+            maxFractionDigits={0}
+            value={site.households}
             placeholder="0"
-            onChange={(e) =>
-              setSite({ ...site, households: Number(e.target.value) || 0 })
-            }
+            onValue={(n) => setSite({ ...site, households: n })}
           />
         </label>
         <label className="var-field">
           <span className="var-field__label">총 주차면 수</span>
-          <input
+          <NumberInput
             className="var-field__input"
-            type="number"
-            min={0}
-            value={site.parking || ''}
+            maxFractionDigits={0}
+            value={site.parking}
             placeholder="0"
-            onChange={(e) =>
-              setSite({ ...site, parking: Number(e.target.value) || 0 })
-            }
+            onValue={(n) => setSite({ ...site, parking: n })}
           />
         </label>
         {setEvCount && (
           <label className="var-field">
             <span className="var-field__label">EV 등록 대수</span>
-            <input
+            <NumberInput
               className="var-field__input"
-              type="number"
-              min={0}
-              value={evCount || ''}
+              maxFractionDigits={0}
+              value={evCount}
               placeholder="0"
-              onChange={(e) => setEvCount(Number(e.target.value) || 0)}
+              onValue={(n) => setEvCount(n)}
             />
           </label>
         )}
@@ -214,27 +208,21 @@ export default function SiteConfigForm({
               <tr key={c.id}>
                 <td className="col-name">{c.name}</td>
                 <td>
-                  <input
+                  <NumberInput
                     className="cell-input"
-                    type="number"
-                    min={0}
+                    maxFractionDigits={0}
                     placeholder="0"
-                    value={c.count || ''}
-                    onChange={(e) =>
-                      updateCharger(c.id, { count: Number(e.target.value) || 0 })
-                    }
+                    value={c.count}
+                    onValue={(n) => updateCharger(c.id, { count: n })}
                   />
                 </td>
                 <td>
-                  <input
+                  <NumberInput
                     className="cell-input"
-                    type="number"
-                    min={0}
+                    maxFractionDigits={0}
                     placeholder="0"
-                    value={c.rate || ''}
-                    onChange={(e) =>
-                      updateCharger(c.id, { rate: Number(e.target.value) || 0 })
-                    }
+                    value={c.rate}
+                    onValue={(n) => updateCharger(c.id, { rate: n })}
                   />
                 </td>
                 <td className="sep-cell">
@@ -280,17 +268,12 @@ export default function SiteConfigForm({
                     <tr key={`pre-${c.id}`}>
                       <td className="col-name">{c.name}</td>
                       <td>
-                        <input
+                        <NumberInput
                           className="cell-input"
-                          type="number"
-                          min={0}
+                          maxFractionDigits={0}
                           placeholder="0"
-                          value={pre?.count || ''}
-                          onChange={(e) =>
-                            updatePre(c.kw, {
-                              count: Number(e.target.value) || 0,
-                            })
-                          }
+                          value={pre?.count ?? 0}
+                          onValue={(n) => updatePre(c.kw, { count: n })}
                         />
                       </td>
                       <td>
@@ -320,14 +303,11 @@ export default function SiteConfigForm({
       <div className="var-actions">
         <label className="hours-field">
           월 가동시간(시간)
-          <input
+          <NumberInput
             className="cell-input"
-            type="number"
-            min={1}
+            maxFractionDigits={0}
             value={config.hours}
-            onChange={(e) =>
-              setConfig({ ...config, hours: Number(e.target.value) || 0 })
-            }
+            onValue={(n) => setConfig({ ...config, hours: n })}
           />
         </label>
         <button type="button" className="link-button" onClick={onReset}>

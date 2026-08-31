@@ -1,4 +1,5 @@
 import type { ChargerType } from '../lib/settlement'
+import NumberInput from './NumberInput'
 import {
   computeStandby,
   DEFAULT_STANDBY_W,
@@ -50,16 +51,15 @@ export default function StandbyAnalysis({
           <label className="var-field">
             <span className="var-field__label">적용 전기단가</span>
             <span className="var-field__input">
-              <input
+              <NumberInput
                 className="cell-input"
-                type="number"
+                maxFractionDigits={2}
                 placeholder={effCost.toFixed(2)}
-                value={inputs.elecCostOverride ?? ''}
-                onChange={(e) =>
+                value={inputs.elecCostOverride ?? 0}
+                onValue={(n) =>
                   setInputs({
                     ...inputs,
-                    elecCostOverride:
-                      e.target.value === '' ? null : Number(e.target.value),
+                    elecCostOverride: n === 0 ? null : n,
                   })
                 }
               />
@@ -108,12 +108,11 @@ export default function StandbyAnalysis({
                 <td className="col-name">{row.name}</td>
                 <td>{row.count.toLocaleString()}</td>
                 <td>
-                  <input
+                  <NumberInput
                     className="cell-input"
-                    type="number"
-                    style={{ width: 80 }}
+                    maxFractionDigits={2}
                     value={inputs.watt[row.id] ?? DEFAULT_STANDBY_W[row.id] ?? 0}
-                    onChange={(e) => setWatt(row.id, Number(e.target.value) || 0)}
+                    onValue={(n) => setWatt(row.id, n)}
                   />
                 </td>
                 <td>{formatNumber(row.monthlyKwh)}</td>

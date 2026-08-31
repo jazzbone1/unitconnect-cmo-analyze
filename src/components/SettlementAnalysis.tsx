@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import NumberInput from './NumberInput'
 import { usePersistentState } from '../lib/persist'
 import type { FileEntry, Period } from '../types'
 import {
@@ -240,12 +241,11 @@ function ComparisonSection({
                         key={`u-${c.id}`}
                         className={`type-col${ci === 0 ? ' group-start' : ''}`}
                       >
-                        <input
+                        <NumberInput
                           className={`cell-input cell-input--usage${
                             isManual ? ' cell-input--linked' : ''
                           }`}
-                          type="number"
-                          title="직접 입력 시 자동/추정값을 덮어씁니다"
+                          maxFractionDigits={0}
                           placeholder={
                             m.splitMode === 'none'
                               ? '직접 입력'
@@ -253,16 +253,8 @@ function ComparisonSection({
                                   Math.round(typeById.get(c.id)?.usage ?? 0),
                                 )
                           }
-                          value={isManual ? manualV : ''}
-                          onChange={(e) =>
-                            onManual(
-                              m.id,
-                              c.id,
-                              e.target.value === ''
-                                ? null
-                                : Number(e.target.value),
-                            )
-                          }
+                          value={isManual ? manualV : 0}
+                          onValue={(n) => onManual(m.id, c.id, n === 0 ? null : n)}
                         />
                       </td>
                     )
@@ -389,16 +381,11 @@ export default function SettlementAnalysis({
             ).map(([label, key]) => (
               <label key={key} className="kwh-profile__field">
                 <span>{label}</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.1}
+                <NumberInput
+                  maxFractionDigits={2}
                   value={kwhProfile[key]}
-                  onChange={(e) =>
-                    setKwhProfile({
-                      ...kwhProfile,
-                      [key]: Number(e.target.value) || 0,
-                    })
+                  onValue={(n) =>
+                    setKwhProfile({ ...kwhProfile, [key]: n })
                   }
                 />
               </label>

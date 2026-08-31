@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import NumberInput from './NumberInput'
 import {
   computeTariff,
   computeBill,
@@ -33,16 +34,20 @@ function NumField({
   onChange: (v: number) => void
   step?: number
 }) {
+  // step 소수 자릿수를 콤마 표시 소수 자릿수로 사용(최소 2, 최대 6)
+  const frac =
+    step && step < 1
+      ? Math.min(6, Math.max(2, (String(step).split('.')[1] || '').length))
+      : 2
   return (
     <label className="var-field">
       <span className="var-field__label">{label}</span>
       <span className="var-field__input">
-        <input
+        <NumberInput
           className="cell-input"
-          type="number"
-          step={step}
-          value={Number.isFinite(value) ? value : ''}
-          onChange={(e) => onChange(Number(e.target.value) || 0)}
+          maxFractionDigits={frac}
+          value={Number.isFinite(value) ? value : 0}
+          onValue={(n) => onChange(n)}
         />
         {unit && <span className="var-field__unit">{unit}</span>}
       </span>
@@ -280,13 +285,11 @@ export default function TariffAnalysis({
           <label className="var-field">
             <span className="var-field__label">월 총 충전량</span>
             <span className="var-field__input">
-              <input
+              <NumberInput
                 className="cell-input"
-                type="number"
-                value={Number.isFinite(inputs.monthlyKwh) ? inputs.monthlyKwh : ''}
-                onChange={(e) =>
-                  set({ monthlyKwhOverride: Number(e.target.value) || 0 })
-                }
+                maxFractionDigits={0}
+                value={Number.isFinite(inputs.monthlyKwh) ? inputs.monthlyKwh : 0}
+                onValue={(n) => set({ monthlyKwhOverride: n })}
               />
               <span className="var-field__unit">kWh/월</span>
             </span>
@@ -584,16 +587,15 @@ export default function TariffAnalysis({
                   <td className="col-name">{p.name}</td>
                   <td>{formatNumber(p.weighted)}</td>
                   <td>
-                    <input
+                    <NumberInput
                       className="cell-input"
-                      type="number"
-                      style={{ width: 80 }}
+                      maxFractionDigits={2}
                       value={inputs.baseUnitByPlan?.[p.id] ?? inputs.baseUnitPrice}
-                      onChange={(e) =>
+                      onValue={(n) =>
                         set({
                           baseUnitByPlan: {
                             ...(inputs.baseUnitByPlan ?? {}),
-                            [p.id]: Number(e.target.value) || 0,
+                            [p.id]: n,
                           },
                         })
                       }
