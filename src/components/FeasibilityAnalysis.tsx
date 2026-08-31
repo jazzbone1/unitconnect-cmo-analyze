@@ -1200,38 +1200,77 @@ export default function FeasibilityAnalysis({
         </div>
 
         <div className="subsection">
-          <h4 className="summary-block__title">영업비 · CAPEX</h4>
-          <div className="var-row">
-            <label className="var-field">
-              <span className="var-field__label">
-                영업비 1대분 단가
-                <span className="var-field__unit">원/대</span>
-              </span>
-              <DecimalInput
-                className="var-field__input"
-                value={appliedBizFee}
-                onValue={(n) => set({ bizFeeOverride: n })}
-              />
-              <span className="var-field__std">
-                {hasBizFeeOverride ? (
-                  <>
-                    프로젝트 개별값 적용 중 ·{' '}
-                    <button
-                      type="button"
-                      className="btn-link"
-                      onClick={() => set({ bizFeeOverride: null })}
-                    >
-                      기준표({formatNumber(standardBizFee)}원)로 되돌리기
-                    </button>
-                  </>
-                ) : (
-                  `기준표(계약 ${Math.round(inputs.years)}년) ${formatNumber(standardBizFee)}원 일괄 적용`
-                )}
-              </span>
-            </label>
-            <Field label="모자분리" unit="원/대" value={inputs.mojaBunri} onChange={(v) => set({ mojaBunri: v })} standard={`${formatNumber(STD.mojaBunri)}원`} />
-            <Field label="미니PC" unit="원/단지" value={inputs.miniPc} onChange={(v) => set({ miniPc: v })} standard={`${formatNumber(STD.miniPc)}원`} />
+          <h4 className="summary-block__title">영업비 · CAPEX (기본)</h4>
+          <div className="table-scroll">
+            <table className="data-table opex-table">
+              <colgroup>
+                <col />
+                <col className="opex-col-cost" />
+                <col className="opex-col-cost" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>항목</th>
+                  <th>금액(원)</th>
+                  <th>단위</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="col-name">영업비 1대분</td>
+                  <td>
+                    <DecimalInput
+                      className="cell-input"
+                      value={appliedBizFee}
+                      onValue={(n) => set({ bizFeeOverride: n })}
+                    />
+                  </td>
+                  <td>원/대</td>
+                </tr>
+                <tr>
+                  <td className="col-name">모자분리</td>
+                  <td>
+                    <DecimalInput
+                      className="cell-input"
+                      value={inputs.mojaBunri}
+                      onValue={(v) => set({ mojaBunri: v })}
+                    />
+                  </td>
+                  <td>원/대</td>
+                </tr>
+                <tr>
+                  <td className="col-name">미니PC</td>
+                  <td>
+                    <DecimalInput
+                      className="cell-input"
+                      value={inputs.miniPc}
+                      onValue={(v) => set({ miniPc: v })}
+                    />
+                  </td>
+                  <td>원/단지</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+          <p className="var-field__std" style={{ marginTop: '0.4rem' }}>
+            영업비 1대분:{' '}
+            {hasBizFeeOverride ? (
+              <>
+                프로젝트 개별값 적용 중 ·{' '}
+                <button
+                  type="button"
+                  className="btn-link"
+                  onClick={() => set({ bizFeeOverride: null })}
+                >
+                  기준표({formatNumber(standardBizFee)}원)로 되돌리기
+                </button>
+              </>
+            ) : (
+              `기준표(계약 ${Math.round(inputs.years)}년) ${formatNumber(standardBizFee)}원 일괄 적용`
+            )}
+            {' · '}모자분리 UC 기준 {formatNumber(STD.mojaBunri)}원 · 미니PC UC
+            기준 {formatNumber(STD.miniPc)}원
+          </p>
 
           <h4 className="summary-block__title" style={{ marginTop: '1rem' }}>
             추가 CAPEX{' '}
