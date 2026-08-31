@@ -2428,8 +2428,9 @@ export default function ProjectsView({
   const [filterApproval, setFilterApproval] = useState('')
   const [filterSales, setFilterSales] = useState('')
   const [filterSlot, setFilterSlot] = useState('')
-  const [sortKey, setSortKey] = useState<string>('name')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // 기본 정렬: 생성 순서 최신순(배열 뒤쪽=최근 생성 → 위로).
+  const [sortKey, setSortKey] = useState<string>('created')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const selected = projects.find((p) => p.id === selectedId) ?? null
 
@@ -2503,7 +2504,17 @@ export default function ProjectsView({
     return matchQ && matchApproval && matchSales && matchSlot
   })
 
+  // 생성 순서 인덱스(배열 순서 = 만든 순서).
+  const orderIndex = useMemo(() => {
+    const m = new Map<string, number>()
+    projects.forEach((p, i) => m.set(p.id, i))
+    return m
+  }, [projects])
   const sorted = [...filtered].sort((a, b) => {
+    if (sortKey === 'created') {
+      const cmp = (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0)
+      return sortDir === 'asc' ? cmp : -cmp
+    }
     const va = val(a, sortKey)
     const vb = val(b, sortKey)
     let cmp: number
