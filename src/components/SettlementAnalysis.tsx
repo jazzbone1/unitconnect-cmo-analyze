@@ -375,7 +375,7 @@ export default function SettlementAnalysis({
       {anyEstimate && kwhProfile && setKwhProfile && (
         <div className="kwh-profile">
           <div className="kwh-profile__title">
-            종류별 표준 월 대당 충전량 (배분 가중치 · kWh/대·월)
+            종류별 표준 이용률 (배분 가중치 · %)
           </div>
           <div className="kwh-profile__grid">
             {(
@@ -392,7 +392,7 @@ export default function SettlementAnalysis({
                 <input
                   type="number"
                   min={0}
-                  step={10}
+                  step={0.1}
                   value={kwhProfile[key]}
                   onChange={(e) =>
                     setKwhProfile({
@@ -405,8 +405,10 @@ export default function SettlementAnalysis({
             ))}
           </div>
           <p className="kwh-profile__note">
-            단지별 실제 이용 패턴에 맞게 조정하세요. 이 값의 비중대로 총사용량이
-            종류별로 배분됩니다. (전역 저장 · 모든 프로젝트 공통, 보고서에도 반영)
+            종류별 <b>이용률(%)</b>의 비율대로 총사용량이 종류별로 배분됩니다(분배 =
+            대수 × 이용률 × 정격kW 비중). 절대값보다 <b>종류 간 비율</b>이 중요합니다.
+            단지 실제 패턴에 맞게 조정하세요. (전역 저장 · 모든 프로젝트 공통,
+            보고서 반영)
           </p>
         </div>
       )}

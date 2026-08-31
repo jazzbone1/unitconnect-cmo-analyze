@@ -67,13 +67,13 @@ import Dropzone from './Dropzone'
 import FileList from './FileList'
 
 /**
- * 종류별 표준 '월 대당 충전량(kWh)' — 정산 종류별 배분 가중치용(사업성 가정과 분리).
- *  일반적인 공동주택 충전 실적을 근거로 산정:
- *   · 완속 7kW ≈ 400 kWh/월 (전용기 업계 실측 앵커. 한국생산성본부 산정 750은 과다)
- *   · 콘센트 3kW ≈ 80 (저속: 실효 2.2~2.6kW·완충 28~33h + 의무설치용 대량설치라
- *     상당수 미사용 → 대당 실사용량이 완속보다 훨씬 낮음), 완속 3.5kW ≈ 150
- *   · 급속 50/100kW ≈ 650/850 (방문·급속 수요로 대당 에너지 큼. 단지별 편차 큼)
- *  → 콘센트:완속 대당 비율 약 1:5. 가중치 = 대수 × 이 값(정격·720h는 상수라 비중 무관).
+ * 종류별 표준 '이용률(%)' — 정산 종류별 배분 가중치용(사업성 가정과 분리).
+ *  분배는 대수 × (이용률 × 정격kW) 비율로 결정되므로, 종류별 '이용률 비율'이 핵심.
+ *  일반 공동주택 실측 방향(완속 저회전·콘센트 저이용·급속 저이용률·대에너지):
+ *   · 완속 7kW ≈ 7.9% (아파트 주력, 저회전이나 종류 중 최고)
+ *   · 완속 3.5kW ≈ 5.95%, 콘센트 3kW ≈ 3.7% (저속·저선호·의무설치 대량 → 저이용)
+ *   · 급속 50/100kW ≈ 1.8%/1.2% (세션은 짧고 잦지만 대당 가동시간 짧음)
+ *  이 기본값은 이전 kWh 프로파일(80/150/400/650/850)의 환산 이용률과 동일해 분배 동작 보존.
  */
 export interface KwhProfile {
   p100: number
@@ -82,21 +82,25 @@ export interface KwhProfile {
   p35: number
   p3: number
 }
-/** 정산 배분용 표준 월 대당 충전량 기본값(편집 가능). */
+/** 정산 배분용 표준 이용률(%) 기본값(편집 가능). */
 export const DEFAULT_KWH_PROFILE: KwhProfile = {
-  p100: 850,
-  p50: 650,
-  p7: 400,
-  p35: 150,
-  p3: 80,
+  p100: 1.18,
+  p50: 1.81,
+  p7: 7.94,
+  p35: 5.95,
+  p3: 3.7,
 }
-/** 정격(kW)에 해당하는 프로파일 값(월 대당 충전량, kWh). */
-function monthlyKwhFromProfile(kw: number, p: KwhProfile): number {
+/** 정격(kW)의 표준 이용률(%). */
+function utilPctFromProfile(kw: number, p: KwhProfile): number {
   if (kw >= 100) return p.p100
   if (kw >= 50) return p.p50
   if (kw >= 7) return p.p7
   if (kw >= 3.5) return p.p35
   return p.p3 // 3kW 콘센트
+}
+/** 정격(kW)의 월 대당 충전량(kWh) = 이용률 × 정격 × 720h. 배분 가중치용. */
+function monthlyKwhFromProfile(kw: number, p: KwhProfile): number {
+  return (utilPctFromProfile(kw, p) / 100) * kw * 720
 }
 
 /** 프로젝트 데이터로 보고서 초기값(현장 정보) 자동 기입 */
@@ -934,7 +938,7 @@ function ProjectDetail({
   )
   // 정산 종류별 배분용 표준 월 대당 충전량 프로파일(편집 가능·전역 저장).
   const [kwhProfile, setKwhProfile] = usePersistentState<KwhProfile>(
-    'settle.kwhProfile',
+    'settle.utilProfile',
     DEFAULT_KWH_PROFILE,
   )
   const [feas, setFeas] = useState<FeasibilityInputs>(
