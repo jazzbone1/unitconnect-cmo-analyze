@@ -92,6 +92,8 @@ export interface FeasibilityInputs {
   opexExtra: OpexItem[]
   /** 추가 CAPEX 항목 (사용자 추가, 일회성) */
   capexExtra?: CapexItem[]
+  /** 대출(금융비용) 설정 — 전역 공통. 미지정 시 반영 안 함. */
+  loan?: LoanInputs
 }
 
 // 고정 상수
@@ -166,6 +168,83 @@ export const STD = {
 
 /** 사업성 종류별 표준 이용률(기준값)을 관리하는 키(전역 공통·설정 탭). */
 export const STD_UTIL_KEY = 'unitconnect.ui.feasibility.utilStandard'
+
+/** 대출(금융비용) 기준을 관리하는 키(전역 공통·설정 탭). */
+export const LOAN_KEY = 'unitconnect.ui.feasibility.loan'
+/**
+ * 대출 이자(금융비용) 설정 — 모든 프로젝트 공통 상환 계획.
+ * 원금은 각 프로젝트 CAPEX 총액 × principalPct 로 산정(프로젝트별 개별 적용).
+ */
+export interface LoanInputs {
+  /** 사업성에 대출 이자 반영 여부 */
+  enabled: boolean
+  /** CAPEX 대비 대출 비율(소수, 1=100%) */
+  principalPct: number
+  /** 연차별 이자율(소수, 0.032=3.2%). 길이 MAX_YEARS(1~7년차). */
+  rateByYear: number[]
+  /** 상환 시점(해당 연차 '말'에 상환). 기본 3년차 */
+  repayYear: number
+  /** 상환율(소수, 0.25=25%). 상환 시점 이후 잔금 = 원금 × (1 − 상환율) */
+  repayPct: number
+}
+/** 대출 기본값 — 연 3.2%, 3년차 말 25% 상환, 이후 잔금 재산정(초기값 동일 3.2%). */
+export function defaultLoan(): LoanInputs {
+  return {
+    enabled: false,
+    principalPct: 1,
+    rateByYear: Array.from({ length: MAX_YEARS }, () => 0.032),
+    repayYear: 3,
+    repayPct: 0.25,
+  }
+}
+/** 관리 중인 대출 설정 로드(설정 탭 저장 → localStorage 미러). 없으면 기본값. */
+export function loadLoan(): LoanInputs {
+  const base = defaultLoan()
+  try {
+    const raw =
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(LOAN_KEY)
+        : null
+    const o = raw ? JSON.parse(raw) : null
+    if (o && typeof o === 'object') {
+      const d = o as Partial<LoanInputs>
+      if (typeof d.enabled === 'boolean') base.enabled = d.enabled
+      if (Number.isFinite(Number(d.principalPct)))
+        base.principalPct = Number(d.principalPct)
+      if (Array.isArray(d.rateByYear))
+        base.rateByYear = base.rateByYear.map((v, i) =>
+          Number.isFinite(Number(d.rateByYear![i])) ? Number(d.rateByYear![i]) : v,
+        )
+      if (Number.isFinite(Number(d.repayYear)))
+        base.repayYear = Number(d.repayYear)
+      if (Number.isFinite(Number(d.repayPct))) base.repayPct = Number(d.repayPct)
+    }
+  } catch {
+    /* 무시 → 기본값 */
+  }
+  return base
+}
+/**
+ * 계약기간 전체 대출 이자 합계(원, 양수). capexAbs=CAPEX 총액(양수).
+ * 연차별: 상환 시점 이전 잔금=원금, 이후=원금×(1−상환율). 이자=잔금×연이자율.
+ */
+export function loanInterestTotal(
+  loan: LoanInputs | undefined,
+  capexAbs: number,
+  years: number,
+): number {
+  if (!loan || !loan.enabled) return 0
+  const principal = Math.max(0, capexAbs) * (loan.principalPct ?? 1)
+  if (principal <= 0) return 0
+  const n = Math.max(1, Math.min(MAX_YEARS, Math.round(years)))
+  let sum = 0
+  for (let y = 1; y <= n; y++) {
+    const bal =
+      y > (loan.repayYear ?? 3) ? principal * (1 - (loan.repayPct ?? 0)) : principal
+    sum += bal * (loan.rateByYear[y - 1] ?? 0)
+  }
+  return sum
+}
 /** 표준 이용률 기준값의 종류 키(소수=fraction, 0.07=7%). */
 export type StdUtil = {
   utilFast100: number
@@ -289,6 +368,8 @@ export interface FeasibilityResult {
   capex: number
   /** 추가 CAPEX 합계 (부호 양수, 표시용) */
   capexExtra: number
+  /** 대출 이자(금융비용) 계약기간 합계 (부호 음수). 대출 미반영 시 0 */
+  loanInterest: number
   operatingProfit: number
   margin: number
   targetMargin: number
@@ -445,7 +526,9 @@ export function computeFeasibility(
     .filter((c) => c.included)
     .reduce((a, c) => a + c.amount * (c.unit === 'site' ? 1 : total), 0)
   const capex = -(total * inp.mojaBunri + inp.miniPc + capexExtra)
-  const operatingProfit = grossProfit + opsCost + bizCost + capex
+  // 대출 이자(금융비용): 원금=CAPEX 총액×대출비율, 상환 계획대로 계약기간 합계.
+  const loanInterest = -loanInterestTotal(inp.loan, -capex, inp.years)
+  const operatingProfit = grossProfit + opsCost + bizCost + capex + loanInterest
   const margin = revenue !== 0 ? operatingProfit / revenue : 0
 
   const yIdx = Math.max(1, Math.min(MAX_YEARS, Math.round(inp.years))) - 1
@@ -471,7 +554,14 @@ export function computeFeasibility(
   }
 
   // 목표 달성 충전단가
-  const fixedCosts = -(elecCost + standbyCost + opsCost + bizCost + capex)
+  const fixedCosts = -(
+    elecCost +
+    standbyCost +
+    opsCost +
+    bizCost +
+    capex +
+    loanInterest
+  )
   const targetRate = (() => {
     const denom = 12 * sumW * (1 - PG_RATE - targetMargin)
     return denom <= 0 ? null : (fixedCosts / denom) * 1.1
@@ -520,6 +610,7 @@ export function computeFeasibility(
     bizCost,
     capex,
     capexExtra,
+    loanInterest,
     operatingProfit,
     margin,
     targetMargin,

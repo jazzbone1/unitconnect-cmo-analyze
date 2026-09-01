@@ -169,6 +169,8 @@ export interface AppSettings {
   bizFeeByYear?: number[]
   /** 사업성 종류별 표준 이용률 기준값(소수=fraction). */
   feasUtil?: Record<string, number>
+  /** 대출(금융비용) 기준 — 전역 공통 상환 계획. */
+  loan?: Record<string, unknown>
 }
 
 function parseSettings(d: unknown): AppSettings {
@@ -184,6 +186,8 @@ function parseSettings(d: unknown): AppSettings {
     out.bizFeeByYear = (o.bizFeeByYear as unknown[]).map((v) => Number(v) || 0)
   if (o.feasUtil && typeof o.feasUtil === 'object')
     out.feasUtil = o.feasUtil as Record<string, number>
+  if (o.loan && typeof o.loan === 'object')
+    out.loan = o.loan as Record<string, unknown>
   return out
 }
 

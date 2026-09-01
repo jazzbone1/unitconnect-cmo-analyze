@@ -474,6 +474,9 @@ export default function FeasibilityAnalysis({
     { label: '(−) 현장 운영비', value: r.opsCost, minus: true },
     { label: '(−) 영업비 (총)', value: r.bizCost, minus: true },
     { label: '(−) CAPEX', value: r.capex, minus: true },
+    ...(r.loanInterest !== 0
+      ? [{ label: '(−) 금융비용 (대출이자)', value: r.loanInterest, minus: true }]
+      : []),
     { label: '영업이익', value: r.operatingProfit, strong: true },
   ]
 
@@ -532,6 +535,7 @@ export default function FeasibilityAnalysis({
             현장운영비: Math.round(r.opsCost),
             영업비: Math.round(r.bizCost),
             CAPEX: Math.round(r.capex),
+            금융비용_대출이자: Math.round(r.loanInterest),
           },
           충전기종류별: chargerRows
             .filter((row) => countOf(row.kw) > 0)

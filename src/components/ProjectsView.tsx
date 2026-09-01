@@ -30,6 +30,7 @@ import {
   DEFAULT_INPUTS,
   computeFeasibility,
   defaultBizFee,
+  loadLoan,
   ELEC_COST,
   MAX_YEARS,
   PG_RATE,
@@ -539,6 +540,8 @@ function projectFeasFull(
   if (totalCount === 0) return null
   // 설치 예정 충전기 이용률 분산 계수(전역 프로파일 기준)
   const share = utilShareFactor(chargers, p.plannedInstall, loadUtilProfile())
+  // 전역 대출(금융비용) 설정 — 프로젝트 CAPEX 기준 개별 적용
+  const loan = loadLoan()
   const countOf = (kw: number) => chargers.find((c) => c.kw === kw)?.count ?? 0
   const installedKw = chargers.reduce((a, c) => a + c.kw * c.count, 0)
   const utilOf = (kw: number): number => {
@@ -659,6 +662,7 @@ function projectFeasFull(
     ...f,
     years,
     utilShareFactor: share,
+    loan,
     countFast100: countOf(100),
     countFast50: countOf(50),
     countSlow7: countOf(7),
@@ -682,6 +686,18 @@ function projectFeasFull(
   //  투자액 = CAPEX + 영업비(총). 연간 영업현금흐름(매출총이익 − 현장운영비) 누적 도달 시점.
   const opsPerYear = r.opsCost / years
   const standbyPerYear = r.standbyCost / years
+  // 대출 이자(연차별) — 상환 시점 이후 잔금 기준. 회수 현금흐름에서 차감.
+  const loanPrincipal =
+    loan.enabled ? Math.max(0, -r.capex) * (loan.principalPct ?? 1) : 0
+  const interestOfYear = (y0: number) => {
+    if (loanPrincipal <= 0) return 0
+    const yr = y0 + 1
+    const bal =
+      yr > (loan.repayYear ?? 3)
+        ? loanPrincipal * (1 - (loan.repayPct ?? 0))
+        : loanPrincipal
+    return bal * (loan.rateByYear[yr - 1] ?? 0)
+  }
   const cfByYear = Array.from({ length: years }, (_, y) => {
     const W = r.yearlyW[y] ?? 0
     const rev = 12 * r.rateExVat * W
@@ -689,7 +705,7 @@ function projectFeasFull(
     const eu = elecByYear && elecByYear[y] != null ? elecByYear[y] : effElecCost
     const elecCharge = -12 * eu * W
     const gross = rev + pg + elecCharge + standbyPerYear
-    return gross + opsPerYear
+    return gross + opsPerYear - interestOfYear(y)
   })
   const investment = -(r.capex + r.bizCost)
   let paybackText = '회수 불가'
@@ -2109,6 +2125,11 @@ function ProjectDetail({
                     ['(−) 현장 운영비', 'opsCost', true, false],
                     ['(−) 영업비 (총)', 'bizCost', true, false],
                     ['(−) CAPEX', 'capex', true, false],
+                    ...(summaryByYear.some(
+                      ({ full }) => full && full.r.loanInterest !== 0,
+                    )
+                      ? [['(−) 금융비용 (대출이자)', 'loanInterest', true, false]]
+                      : []),
                     ['영업이익', 'operatingProfit', false, true],
                   ] as [
                     string,
@@ -2418,8 +2439,10 @@ function ProjectDetail({
         <ApartmentBillAnalysis inputs={aptBill} setInputs={setAptBill} />
       ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis
-          inputs={{ ...feas, utilShareFactor: utilShare }}
-          setInputs={(next) => setFeas({ ...next, utilShareFactor: undefined })}
+          inputs={{ ...feas, utilShareFactor: utilShare, loan: loadLoan() }}
+          setInputs={(next) =>
+            setFeas({ ...next, utilShareFactor: undefined, loan: undefined })
+          }
           config={config}
           setConfig={setConfig}
           standbyMonthlyKwhSeparated={computeStandby(

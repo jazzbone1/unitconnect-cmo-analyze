@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePersistentState } from '../lib/persist'
 import {
   PROFIT_STANDARD,
+  MAX_YEARS,
   defaultStdUtil,
+  defaultLoan,
   type StdUtil,
+  type LoanInputs,
 } from '../lib/feasibility'
 import { formatNumber } from '../lib/stats'
 import NumberInput from './NumberInput'
@@ -153,6 +156,119 @@ function UtilStandardTable() {
   )
 }
 
+/** 대출 이자(금융비용) 기준 — 전역 공통 상환 계획. 원금은 각 프로젝트 CAPEX 기준. */
+function LoanStandardPanel() {
+  const [loan, setLoan] = usePersistentState<LoanInputs>(
+    'feasibility.loan',
+    defaultLoan(),
+  )
+  const commit = (next: LoanInputs) => {
+    setLoan(next)
+    void ssoSaveSettings({
+      loan: next as unknown as Record<string, unknown>,
+    }).catch(() => {})
+  }
+  const rate = loan.rateByYear ?? []
+  const setRate = (i: number, pct: number) => {
+    const next = Array.from(
+      { length: MAX_YEARS },
+      (_, k) => rate[k] ?? 0.032,
+    )
+    next[i] = pct / 100
+    commit({ ...loan, rateByYear: next })
+  }
+  return (
+    <section className="card">
+      <div className="settings-sec__head">
+        <h2>대출 이자 (금융비용) 기준</h2>
+        <button
+          type="button"
+          className="btn-link"
+          onClick={() => commit(defaultLoan())}
+        >
+          기본값 복원
+        </button>
+      </div>
+      <p className="settings-sec__desc">
+        모든 프로젝트 공통 <b>상환 계획</b>입니다. 대출 <b>원금 = 각 프로젝트 CAPEX
+        총액 × 대출 비율</b>로 자동 산정되어, 프로젝트별로 이자가 개별 계산됩니다.
+        <b>이자만</b> 사업성(금융비용)에 반영되고 원금 상환은 비용에 넣지 않습니다.
+      </p>
+      <label className="loan-toggle">
+        <input
+          type="checkbox"
+          checked={!!loan.enabled}
+          onChange={(e) => commit({ ...loan, enabled: e.target.checked })}
+        />
+        <span>
+          사업성에 <b>대출 이자 반영</b> {loan.enabled ? '(켜짐)' : '(꺼짐)'}
+        </span>
+      </label>
+      <div className="site-grid" style={{ marginTop: 12 }}>
+        <label className="var-field">
+          <span className="var-field__label">CAPEX 대비 대출 비율(%)</span>
+          <NumberInput
+            className="var-field__input"
+            maxFractionDigits={1}
+            value={+(((loan.principalPct ?? 1) * 100).toFixed(2))}
+            onValue={(n) => commit({ ...loan, principalPct: n / 100 })}
+          />
+        </label>
+        <label className="var-field">
+          <span className="var-field__label">상환 시점(년차 말)</span>
+          <NumberInput
+            className="var-field__input"
+            maxFractionDigits={0}
+            value={loan.repayYear ?? 3}
+            onValue={(n) => commit({ ...loan, repayYear: Math.round(n) })}
+          />
+        </label>
+        <label className="var-field">
+          <span className="var-field__label">상환율(%)</span>
+          <NumberInput
+            className="var-field__input"
+            maxFractionDigits={1}
+            value={+(((loan.repayPct ?? 0) * 100).toFixed(2))}
+            onValue={(n) => commit({ ...loan, repayPct: n / 100 })}
+          />
+        </label>
+      </div>
+      <div className="table-scroll" style={{ marginTop: 12 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>연차</th>
+              <th className="proj-num">연 이자율(%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: MAX_YEARS }, (_, i) => (
+              <tr key={i}>
+                <td className="col-name">
+                  {i + 1}년차
+                  {i + 1 > (loan.repayYear ?? 3) ? ' (상환 후 잔금)' : ''}
+                </td>
+                <td>
+                  <NumberInput
+                    className="cell-input"
+                    maxFractionDigits={2}
+                    value={+(((rate[i] ?? 0.032) * 100).toFixed(4))}
+                    onValue={(n) => setRate(i, n)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="settings-sec__desc">
+        예: 1~3년차 3.2% · 3년차 말 25% 상환 · 4년차부터 잔금(75%)에 재산정 이자율 적용.
+        계약기간이 상환 시점보다 짧으면 상환/재산정은 자연히 적용되지 않습니다.
+      </p>
+    </section>
+  )
+}
+
 /** 기본안 담당자(전체 공통) 관리 — 여기 지정된 계정만 모든 프로젝트의 기본안을 수정. */
 function BaseManagersManager({ accounts }: { accounts: SsoAccount[] }) {
   const [managers, setManagers] = useState<SsoAccount[]>([])
@@ -268,6 +384,7 @@ export default function SettingsView() {
       <BaseManagersManager accounts={accounts} />
       <BizStandardTable />
       <UtilStandardTable />
+      <LoanStandardPanel />
     </div>
   )
 }

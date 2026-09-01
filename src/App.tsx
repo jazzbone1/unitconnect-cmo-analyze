@@ -18,7 +18,7 @@ import { parseUploadedFiles } from './lib/ingest'
 import { newSiteId, type SavedSite } from './lib/sites'
 import { getStore } from './lib/store'
 import { ssoGetSettings } from './lib/sso'
-import { STD_UTIL_KEY } from './lib/feasibility'
+import { STD_UTIL_KEY, LOAN_KEY } from './lib/feasibility'
 import type { AggKind, FileEntry } from './types'
 
 // 전역(모든 사용자 공통) 설정을 담는 localStorage 키. 서버 값을 이 키로 미러링해
@@ -27,7 +27,7 @@ const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
 const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-31'
+const BUILD_TAG = 'v2026.08.26-32'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -154,6 +154,8 @@ export default function App() {
             localStorage.setItem(LS_BIZ_FEE, JSON.stringify(s.bizFeeByYear))
           if (s.feasUtil && Object.keys(s.feasUtil).length)
             localStorage.setItem(STD_UTIL_KEY, JSON.stringify(s.feasUtil))
+          if (s.loan && Object.keys(s.loan).length)
+            localStorage.setItem(LOAN_KEY, JSON.stringify(s.loan))
         } catch {
           /* 저장 실패 무시 */
         }
