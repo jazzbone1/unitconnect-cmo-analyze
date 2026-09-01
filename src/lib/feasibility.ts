@@ -37,6 +37,12 @@ export interface FeasibilityInputs {
   utilSlow7: number
   utilSlow35: number
   utilSlow3: number
+  /**
+   * 이용률 분산 계수(0~1). 설치 예정 충전기가 있으면 전체 수요를
+   * (위차 적용 + 설치 예정) 충전기가 나눠 가지므로, 위차 적용 충전기의
+   * 대당 이용률이 이 계수만큼 희석된다. 미지정 시 1(희석 없음).
+   */
+  utilShareFactor?: number
   // 종류별 대수
   countFast100: number
   countFast50: number
@@ -267,6 +273,17 @@ export function computeFeasibility(
   const c100 = inp.countFast100 ?? 0
   const total =
     c100 + inp.countFast50 + inp.countSlow7 + inp.countSlow35 + inp.countSlow3
+  // 이용률 분산 계수: 설치 예정 충전기로 인한 대당 이용률 희석(0~1, 기본 1)
+  const share =
+    Number.isFinite(inp.utilShareFactor) && (inp.utilShareFactor as number) > 0
+      ? (inp.utilShareFactor as number)
+      : 1
+  // 희석 반영 이용률(종류별)
+  const uF100 = (inp.utilFast100 ?? 0) * share
+  const uF50 = inp.utilFast50 * share
+  const u7 = inp.utilSlow7 * share
+  const u35 = inp.utilSlow35 * share
+  const u3 = inp.utilSlow3 * share
   // 콘센트(3·3.5kW)만 대분 환산, 급속·초급속(50·100kW)은 0 대분
   const consentRatio = total > 0 ? (inp.countSlow3 + inp.countSlow35) / total : 0
   const slow7Ratio = total > 0 ? inp.countSlow7 / total : 0
@@ -278,25 +295,26 @@ export function computeFeasibility(
   const opexPerUnit = opexBasic + opexExtra
 
   // 종류별 월 기본 에너지(kWh)
-  const e100 = c100 * MAX_MONTHLY.fast100 * (inp.utilFast100 ?? 0)
-  const eFast = inp.countFast50 * MAX_MONTHLY.fast50 * inp.utilFast50
-  const e7 = inp.countSlow7 * MAX_MONTHLY.slow7 * inp.utilSlow7
-  const e35 = inp.countSlow35 * MAX_MONTHLY.slow35 * inp.utilSlow35
-  const e3 = inp.countSlow3 * MAX_MONTHLY.slow3 * inp.utilSlow3
+  const e100 = c100 * MAX_MONTHLY.fast100 * uF100
+  const eFast = inp.countFast50 * MAX_MONTHLY.fast50 * uF50
+  const e7 = inp.countSlow7 * MAX_MONTHLY.slow7 * u7
+  const e35 = inp.countSlow35 * MAX_MONTHLY.slow35 * u35
+  const e3 = inp.countSlow3 * MAX_MONTHLY.slow3 * u3
   const base = e100 + eFast + e7 + e35 + e3
 
   // 전체 이용률 (7kW 환산) = Σ(대수×이용률×정격/7) / 총대수
   const overallUtil7kw =
     total > 0
-      ? (c100 * (inp.utilFast100 ?? 0) * (100 / 7) +
-          inp.countFast50 * inp.utilFast50 * (50 / 7) +
-          inp.countSlow7 * inp.utilSlow7 +
-          inp.countSlow35 * inp.utilSlow35 * (3.5 / 7) +
-          inp.countSlow3 * inp.utilSlow3 * (3 / 7)) /
+      ? (c100 * uF100 * (100 / 7) +
+          inp.countFast50 * uF50 * (50 / 7) +
+          inp.countSlow7 * u7 +
+          inp.countSlow35 * u35 * (3.5 / 7) +
+          inp.countSlow3 * u3 * (3 / 7)) /
         total
       : 0
 
   const eff = (r: number) => (r > 0 ? r : inp.rateVat)
+  // 연차별 이용률도 동일 분산 계수 적용
   const yearUtil = [
     inp.yearUtil2,
     inp.yearUtil3,
@@ -304,7 +322,7 @@ export function computeFeasibility(
     inp.yearUtil5,
     inp.yearUtil6 ?? 0.12,
     inp.yearUtil7 ?? 0.13,
-  ]
+  ].map((u) => u * share)
   const yearlyW: number[] = []
   for (let y = 1; y <= MAX_YEARS; y++) {
     if (y > inp.years) {
@@ -317,7 +335,7 @@ export function computeFeasibility(
       //   대당 증가 에너지 = 5,040kWh × 증가분 (모든 종류 동일)
       //   → 각 종류의 자체 이용률은 증가분 × (7 ÷ 정격) %p 만큼 상승
       const yu = yearUtil[y - 2]
-      yearlyW.push(base + MAX_MONTHLY.slow7 * (yu - inp.utilSlow7) * total)
+      yearlyW.push(base + MAX_MONTHLY.slow7 * (yu - u7) * total)
     }
   }
   const sumW = yearlyW.reduce((a, w) => a + w, 0)
@@ -339,8 +357,8 @@ export function computeFeasibility(
     let et = 0
     for (let y = 1; y <= MAX_YEARS; y++) {
       if (y > inp.years) continue
-      const yu = y === 1 ? inp.utilSlow7 : yearUtil[y - 2]
-      et += t.e1 + MAX_MONTHLY.slow7 * (yu - inp.utilSlow7) * t.count
+      const yu = y === 1 ? u7 : yearUtil[y - 2]
+      et += t.e1 + MAX_MONTHLY.slow7 * (yu - u7) * t.count
     }
     sumEt += et
     sumEtRate += et * t.rate

@@ -103,6 +103,36 @@ function monthlyKwhFromProfile(kw: number, p: KwhProfile): number {
   return (utilPctFromProfile(kw, p) / 100) * kw * 720
 }
 
+/**
+ * 설치 예정 충전기로 인한 이용률 분산 계수(0~1).
+ *  = 위차 적용 가중치 ÷ (위차 적용 + 설치 예정) 가중치.
+ * 가중치 = 대수 × 종류별 표준 월 대당 충전량. 설치 예정이 없으면 1(희석 없음).
+ */
+function utilShareFactor(
+  chargers: { kw: number; count: number }[],
+  planned: { kw: number; count: number }[] | undefined,
+  profile: KwhProfile,
+): number {
+  const wOf = (kw: number, count: number) =>
+    (count || 0) * monthlyKwhFromProfile(kw, profile)
+  const wApplied = chargers.reduce((a, c) => a + wOf(c.kw, c.count), 0)
+  const wPlanned = (planned ?? []).reduce((a, p) => a + wOf(p.kw, p.count), 0)
+  const denom = wApplied + wPlanned
+  return denom > 0 ? wApplied / denom : 1
+}
+
+/** 전역 저장된 표준 이용률 프로파일 로드(없으면 기본값). 순수 함수에서 사용. */
+function loadUtilProfile(): KwhProfile {
+  try {
+    const raw = localStorage.getItem('unitconnect.ui.settle.utilProfile')
+    const p = raw ? JSON.parse(raw) : null
+    if (p && typeof p === 'object') return { ...DEFAULT_KWH_PROFILE, ...p }
+  } catch {
+    /* noop */
+  }
+  return DEFAULT_KWH_PROFILE
+}
+
 /** 프로젝트 데이터로 보고서 초기값(현장 정보) 자동 기입 */
 function seedReport(
   project: SavedSite,
@@ -499,6 +529,8 @@ function projectFeasFull(
   const chargers = p.chargers.map((c) => (c.excluded ? { ...c, count: 0 } : c))
   const totalCount = chargers.reduce((a, c) => a + c.count, 0)
   if (totalCount === 0) return null
+  // 설치 예정 충전기 이용률 분산 계수(전역 프로파일 기준)
+  const share = utilShareFactor(chargers, p.plannedInstall, loadUtilProfile())
   const countOf = (kw: number) => chargers.find((c) => c.kw === kw)?.count ?? 0
   const installedKw = chargers.reduce((a, c) => a + c.kw * c.count, 0)
   const utilOf = (kw: number): number => {
@@ -509,10 +541,9 @@ function projectFeasFull(
     if (kw === 3) return f.utilSlow3 ?? 0
     return 0
   }
-  const feasMonthlyKwh = chargers.reduce(
-    (a, c) => a + utilOf(c.kw) * c.kw * 720 * c.count,
-    0,
-  )
+  const feasMonthlyKwh =
+    chargers.reduce((a, c) => a + utilOf(c.kw) * c.kw * 720 * c.count, 0) *
+    share
   const effMonthlyKwh =
     tariff.monthlyKwhOverride != null &&
     Number.isFinite(tariff.monthlyKwhOverride)
@@ -538,6 +569,7 @@ function projectFeasFull(
   // 연차별 전기원가 모델
   const yearlyW = computeFeasibility({
     ...f,
+    utilShareFactor: share,
     countFast100: countOf(100),
     countFast50: countOf(50),
     countSlow7: countOf(7),
@@ -618,6 +650,7 @@ function projectFeasFull(
   const eff: FeasibilityInputs = {
     ...f,
     years,
+    utilShareFactor: share,
     countFast100: countOf(100),
     countFast50: countOf(50),
     countSlow7: countOf(7),
@@ -1078,6 +1111,10 @@ function ProjectDetail({
   const [preInstalled, setPreInstalled] = useState<PreInstalledCharger[]>(
     project.preInstalled ?? [],
   )
+  // 설치 예정 충전기 — 이용률 분산 반영. '변경 저장' 시 반영.
+  const [plannedInstall, setPlannedInstall] = useState<PreInstalledCharger[]>(
+    project.plannedInstall ?? [],
+  )
   // EV 등록 대수 — '변경 저장' 시 반영.
   const [evCount, setEvCount] = useState<number>(project.evCount ?? 0)
   // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
@@ -1233,6 +1270,11 @@ function ProjectDetail({
     () => effConfig.chargers.reduce((a, c) => a + c.kw * c.count, 0),
     [effConfig],
   )
+  // 설치 예정 충전기로 인한 이용률 분산 계수(0~1) — 사업성 이용률 희석용
+  const utilShare = useMemo(
+    () => utilShareFactor(effConfig.chargers, plannedInstall, kwhProfile),
+    [effConfig, plannedInstall, kwhProfile],
+  )
   // 사업성 분석 월 사용량 합산치 = Σ(종류 이용률 × 정격 × 720 × 대수)
   const feasMonthlyKwh = useMemo(() => {
     const countOf = (kw: number) =>
@@ -1244,12 +1286,14 @@ function ProjectDetail({
       [3.5, 'utilSlow35'],
       [3, 'utilSlow3'],
     ]
-    return rows.reduce(
-      (a, [kw, key]) =>
-        a + ((feas[key] as number) || 0) * kw * 720 * countOf(kw),
-      0,
+    return (
+      rows.reduce(
+        (a, [kw, key]) =>
+          a + ((feas[key] as number) || 0) * kw * 720 * countOf(kw),
+        0,
+      ) * utilShare
     )
-  }, [feas, effConfig])
+  }, [feas, effConfig, utilShare])
   // 정산 종류별 자동 비례 배분 가중치 = 대수 × 표준 월 대당 충전량(kWh).
   //  요금 역산 불가(3종류 이상)일 때 총 사용량을 이 비중으로 배분해 이용률 추정.
   //  일반 공동주택 실적 기반이라 사업성 가정 이용률과 분리(사업성 %와 무관).
@@ -1304,6 +1348,7 @@ function ProjectDetail({
       effConfig.chargers.find((c) => c.kw === kw)?.count ?? 0
     const effFeas: FeasibilityInputs = {
       ...feas,
+      utilShareFactor: utilShare,
       countFast100: countOf(100),
       countFast50: countOf(50),
       countSlow7: countOf(7),
@@ -1334,7 +1379,7 @@ function ProjectDetail({
       }).selected.effCost
       return { monthlyKwh: mk, contractKw, effCost, loadFactor: loadFactorN }
     })
-  }, [feas, effConfig, tariff, tariffEff, effMonthlyKwh])
+  }, [feas, effConfig, tariff, tariffEff, effMonthlyKwh, utilShare])
 
   // 앞 단계(단지정보·충전기 요금·요금구조·정산) 변경 시 보고서의 자동 연동(음영)
   // 필드를 실시간 반영한다. 직접입력 필드는 보존.
@@ -1437,6 +1482,7 @@ function ProjectDetail({
       fieldNote,
       bizFeeByYear: projectBizFee,
       preInstalled,
+      plannedInstall,
       evCount,
     })
     setBaseSet(resolvedBase)
@@ -2239,6 +2285,8 @@ function ProjectDetail({
           onReset={resetConfig}
           preInstalled={preInstalled}
           setPreInstalled={setPreInstalled}
+          plannedInstall={plannedInstall}
+          setPlannedInstall={setPlannedInstall}
           evCount={evCount}
           setEvCount={setEvCount}
         />
@@ -2337,8 +2385,8 @@ function ProjectDetail({
         <ApartmentBillAnalysis inputs={aptBill} setInputs={setAptBill} />
       ) : subtab === 'feasibility' ? (
         <FeasibilityAnalysis
-          inputs={feas}
-          setInputs={setFeas}
+          inputs={{ ...feas, utilShareFactor: utilShare }}
+          setInputs={(next) => setFeas({ ...next, utilShareFactor: undefined })}
           config={config}
           setConfig={setConfig}
           standbyMonthlyKwhSeparated={computeStandby(

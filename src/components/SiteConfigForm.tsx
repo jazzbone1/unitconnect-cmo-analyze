@@ -29,6 +29,9 @@ interface SiteConfigFormProps {
   /** 기설치 충전기(기존 설치분) — 종류별 수량·운영사 */
   preInstalled?: PreInstalledCharger[]
   setPreInstalled?: (arr: PreInstalledCharger[]) => void
+  /** 설치 예정 충전기 — 종류별 수량·운영사(이용률 분산 반영) */
+  plannedInstall?: PreInstalledCharger[]
+  setPlannedInstall?: (arr: PreInstalledCharger[]) => void
   /** EV 등록 대수 */
   evCount?: number
   setEvCount?: (n: number) => void
@@ -43,6 +46,8 @@ export default function SiteConfigForm({
   onReset,
   preInstalled = [],
   setPreInstalled,
+  plannedInstall = [],
+  setPlannedInstall,
   evCount = 0,
   setEvCount,
 }: SiteConfigFormProps) {
@@ -69,6 +74,17 @@ export default function SiteConfigForm({
     setPreInstalled(next)
   }
   const preTotal = preInstalled.reduce((a, p) => a + (p.count || 0), 0)
+
+  const planOf = (kw: number) => plannedInstall.find((p) => p.kw === kw)
+  const updatePlan = (kw: number, patch: Partial<PreInstalledCharger>) => {
+    if (!setPlannedInstall) return
+    const i = plannedInstall.findIndex((p) => p.kw === kw)
+    const next = [...plannedInstall]
+    if (i > -1) next[i] = { ...next[i], ...patch }
+    else next.push({ kw, count: 0, operator: '', ...patch })
+    setPlannedInstall(next)
+  }
+  const planTotal = plannedInstall.reduce((a, p) => a + (p.count || 0), 0)
 
   async function handlePdf(file: File) {
     setPdfBusy(true)
@@ -296,6 +312,61 @@ export default function SiteConfigForm({
           <p className="var-hint">
             현장에 <b>이미 설치된</b> 충전기(타 운영사 포함)를 참고용으로 기록합니다.
             요금·모자분리와 무관하며, 사업성 계산에는 반영되지 않습니다.
+          </p>
+        </>
+      )}
+
+      {setPlannedInstall && (
+        <>
+          <h3 className="subsection__title">
+            설치 예정 충전기{' '}
+            <span className="subsection__sub">합계 {planTotal}기</span>
+          </h3>
+          <div className="table-scroll">
+            <table className="data-table charger-table">
+              <thead>
+                <tr>
+                  <th>충전기 종류</th>
+                  <th>수량(기)</th>
+                  <th>운영사(제조사)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {config.chargers.map((c) => {
+                  const pl = planOf(c.kw)
+                  return (
+                    <tr key={`plan-${c.id}`}>
+                      <td className="col-name">{c.name}</td>
+                      <td>
+                        <NumberInput
+                          className="cell-input"
+                          maxFractionDigits={0}
+                          placeholder="0"
+                          value={pl?.count ?? 0}
+                          onValue={(n) => updatePlan(c.kw, { count: n })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="cell-input cell-input--text"
+                          type="text"
+                          placeholder="예: 유닛커넥트 / 제조사"
+                          value={pl?.operator ?? ''}
+                          onChange={(e) =>
+                            updatePlan(c.kw, { operator: e.target.value })
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="var-hint">
+            앞으로 <b>설치 예정</b>인 충전기입니다. 전체 이용량을{' '}
+            <b>위차 적용 충전기와 나눠</b> 가지므로, 사업성 분석의{' '}
+            <b>대당 이용률이 희석</b>되어 보수적으로 반영됩니다(매출에는 미포함).
           </p>
         </>
       )}

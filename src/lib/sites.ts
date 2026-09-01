@@ -169,6 +169,13 @@ export interface SavedSite {
   /** 기설치 충전기(기존 설치분) — 종류별 수량·운영사. 참고용. */
   preInstalled?: PreInstalledCharger[]
 
+  /**
+   * 설치 예정 충전기 — 종류별 수량·운영사(제조사).
+   * 위차 적용 충전기와 함께 전체 수요를 나눠 가지므로, 사업성 분석의
+   * 대당 이용률을 희석한다(매출에는 미반영, 이용률 분산만).
+   */
+  plannedInstall?: PreInstalledCharger[]
+
   /** EV 등록 대수(단지 내 전기차 등록 수) */
   evCount?: number
 
