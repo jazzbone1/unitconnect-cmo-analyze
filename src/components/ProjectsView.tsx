@@ -110,13 +110,16 @@ function monthlyKwhFromProfile(kw: number, p: KwhProfile): number {
  */
 function utilShareFactor(
   chargers: { kw: number; count: number }[],
-  planned: { kw: number; count: number }[] | undefined,
+  planned: PreInstalledCharger[] | undefined,
   profile: KwhProfile,
 ): number {
   const wOf = (kw: number, count: number) =>
     (count || 0) * monthlyKwhFromProfile(kw, profile)
   const wApplied = chargers.reduce((a, c) => a + wOf(c.kw, c.count), 0)
-  const wPlanned = (planned ?? []).reduce((a, p) => a + wOf(p.kw, p.count), 0)
+  // 포함(included !== false) 설치 예정 충전기만 희석에 반영
+  const wPlanned = (planned ?? [])
+    .filter((p) => p.included !== false)
+    .reduce((a, p) => a + wOf(p.kw, p.count), 0)
   const denom = wApplied + wPlanned
   return denom > 0 ? wApplied / denom : 1
 }
@@ -2492,6 +2495,11 @@ export default function ProjectsView({
     (p.preInstalled ?? []).reduce((a, c) => a + (c.count || 0), 0)
   const totalChargerCount = (p: SavedSite) =>
     chargerCount(p) + etcChargerCount(p)
+  // 설치 예정 충전기(분석 포함분만) 합계
+  const plannedChargerCount = (p: SavedSite) =>
+    (p.plannedInstall ?? [])
+      .filter((c) => c.included !== false)
+      .reduce((a, c) => a + (c.count || 0), 0)
   // 목록 표시용 파생값(영업이익률·영업이익)은 프로젝트 변경 시에만 재계산.
   const feasById = useMemo(() => {
     const m = new Map<string, ReturnType<typeof computeFeasibility> | null>()
@@ -2510,6 +2518,8 @@ export default function ProjectsView({
         return etcChargerCount(p)
       case 'totalChargers':
         return totalChargerCount(p)
+      case 'planned':
+        return plannedChargerCount(p)
       case 'households':
         return p.households ?? 0
       case 'parking':
@@ -2600,6 +2610,7 @@ export default function ProjectsView({
     { key: 'chargers', label: '위차 충전기', num: true },
     { key: 'etcChargers', label: '기타 충전기', num: true },
     { key: 'totalChargers', label: '총 충전기', num: true },
+    { key: 'planned', label: '설치 예정', num: true },
     { key: 'parking', label: '총 주차면', num: true },
     { key: 'pct2', label: '2%', num: true },
     { key: 'pct5', label: '5%', num: true },
@@ -2743,6 +2754,11 @@ export default function ProjectsView({
                   <td className="proj-num">
                     {totalChargerCount(p)
                       ? `${totalChargerCount(p).toLocaleString()}기`
+                      : '—'}
+                  </td>
+                  <td className="proj-num">
+                    {plannedChargerCount(p)
+                      ? `${plannedChargerCount(p).toLocaleString()}기`
                       : '—'}
                   </td>
                   <td className="proj-num">

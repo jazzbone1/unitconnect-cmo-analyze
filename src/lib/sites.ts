@@ -129,6 +129,11 @@ export interface PreInstalledCharger {
   count: number
   /** 운영사(제조사) */
   operator: string
+  /**
+   * 분석 포함 여부(설치 예정 충전기 전용). 미지정 시 포함(true)으로 간주.
+   * 체크 해제 시 이용률 분산(희석) 계산에서 제외된다.
+   */
+  included?: boolean
 }
 
 /** 저장된 현장(단지) 한 곳의 정보 + 충전기 설정 + 분석 데이터 */

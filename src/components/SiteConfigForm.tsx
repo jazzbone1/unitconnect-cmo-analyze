@@ -329,11 +329,13 @@ export default function SiteConfigForm({
                   <th>충전기 종류</th>
                   <th>수량(기)</th>
                   <th>운영사(제조사)</th>
+                  <th>분석 포함</th>
                 </tr>
               </thead>
               <tbody>
                 {config.chargers.map((c) => {
                   const pl = planOf(c.kw)
+                  const included = pl?.included !== false
                   return (
                     <tr key={`plan-${c.id}`}>
                       <td className="col-name">{c.name}</td>
@@ -356,6 +358,21 @@ export default function SiteConfigForm({
                             updatePlan(c.kw, { operator: e.target.value })
                           }
                         />
+                      </td>
+                      <td className="sep-cell">
+                        <label
+                          className="sep-check"
+                          title="체크 시 이용률 분산(희석)에 반영, 해제 시 제외"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={included}
+                            onChange={(e) =>
+                              updatePlan(c.kw, { included: e.target.checked })
+                            }
+                          />
+                          <span>{included ? '포함' : '제외'}</span>
+                        </label>
                       </td>
                     </tr>
                   )
