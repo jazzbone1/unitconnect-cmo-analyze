@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePersistentState } from '../lib/persist'
-import { PROFIT_STANDARD } from '../lib/feasibility'
+import {
+  PROFIT_STANDARD,
+  defaultStdUtil,
+  type StdUtil,
+} from '../lib/feasibility'
 import { formatNumber } from '../lib/stats'
+import NumberInput from './NumberInput'
 import {
   ssoDirectory,
   ssoGetSettings,
@@ -69,6 +74,74 @@ function BizStandardTable() {
                     value={bizFeeByYear[i] ? String(bizFeeByYear[i]) : ''}
                     placeholder={fmt(row.bizFee)}
                     onChange={(e) => setAt(i, e.target.value)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+/** 사업성 종류별 표준 이용률(기준값·모든 현장 공통) 편집. localStorage(feasibility.utilStandard)와 동일. */
+const UTIL_ROWS: { key: keyof StdUtil; label: string }[] = [
+  { key: 'utilFast100', label: '급속 100kW' },
+  { key: 'utilFast50', label: '급속 50kW' },
+  { key: 'utilSlow7', label: '완속 7kW' },
+  { key: 'utilSlow35', label: '완속 3.5kW' },
+  { key: 'utilSlow3', label: '완속(콘센트) 3kW' },
+]
+function UtilStandardTable() {
+  const [stdUtil, setStdUtil] = usePersistentState<StdUtil>(
+    'feasibility.utilStandard',
+    defaultStdUtil(),
+  )
+  // 전역 공통 → 로컬 저장 + 서버 저장(모든 사용자 동일 반영).
+  const commit = (next: StdUtil) => {
+    setStdUtil(next)
+    void ssoSaveSettings({
+      feasUtil: { ...next } as unknown as Record<string, number>,
+    }).catch(() => {})
+  }
+  const setAt = (key: keyof StdUtil, pct: number) =>
+    commit({ ...stdUtil, [key]: pct / 100 })
+  return (
+    <section className="card">
+      <div className="settings-sec__head">
+        <h2>종류별 표준 이용률 (사업성 기준값)</h2>
+        <button
+          type="button"
+          className="btn-link"
+          onClick={() => commit(defaultStdUtil())}
+        >
+          기본값 복원
+        </button>
+      </div>
+      <p className="settings-sec__desc">
+        사업성 분석 <b>이용률(%)</b>의 <b>기준값(UC 기준 이용률)</b>입니다. 새 프로젝트는
+        이 값으로 시작하며, 각 프로젝트에서 직접 기입하면 그 값이 우선 적용됩니다.
+        (사업성 분석 표의 <b>UC 기준 이용률</b> 열에 표시)
+      </p>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>충전기 종류</th>
+              <th className="proj-num">표준 이용률(%) · 기준값</th>
+            </tr>
+          </thead>
+          <tbody>
+            {UTIL_ROWS.map((row) => (
+              <tr key={row.key}>
+                <td className="col-name">{row.label}</td>
+                <td>
+                  <NumberInput
+                    className="cell-input"
+                    maxFractionDigits={2}
+                    value={+((stdUtil[row.key] ?? 0) * 100).toFixed(4)}
+                    onValue={(n) => setAt(row.key, n)}
                   />
                 </td>
               </tr>
@@ -180,8 +253,8 @@ export default function SettingsView() {
     <div className="settings">
       <h1 className="settings__title">설정 · 관리</h1>
       <p className="settings__sub">
-        본사 명단·담당자 지정·영업비 전체 기준값 등 공통 관리 항목입니다. 로그인 후
-        변경할 수 있습니다.
+        본사 명단·담당자 지정·영업비 전체 기준값·표준 이용률 기준값 등 공통 관리
+        항목입니다. 로그인 후 변경할 수 있습니다.
       </p>
       <section className="card">
         <h2>본사 명단 관리 (승인자·담당자 명부)</h2>
@@ -194,6 +267,7 @@ export default function SettingsView() {
       </section>
       <BaseManagersManager accounts={accounts} />
       <BizStandardTable />
+      <UtilStandardTable />
     </div>
   )
 }

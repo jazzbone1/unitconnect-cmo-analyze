@@ -164,6 +164,50 @@ export const STD = {
   miniPc: 800000,
 }
 
+/** 사업성 종류별 표준 이용률(기준값)을 관리하는 키(전역 공통·설정 탭). */
+export const STD_UTIL_KEY = 'unitconnect.ui.feasibility.utilStandard'
+/** 표준 이용률 기준값의 종류 키(소수=fraction, 0.07=7%). */
+export type StdUtil = {
+  utilFast100: number
+  utilFast50: number
+  utilSlow7: number
+  utilSlow35: number
+  utilSlow3: number
+}
+/** 기본(코드) 표준 이용률. */
+export function defaultStdUtil(): StdUtil {
+  return {
+    utilFast100: STD.utilFast100,
+    utilFast50: STD.utilFast50,
+    utilSlow7: STD.utilSlow7,
+    utilSlow35: STD.utilSlow35,
+    utilSlow3: STD.utilSlow3,
+  }
+}
+/**
+ * 관리 중인 표준 이용률(설정 탭에서 저장 → localStorage 미러) 로드.
+ * 서버 전역값이 앱 부팅 시 이 키로 미러링된다. 값이 없으면 코드 기본값.
+ */
+export function loadStdUtil(): StdUtil {
+  const base = defaultStdUtil()
+  try {
+    const raw =
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(STD_UTIL_KEY)
+        : null
+    const o = raw ? JSON.parse(raw) : null
+    if (o && typeof o === 'object') {
+      for (const k of Object.keys(base) as (keyof StdUtil)[]) {
+        const v = Number((o as Record<string, unknown>)[k])
+        if (Number.isFinite(v)) base[k] = v
+      }
+    }
+  } catch {
+    /* 무시 → 기본값 */
+  }
+  return base
+}
+
 /** 계약년수·단가 기준 영업이익률 목표 */
 export function standardTargetMargin(years: number, rateVat: number): number {
   const idx = Math.max(1, Math.min(MAX_YEARS, Math.round(years))) - 1
@@ -173,6 +217,7 @@ export function standardTargetMargin(years: number, rateVat: number): number {
 }
 
 export function DEFAULT_INPUTS(): FeasibilityInputs {
+  const su = loadStdUtil() // 관리 중인 표준 이용률 기준값(설정 탭)
   return {
     years: 5,
     rateVat: 249,
@@ -181,11 +226,11 @@ export function DEFAULT_INPUTS(): FeasibilityInputs {
     rateSlow7: 0,
     rateSlow35: 0,
     rateSlow3: 0,
-    utilFast100: 0.0049, // 7% × 7/100 (7kW 환산) = 50kW(0.98%)의 절반
-    utilFast50: 0.0098,
-    utilSlow7: 0.07,
-    utilSlow35: 0.14,
-    utilSlow3: 49 / 300, // ≈0.16333…
+    utilFast100: su.utilFast100,
+    utilFast50: su.utilFast50,
+    utilSlow7: su.utilSlow7,
+    utilSlow35: su.utilSlow35,
+    utilSlow3: su.utilSlow3,
     countFast100: 0,
     countFast50: 0,
     countSlow7: 0,

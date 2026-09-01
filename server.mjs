@@ -581,9 +581,18 @@ function normalizeSettings(s) {
   const bizFeeByYear = Array.isArray(s?.bizFeeByYear)
     ? s.bizFeeByYear.map((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
     : undefined
+  const feasUtil =
+    s?.feasUtil && typeof s.feasUtil === 'object'
+      ? Object.fromEntries(
+          Object.entries(s.feasUtil)
+            .filter(([, v]) => Number.isFinite(Number(v)))
+            .map(([k, v]) => [String(k), Number(v)]),
+        )
+      : undefined
   const out = { baseManagers }
   if (utilProfile) out.utilProfile = utilProfile
   if (bizFeeByYear) out.bizFeeByYear = bizFeeByYear
+  if (feasUtil) out.feasUtil = feasUtil
   return out
 }
 
@@ -611,6 +620,8 @@ app.put('/api/sso/settings', express.json({ limit: '256kb' }), async (req, res) 
       patch.utilProfile = req.body.utilProfile
     if (Array.isArray(req.body?.bizFeeByYear))
       patch.bizFeeByYear = req.body.bizFeeByYear
+    if (req.body?.feasUtil && typeof req.body.feasUtil === 'object')
+      patch.feasUtil = req.body.feasUtil
     const merged = normalizeSettings({ ...cur, ...patch })
     await saveSettings(merged)
     res.json({ ok: true, ...merged })

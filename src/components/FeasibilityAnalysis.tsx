@@ -7,6 +7,8 @@ import {
   defaultBizFee,
   standardRate,
   STD,
+  loadStdUtil,
+  type StdUtil,
   PROFIT_STANDARD,
   ELEC_COST,
   PG_RATE,
@@ -221,6 +223,8 @@ export default function FeasibilityAnalysis({
     'feasibility.bizFeeByYear',
     PROFIT_STANDARD.map((r) => r.bizFee),
   )
+  // 종류별 표준 이용률 기준값 — 설정 탭에서 관리. 'UC 기준 이용률' 열에 표시.
+  const stdUtil = loadStdUtil()
   const setProjectBizFeeAt = (idx: number, v: number | null) => {
     if (!setProjectBizFee) return
     const next: (number | null)[] = [...(projectBizFee ?? [])]
@@ -770,7 +774,7 @@ export default function FeasibilityAnalysis({
                       {((inputs[row.utilKey] as number) * (row.kw / 7) * 100).toFixed(2)}%
                     </td>
                     <td className="std-cell">
-                      {((STD[row.utilKey as keyof typeof STD] as number) * 100).toFixed(2)}%
+                      {((stdUtil[row.utilKey as keyof StdUtil] as number) * 100).toFixed(2)}%
                     </td>
                     <td
                       title="기본값은 '충전기 종류별 수량 요금' 표(미입력 시 전체 충전단가)를 따라가며, 직접 기입하면 그 값이 우선 적용됩니다"

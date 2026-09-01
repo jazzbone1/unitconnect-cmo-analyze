@@ -167,6 +167,8 @@ export interface AppSettings {
   baseManagers: SsoAccount[]
   utilProfile?: Record<string, number>
   bizFeeByYear?: number[]
+  /** 사업성 종류별 표준 이용률 기준값(소수=fraction). */
+  feasUtil?: Record<string, number>
 }
 
 function parseSettings(d: unknown): AppSettings {
@@ -180,6 +182,8 @@ function parseSettings(d: unknown): AppSettings {
     out.utilProfile = o.utilProfile as Record<string, number>
   if (Array.isArray(o.bizFeeByYear))
     out.bizFeeByYear = (o.bizFeeByYear as unknown[]).map((v) => Number(v) || 0)
+  if (o.feasUtil && typeof o.feasUtil === 'object')
+    out.feasUtil = o.feasUtil as Record<string, number>
   return out
 }
 
