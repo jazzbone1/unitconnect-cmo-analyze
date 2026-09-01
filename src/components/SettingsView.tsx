@@ -20,14 +20,17 @@ function BizStandardTable() {
     'feasibility.bizFeeByYear',
     PROFIT_STANDARD.map((r) => r.bizFee),
   )
+  // 영업비 기준값은 전역 공통 → 로컬 저장 + 서버 저장(모든 사용자 동일 반영).
+  const commit = (next: number[]) => {
+    setBizFeeByYear(next)
+    void ssoSaveSettings({ bizFeeByYear: next }).catch(() => {})
+  }
   const setAt = (i: number, raw: string) => {
     const v = Number(raw.replace(/[^0-9.]/g, '')) || 0
-    setBizFeeByYear((prev) => {
-      const next = [...prev]
-      while (next.length < PROFIT_STANDARD.length) next.push(0)
-      next[i] = v
-      return next
-    })
+    const next = [...bizFeeByYear]
+    while (next.length < PROFIT_STANDARD.length) next.push(0)
+    next[i] = v
+    commit(next)
   }
   return (
     <section className="card">
@@ -36,7 +39,7 @@ function BizStandardTable() {
         <button
           type="button"
           className="btn-link"
-          onClick={() => setBizFeeByYear(PROFIT_STANDARD.map((r) => r.bizFee))}
+          onClick={() => commit(PROFIT_STANDARD.map((r) => r.bizFee))}
         >
           기본값 복원
         </button>

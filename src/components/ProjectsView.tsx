@@ -14,7 +14,12 @@ import {
   SALES_STATUS,
 } from '../lib/sites'
 import type { ChargerType } from '../lib/settlement'
-import { ssoCurrentUser, ssoDirectory, ssoGetSettings } from '../lib/sso'
+import {
+  ssoCurrentUser,
+  ssoDirectory,
+  ssoGetSettings,
+  ssoSaveSettings,
+} from '../lib/sso'
 import { notifyApproval } from '../lib/notify'
 import type { SsoUser, SsoAccount } from '../lib/sso'
 import ApprovalPanel from './ApprovalPanel'
@@ -977,6 +982,13 @@ function ProjectDetail({
     'settle.utilProfile',
     DEFAULT_KWH_PROFILE,
   )
+  // 표준 이용률은 전역 공통값 → 편집 시 로컬(usePersistentState) + 서버 동시 저장.
+  const saveKwhProfile = (p: KwhProfile) => {
+    setKwhProfile(p)
+    void ssoSaveSettings({
+      utilProfile: { ...p } as unknown as Record<string, number>,
+    }).catch(() => {})
+  }
   const [feas, setFeas] = useState<FeasibilityInputs>(
     project.feas ?? DEFAULT_INPUTS(),
   )
@@ -1118,6 +1130,23 @@ function ProjectDetail({
   const [plannedInstall, setPlannedInstall] = useState<PreInstalledCharger[]>(
     project.plannedInstall ?? [],
   )
+  // 정산 종류별 수동 사용량 — 프로젝트 저장·공유. '변경 저장' 시 반영.
+  const [settleManual, setSettleManual] = useState<
+    Record<string, Record<string, number>>
+  >(project.settleManual ?? {})
+  const changeSettleManual = (
+    fileId: string,
+    typeId: string,
+    v: number | null,
+  ) =>
+    setSettleManual((prev) => {
+      const file = { ...(prev[fileId] ?? {}) }
+      if (v == null || !Number.isFinite(v)) delete file[typeId]
+      else file[typeId] = v
+      const next = { ...prev, [fileId]: file }
+      if (Object.keys(file).length === 0) delete next[fileId]
+      return next
+    })
   // EV 등록 대수 — '변경 저장' 시 반영.
   const [evCount, setEvCount] = useState<number>(project.evCount ?? 0)
   // 현장 분석 승인 워크플로 상태(변경 즉시 저장).
@@ -1487,6 +1516,7 @@ function ProjectDetail({
       preInstalled,
       plannedInstall,
       evCount,
+      settleManual,
     })
     setBaseSet(resolvedBase)
     setVariants(resolvedVariants)
@@ -2451,7 +2481,9 @@ function ProjectDetail({
               site={site}
               autoWeights={settleWeights}
               kwhProfile={kwhProfile}
-              setKwhProfile={setKwhProfile}
+              setKwhProfile={saveKwhProfile}
+              manual={settleManual}
+              onManualChange={changeSettleManual}
             />
           )}
           {registryResult && <RegistryAnalysis result={registryResult} />}

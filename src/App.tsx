@@ -17,10 +17,16 @@ import { detectRegistry, computeRegistry } from './lib/registry'
 import { parseUploadedFiles } from './lib/ingest'
 import { newSiteId, type SavedSite } from './lib/sites'
 import { getStore } from './lib/store'
+import { ssoGetSettings } from './lib/sso'
 import type { AggKind, FileEntry } from './types'
 
+// 전역(모든 사용자 공통) 설정을 담는 localStorage 키. 서버 값을 이 키로 미러링해
+// 기존 usePersistentState/projectFeasFull이 그대로 동기 접근한다.
+const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
+const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
+
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-29'
+const BUILD_TAG = 'v2026.08.26-30'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -106,6 +112,8 @@ export default function App() {
   const store = useMemo(getStore, [])
   const [sites, setSites] = useState<SavedSite[]>([])
   const [sitesLoaded, setSitesLoaded] = useState(false)
+  // 전역 설정(표준 이용률·영업비 기준값) 서버 동기화 완료 여부.
+  const [settingsReady, setSettingsReady] = useState(store.kind !== 'remote')
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
   // 저장 상태 표시(원격 저장 실패/401 진단용).
   const [saveState, setSaveState] = useState<{
@@ -123,6 +131,33 @@ export default function App() {
       .catch(() => {})
       .finally(() => {
         if (alive) setSitesLoaded(true)
+      })
+    return () => {
+      alive = false
+    }
+  }, [store])
+
+  // 전역 설정(표준 이용률·영업비 기준값)을 서버에서 받아 localStorage에 미러링한다.
+  // ProjectsView/SettingsView는 settingsReady 이후에만 마운트되어, usePersistentState가
+  // 이 공통 값으로 초기화된다(사용자마다 다른 로컬값 문제 해결).
+  useEffect(() => {
+    if (store.kind !== 'remote') return
+    let alive = true
+    ssoGetSettings()
+      .then((s) => {
+        if (!alive) return
+        try {
+          if (s.utilProfile && Object.keys(s.utilProfile).length)
+            localStorage.setItem(LS_UTIL_PROFILE, JSON.stringify(s.utilProfile))
+          if (Array.isArray(s.bizFeeByYear) && s.bizFeeByYear.length)
+            localStorage.setItem(LS_BIZ_FEE, JSON.stringify(s.bizFeeByYear))
+        } catch {
+          /* 저장 실패 무시 */
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setSettingsReady(true)
       })
     return () => {
       alive = false
@@ -302,7 +337,11 @@ export default function App() {
       </aside>
 
       <div className="content">
-        {tab === 'settings' ? (
+        {!settingsReady && (tab === 'settings' || tab === 'projects') ? (
+          <div className="app">
+            <p className="status status--loading">공통 설정 불러오는 중…</p>
+          </div>
+        ) : tab === 'settings' ? (
           <div className="app">
             <SettingsView />
           </div>

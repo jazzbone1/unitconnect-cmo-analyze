@@ -560,13 +560,9 @@ app.put('/api/sso/hq', express.json({ limit: '256kb' }), async (req, res) => {
   }
 })
 
-// 전역 설정 조회 — 기본안 담당자(baseManagers) 등. 로그인 사용자만.
-app.get('/api/sso/settings', async (req, res) => {
-  if (!ssoReady) return res.json({ baseManagers: [] })
-  const payload = requireSession(req)
-  if (!payload) return res.status(401).json({ error: 'unauthorized' })
-  const s = await loadSettings()
-  const baseManagers = Array.isArray(s.baseManagers)
+// 전역 설정 정규화 — baseManagers(담당자) + utilProfile(표준 이용률) + bizFeeByYear(영업비 기준값).
+function normalizeSettings(s) {
+  const baseManagers = Array.isArray(s?.baseManagers)
     ? s.baseManagers
         .filter((m) => m && (m.id || m.name))
         .map((m) => ({
@@ -574,27 +570,50 @@ app.get('/api/sso/settings', async (req, res) => {
           name: String(m.name || m.id).trim(),
         }))
     : []
-  res.json({ baseManagers })
+  const utilProfile =
+    s?.utilProfile && typeof s.utilProfile === 'object'
+      ? Object.fromEntries(
+          Object.entries(s.utilProfile)
+            .filter(([, v]) => Number.isFinite(Number(v)))
+            .map(([k, v]) => [String(k), Number(v)]),
+        )
+      : undefined
+  const bizFeeByYear = Array.isArray(s?.bizFeeByYear)
+    ? s.bizFeeByYear.map((v) => (Number.isFinite(Number(v)) ? Number(v) : 0))
+    : undefined
+  const out = { baseManagers }
+  if (utilProfile) out.utilProfile = utilProfile
+  if (bizFeeByYear) out.bizFeeByYear = bizFeeByYear
+  return out
+}
+
+// 전역 설정 조회 — 담당자·표준 이용률·영업비 기준값(모든 사용자 공통). 로그인 사용자만.
+app.get('/api/sso/settings', async (req, res) => {
+  if (!ssoReady) return res.json({ baseManagers: [] })
+  const payload = requireSession(req)
+  if (!payload) return res.status(401).json({ error: 'unauthorized' })
+  const s = await loadSettings()
+  res.json(normalizeSettings(s))
 })
 
-// 전역 설정 저장(기본안 담당자). 로그인 사용자만.
+// 전역 설정 저장 — 제공된 필드만 병합(부분 갱신). 로그인 사용자만.
 app.put('/api/sso/settings', express.json({ limit: '256kb' }), async (req, res) => {
   if (!ssoReady) return res.status(503).json({ error: 'SSO not configured' })
   const payload = requireSession(req)
   if (!payload) return res.status(401).json({ error: 'unauthorized' })
-  const raw = Array.isArray(req.body?.baseManagers) ? req.body.baseManagers : []
-  const seen = new Set()
-  const baseManagers = []
-  for (const e of raw) {
-    const name = String(e?.name || '').trim()
-    const id = String(e?.id || name).trim()
-    if (!id || seen.has(id)) continue
-    seen.add(id)
-    baseManagers.push({ id, name: name || id })
-  }
   try {
-    await saveSettings({ baseManagers })
-    res.json({ ok: true, baseManagers })
+    const cur = normalizeSettings(await loadSettings())
+    // 요청에 포함된 키만 덮어쓴다(나머지 전역값 보존).
+    const patch = {}
+    if (Array.isArray(req.body?.baseManagers))
+      patch.baseManagers = req.body.baseManagers
+    if (req.body?.utilProfile && typeof req.body.utilProfile === 'object')
+      patch.utilProfile = req.body.utilProfile
+    if (Array.isArray(req.body?.bizFeeByYear))
+      patch.bizFeeByYear = req.body.bizFeeByYear
+    const merged = normalizeSettings({ ...cur, ...patch })
+    await saveSettings(merged)
+    res.json({ ok: true, ...merged })
   } catch (e) {
     res.status(502).json({ error: String(e) })
   }

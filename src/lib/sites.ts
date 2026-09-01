@@ -184,6 +184,12 @@ export interface SavedSite {
   /** EV 등록 대수(단지 내 전기차 등록 수) */
   evCount?: number
 
+  /**
+   * 정산 종류별 수동 사용량(파일ID → 종류ID → kWh). 이용량 분석의 수동 보정값.
+   * 프로젝트에 저장되어 모든 사용자가 동일하게 본다.
+   */
+  settleManual?: Record<string, Record<string, number>>
+
   /** 현장 의견(결재 참고용 공통 메모) */
   fieldNote?: string
 

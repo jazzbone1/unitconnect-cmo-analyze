@@ -114,6 +114,12 @@ interface SettlementAnalysisProps {
   /** 표준 월 대당 충전량 프로파일(편집 가능) */
   kwhProfile?: KwhProfile
   setKwhProfile?: (p: KwhProfile) => void
+  /**
+   * 종류별 수동 사용량(파일별·종류별). 프로젝트에서 넘기면 저장·공유(모든 사용자 동일).
+   * 미지정 시 컴포넌트 내부 localStorage 사용(단독 분석 탭 전용).
+   */
+  manual?: Record<string, Record<string, number>>
+  onManualChange?: (fileId: string, typeId: string, v: number | null) => void
 }
 
 // 기간 유형별 표시 순서/라벨
@@ -315,13 +321,22 @@ export default function SettlementAnalysis({
   autoWeights,
   kwhProfile,
   setKwhProfile,
+  manual,
+  onManualChange,
 }: SettlementAnalysisProps) {
   // 종류별 사용량 수동 입력(파일별·종류별). 있으면 자동/추정값을 덮어쓴다.
-  const [manualUsage, setManualUsage] = usePersistentState<
+  //  프로젝트에서 manual/onManualChange를 넘기면 그 값을 사용(저장·공유),
+  //  아니면 내부 localStorage(단독 분석 탭 전용)로 관리한다.
+  const [manualLocal, setManualLocal] = usePersistentState<
     Record<string, Record<string, number>>
   >(`settle.manualUsage.${site.name}`, {})
-  const setManual = (fileId: string, typeId: string, v: number | null) =>
-    setManualUsage((prev) => {
+  const manualUsage = manual ?? manualLocal
+  const setManual = (fileId: string, typeId: string, v: number | null) => {
+    if (onManualChange) {
+      onManualChange(fileId, typeId, v)
+      return
+    }
+    setManualLocal((prev) => {
       const file = { ...(prev[fileId] ?? {}) }
       if (v == null || !Number.isFinite(v)) delete file[typeId]
       else file[typeId] = v
@@ -329,6 +344,7 @@ export default function SettlementAnalysis({
       if (Object.keys(file).length === 0) delete next[fileId]
       return next
     })
+  }
   const metrics = useMemo(
     () => computeAll(files, config, {}, manualUsage, autoWeights),
     [files, config, manualUsage, autoWeights],

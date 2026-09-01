@@ -157,27 +157,46 @@ export async function ssoSaveHqMembers(
   return Array.isArray(d.members) ? (d.members as SsoAccount[]) : []
 }
 
-/** 전역 앱 설정. baseManagers=기본안 수정 담당자(전체 공통). */
+/**
+ * 전역 앱 설정(모든 사용자 공통, 서버 저장).
+ *  - baseManagers: 기본안 수정 담당자
+ *  - utilProfile: 종류별 표준 이용률(정산 배분·이용률 분산 공통 기준)
+ *  - bizFeeByYear: 영업비 전체 기준값(계약연수별)
+ */
 export interface AppSettings {
   baseManagers: SsoAccount[]
+  utilProfile?: Record<string, number>
+  bizFeeByYear?: number[]
+}
+
+function parseSettings(d: unknown): AppSettings {
+  const o = (d ?? {}) as Record<string, unknown>
+  const out: AppSettings = {
+    baseManagers: Array.isArray(o.baseManagers)
+      ? (o.baseManagers as SsoAccount[])
+      : [],
+  }
+  if (o.utilProfile && typeof o.utilProfile === 'object')
+    out.utilProfile = o.utilProfile as Record<string, number>
+  if (Array.isArray(o.bizFeeByYear))
+    out.bizFeeByYear = (o.bizFeeByYear as unknown[]).map((v) => Number(v) || 0)
+  return out
 }
 
 export async function ssoGetSettings(): Promise<AppSettings> {
   try {
     const res = await fetch('/api/sso/settings', { credentials: 'same-origin' })
     if (!res.ok) return { baseManagers: [] }
-    const d = await res.json()
-    return {
-      baseManagers: Array.isArray(d.baseManagers)
-        ? (d.baseManagers as SsoAccount[])
-        : [],
-    }
+    return parseSettings(await res.json())
   } catch {
     return { baseManagers: [] }
   }
 }
 
-export async function ssoSaveSettings(s: AppSettings): Promise<AppSettings> {
+/** 전역 설정 저장(부분 갱신 가능 — 제공한 필드만 서버에서 병합). */
+export async function ssoSaveSettings(
+  s: Partial<AppSettings>,
+): Promise<AppSettings> {
   const res = await fetch('/api/sso/settings', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
@@ -194,12 +213,7 @@ export async function ssoSaveSettings(s: AppSettings): Promise<AppSettings> {
     }
     throw new Error(msg)
   }
-  const d = await res.json()
-  return {
-    baseManagers: Array.isArray(d.baseManagers)
-      ? (d.baseManagers as SsoAccount[])
-      : [],
-  }
+  return parseSettings(await res.json())
 }
 
 export async function ssoLogout(): Promise<void> {
