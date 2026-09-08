@@ -1113,6 +1113,9 @@ function ProjectDetail({
       tariff: wk.tariff,
       standby: wk.standby,
       aptBill: wk.aptBill,
+      createdByName: currentUser?.name || undefined,
+      createdById: currentUser?.sub || undefined,
+      createdAt: new Date().toISOString(),
     }
     setVariants((prev) => [...prev, nv])
     setActiveVariantId(id)
@@ -1818,6 +1821,19 @@ function ProjectDetail({
                   '기본안')}
               {viewSlotId !== targetSlotId && ' · 보기 전용'}
             </span>
+            {viewSlotId != null &&
+              (() => {
+                const sv = savedVariants.find((v) => v.id === viewSlotId)
+                if (!sv?.createdByName && !sv?.createdAt) return null
+                return (
+                  <span className="summary-slot-author">
+                    생성자: <b>{sv.createdByName || '알 수 없음'}</b>
+                    {sv.createdAt
+                      ? ` · ${new Date(sv.createdAt).toLocaleDateString('ko-KR')}`
+                      : ''}
+                  </span>
+                )
+              })()}
             <label className="summary-years">
               결재 계약기간
               <select
@@ -2294,6 +2310,19 @@ function ProjectDetail({
             ? '기본안입니다. “대체안 추가”를 누르면 현재 분석을 복제해, 충전기 일부 제외 등으로 사업성~아파트요금을 별도 저장할 수 있습니다. 이용량 분석·보고서는 기본안과 공유됩니다.'
             : '대체안 편집 중 — 충전기 구성(제외 등)·사업성·요금구조·대기전력·아파트요금이 이 대체안으로 저장됩니다. 이용량 분석·보고서는 기본안 기준이며, 변경 저장을 눌러야 반영됩니다.'}
         </p>
+        {activeVariantId != null &&
+          (() => {
+            const av = variants.find((v) => v.id === activeVariantId)
+            if (!av?.createdByName && !av?.createdAt) return null
+            return (
+              <p className="variant-bar__author">
+                생성자: <b>{av.createdByName || '알 수 없음'}</b>
+                {av.createdAt
+                  ? ` · ${new Date(av.createdAt).toLocaleDateString('ko-KR')}`
+                  : ''}
+              </p>
+            )
+          })()}
       </section>
 
       <section className="card">

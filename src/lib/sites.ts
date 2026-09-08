@@ -120,6 +120,12 @@ export interface AnalysisVariant {
   tariff?: TariffInputs
   standby?: StandbyInputs
   aptBill?: ApartmentBillInputs
+  /** 생성자(로그인 계정) 표시명 */
+  createdByName?: string
+  /** 생성자(로그인 계정) 계정 ID */
+  createdById?: string
+  /** 생성 시각(ISO) */
+  createdAt?: string
 }
 
 /** 기설치(기존 설치) 충전기 — 종류별 수량 + 운영사(제조사). 참고용(계산 미반영). */
