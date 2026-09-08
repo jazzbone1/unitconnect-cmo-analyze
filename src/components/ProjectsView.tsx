@@ -2249,6 +2249,20 @@ function ProjectDetail({
 
       {detailMode === 'work' && (
       <>
+      {/* 화면을 따라다니는 변경 저장 버튼 — 아래 내용 작업 중에도 바로 저장 */}
+      <button
+        type="button"
+        className={`save-fab${saved ? ' save-fab--saved' : ''}`}
+        onClick={saveChanges}
+        disabled={!canEditBase}
+        title={
+          !canEditBase
+            ? `기본안은 담당자(${approval.assignee})만 수정할 수 있습니다.`
+            : '현재까지 변경한 내용을 프로젝트에 저장합니다'
+        }
+      >
+        {saved ? '저장됨 ✓' : '변경 저장'}
+      </button>
       <section className="card variant-bar">
         <div className="variant-bar__row">
           <span className="variant-bar__label">분석안</span>
