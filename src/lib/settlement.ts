@@ -1,4 +1,11 @@
 import type { CellValue, Dataset, FileEntry, Period } from '../types'
+import {
+  detectCostel,
+  costelCols,
+  chargerKwFromModelType,
+  monthKeyOf,
+  isTestDong,
+} from './costel'
 
 /** 충전기 종류 하나의 설정 */
 export interface ChargerType {
@@ -287,6 +294,107 @@ export function computeFile(
   }
 }
 
+/**
+ * 코스텔 충전내역(거래 단위 로그) 파일을 시작일시 기준 '월별'로 집계해
+ * 기존과 동일한 SettlementMetrics[] 로 변환한다(월 자동 분할).
+ *  - 월 사용량 = Σ충전량, 종류별 = 구분/모델로 추정한 kW별 합(정확 분리)
+ *  - 사용금액(원본) = Σ비용, 이용자 수 = 고유 동호(세대) 수
+ *  - 미충전(충전량 0)·테스트 동호(999/1234) 행은 제외
+ */
+export function computeCostelFile(
+  file: FileEntry,
+  config: SettlementConfig,
+): SettlementMetrics[] {
+  const { dataset } = file
+  const cols = costelCols(dataset)
+  if (!cols.energy || !cols.start) return []
+  const chargers = config.chargers
+  const hours = config.hours
+
+  // 월(ym) → { kw별 사용량, 총사용량, 비용합, 고유 동호 }
+  interface Bucket {
+    ym: string
+    sortKey: number
+    usageByKw: Map<number, number>
+    usageTotal: number
+    amountRaw: number
+    users: Set<string>
+  }
+  const buckets = new Map<string, Bucket>()
+
+  for (const row of dataset.rows) {
+    if (cols.noncharge && String(row[cols.noncharge] ?? '').trim().toUpperCase() === 'Y')
+      continue
+    const energy = toNumber(row[cols.energy] ?? null)
+    if (energy === null || energy <= 0) continue
+    const mk = monthKeyOf(row[cols.start])
+    if (!mk) continue
+    const dong = cols.dong ? row[cols.dong] : null
+    if (isTestDong(dong)) continue
+
+    let b = buckets.get(mk.ym)
+    if (!b) {
+      b = {
+        ym: mk.ym,
+        sortKey: mk.sortKey,
+        usageByKw: new Map(),
+        usageTotal: 0,
+        amountRaw: 0,
+        users: new Set(),
+      }
+      buckets.set(mk.ym, b)
+    }
+    const kw = chargerKwFromModelType(
+      cols.model ? String(row[cols.model] ?? '') : '',
+      cols.type ? String(row[cols.type] ?? '') : '',
+    )
+    b.usageByKw.set(kw, (b.usageByKw.get(kw) ?? 0) + energy)
+    b.usageTotal += energy
+    if (cols.cost) {
+      const cost = toNumber(row[cols.cost] ?? null)
+      if (cost !== null) b.amountRaw += cost
+    }
+    if (dong != null) b.users.add(String(dong).replace(/\s/g, ''))
+  }
+
+  const months = [...buckets.values()].sort((a, b) => a.sortKey - b.sortKey)
+  return months.map((b) => {
+    const types: TypeMetric[] = chargers.map((t) => {
+      const usage = b.usageByKw.get(t.kw) ?? 0
+      const capacity = t.kw * t.count * hours * 1 // 월 1개월 기준
+      return {
+        id: t.id,
+        name: t.name,
+        usage,
+        amount: usage * t.rate,
+        utilization: capacity > 0 ? (usage / capacity) * 100 : 0,
+      }
+    })
+    const hasRates = chargers.some((t) => t.rate > 0)
+    const amountCalc = hasRates
+      ? types.reduce((acc, t) => acc + t.amount, 0)
+      : b.amountRaw
+    const capTotal = chargers.reduce((a, t) => a + t.kw * t.count, 0) * hours * 1
+    return {
+      id: `${file.id}:${b.ym}`,
+      fileName: dataset.fileName,
+      periodLabel: b.ym,
+      sortKey: b.sortKey,
+      periodType: 'month' as Period['type'],
+      months: 1,
+      users: b.users.size,
+      usageTotal: b.usageTotal,
+      amountRaw: b.amountRaw,
+      amountCalc,
+      utilTotal: capTotal > 0 ? (b.usageTotal / capTotal) * 100 : 0,
+      types,
+      splittable: true,
+      // 구분/모델로 종류를 정확히 분리하므로 auto
+      splitMode: 'auto' as const,
+    }
+  })
+}
+
 /** 여러 정산 파일을 분석하고 기간순으로 정렬해 반환한다. */
 export function computeAll(
   files: FileEntry[],
@@ -295,18 +403,25 @@ export function computeAll(
   manualUsageById: Record<string, Record<string, number>> = {},
   autoWeights?: Record<string, number>,
 ): SettlementMetrics[] {
-  return files
-    .map((f) =>
-      computeFile(
-        f,
-        config,
-        monthsById[f.id],
-        manualUsageById[f.id],
-        autoWeights,
-      ),
-    )
-    .sort((a, b) => {
-      if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey
-      return a.fileName.localeCompare(b.fileName)
-    })
+  const out: SettlementMetrics[] = []
+  for (const f of files) {
+    if (detectCostel(f.dataset)) {
+      // 코스텔 거래 로그 → 월별 집계(월 자동 분할)
+      out.push(...computeCostelFile(f, config))
+    } else {
+      out.push(
+        computeFile(
+          f,
+          config,
+          monthsById[f.id],
+          manualUsageById[f.id],
+          autoWeights,
+        ),
+      )
+    }
+  }
+  return out.sort((a, b) => {
+    if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey
+    return a.fileName.localeCompare(b.fileName)
+  })
 }

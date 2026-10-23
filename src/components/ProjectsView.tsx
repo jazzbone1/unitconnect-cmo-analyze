@@ -26,6 +26,7 @@ import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement, computeAll } from '../lib/settlement'
+import { detectCostel } from '../lib/costel'
 import {
   DEFAULT_INPUTS,
   computeFeasibility,
@@ -1458,13 +1459,19 @@ function ProjectDetail({
   }, [linkedSeed, activeVariantId])
 
   const settlementFiles = useMemo(
-    () => files.filter((f) => detectSettlement(f.dataset)),
+    () =>
+      files.filter(
+        (f) => detectSettlement(f.dataset) || detectCostel(f.dataset),
+      ),
     [files],
   )
   const registryFiles = useMemo(
     () =>
       files.filter(
-        (f) => !detectSettlement(f.dataset) && detectRegistry(f.dataset),
+        (f) =>
+          !detectSettlement(f.dataset) &&
+          !detectCostel(f.dataset) &&
+          detectRegistry(f.dataset),
       ),
     [files],
   )

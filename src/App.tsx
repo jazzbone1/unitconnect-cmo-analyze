@@ -13,6 +13,7 @@ import { usePersistentState } from './lib/persist'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
+import { detectCostel } from './lib/costel'
 import { detectRegistry, computeRegistry } from './lib/registry'
 import { parseUploadedFiles } from './lib/ingest'
 import { newSiteId, type SavedSite } from './lib/sites'
@@ -27,7 +28,7 @@ const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
 const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-34'
+const BUILD_TAG = 'v2026.08.26-35'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -241,21 +242,31 @@ export default function App() {
     setSelectedSiteId(null)
   }
 
+  // 정산 분석 대상: 기존 집계 형식(detectSettlement) + 코스텔 거래 로그(detectCostel)
   const settlementFiles = useMemo(
-    () => files.filter((f) => detectSettlement(f.dataset)),
+    () =>
+      files.filter(
+        (f) => detectSettlement(f.dataset) || detectCostel(f.dataset),
+      ),
     [files],
   )
   const registryFiles = useMemo(
     () =>
       files.filter(
-        (f) => !detectSettlement(f.dataset) && detectRegistry(f.dataset),
+        (f) =>
+          !detectSettlement(f.dataset) &&
+          !detectCostel(f.dataset) &&
+          detectRegistry(f.dataset),
       ),
     [files],
   )
   const genericFiles = useMemo(
     () =>
       files.filter(
-        (f) => !detectSettlement(f.dataset) && !detectRegistry(f.dataset),
+        (f) =>
+          !detectSettlement(f.dataset) &&
+          !detectCostel(f.dataset) &&
+          !detectRegistry(f.dataset),
       ),
     [files],
   )
