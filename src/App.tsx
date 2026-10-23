@@ -28,7 +28,7 @@ const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
 const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-35'
+const BUILD_TAG = 'v2026.08.26-36'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {

@@ -420,8 +420,17 @@ export function computeAll(
       )
     }
   }
-  return out.sort((a, b) => {
+  out.sort((a, b) => {
     if (a.sortKey !== b.sortKey) return a.sortKey - b.sortKey
     return a.fileName.localeCompare(b.fileName)
+  })
+  // 동일 기간이 중복 집계되는 경우(예: 전체 파일 + 같은 달의 월별 파일을 함께 업로드)
+  //  완전히 동일한 집계(같은 기간·유형·총 사용량)는 하나만 남긴다.
+  const seen = new Set<string>()
+  return out.filter((m) => {
+    const key = `${m.periodType}|${m.periodLabel}|${Math.round(m.usageTotal * 100)}|${m.users}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
   })
 }
