@@ -110,3 +110,83 @@ export function isTestDong(dong: unknown): boolean {
   if (s === '') return true
   return /999|1234/.test(s)
 }
+
+function toNum(v: unknown): number | null {
+  if (v == null) return null
+  const n = Number(String(v).replace(/,/g, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+/** 개별 충전기 한 대의 이용량 집계. */
+export interface PerChargerUsage {
+  /** 충전기명 (예: 1002) */
+  name: string
+  /** 구분 (AC/DC/SOCKET) */
+  type: string
+  /** 추정 종류(kW) */
+  kw: number
+  /** 총 이용량(kWh) */
+  kwh: number
+  /** 총 금액(원) — 코스텔 비용 합계(실제 과금액) */
+  amount: number
+  /** 역산 적용 단가(원/kWh) = 금액 ÷ 사용량 */
+  rate: number
+  /** 충전 건수 */
+  count: number
+}
+
+/**
+ * 코스텔 충전내역 데이터셋들에서 개별 충전기별 이용량을 집계한다.
+ *  - 거래 고유 id 로 중복 제거(전체 파일 + 월별 파일을 함께 올려도 중복 합산 방지)
+ *  - 미충전·테스트 동호·충전량 0 제외
+ *  - 총 이용량 내림차순 정렬
+ */
+export function aggregatePerCharger(datasets: Dataset[]): PerChargerUsage[] {
+  const byName = new Map<string, PerChargerUsage>()
+  const seenIds = new Set<string>()
+  for (const ds of datasets) {
+    const cols = costelCols(ds)
+    const nameCol = findCostelCol(ds.columns, ['충전기명', 'charger_name'])
+    if (!cols.energy || !nameCol) continue
+    // 거래 PK: 정규화 이름이 정확히 'id' 인 컬럼(한글 섹션 id)
+    const idCol =
+      ds.columns.find((c) => norm(c) === 'id') ??
+      findCostelCol(ds.columns, ['history_id', 'transaction_id'])
+    for (const row of ds.rows) {
+      if (
+        cols.noncharge &&
+        String(row[cols.noncharge] ?? '').trim().toUpperCase() === 'Y'
+      )
+        continue
+      const e = toNum(row[cols.energy])
+      if (e === null || e <= 0) continue
+      if (isTestDong(cols.dong ? row[cols.dong] : null)) continue
+      if (idCol) {
+        const id = String(row[idCol] ?? '').trim()
+        if (id !== '') {
+          const key = `${idCol}:${id}`
+          if (seenIds.has(key)) continue
+          seenIds.add(key)
+        }
+      }
+      const name = String(row[nameCol] ?? '').trim() || '(미상)'
+      const type = cols.type ? String(row[cols.type] ?? '').trim() : ''
+      const kw = chargerKwFromModelType(
+        cols.model ? String(row[cols.model] ?? '') : '',
+        type,
+      )
+      const cost = cols.cost ? toNum(row[cols.cost]) ?? 0 : 0
+      const prev = byName.get(name)
+      if (prev) {
+        prev.kwh += e
+        prev.amount += cost
+        prev.count += 1
+      } else {
+        byName.set(name, { name, type, kw, kwh: e, amount: cost, rate: 0, count: 1 })
+      }
+    }
+  }
+  const list = [...byName.values()]
+  for (const c of list) c.rate = c.kwh > 0 ? c.amount / c.kwh : 0
+  return list.sort((a, b) => b.kwh - a.kwh)
+}

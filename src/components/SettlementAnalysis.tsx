@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import NumberInput from './NumberInput'
 import { usePersistentState } from '../lib/persist'
+import { detectCostel, aggregatePerCharger } from '../lib/costel'
 import type { FileEntry, Period } from '../types'
 import {
   computeAll,
@@ -349,6 +350,18 @@ export default function SettlementAnalysis({
     () => computeAll(files, config, {}, manualUsage, autoWeights),
     [files, config, manualUsage, autoWeights],
   )
+  // 코스텔 충전내역이 있으면 개별 충전기별 이용량·역산 단가 집계
+  const perCharger = useMemo(
+    () =>
+      aggregatePerCharger(
+        files.filter((f) => detectCostel(f.dataset)).map((f) => f.dataset),
+      ),
+    [files],
+  )
+  const perChargerTotalKwh = useMemo(
+    () => perCharger.reduce((a, c) => a + c.kwh, 0),
+    [perCharger],
+  )
 
   const visibleChargers = useMemo(
     () => config.chargers.filter((c) => c.count > 0),
@@ -441,6 +454,79 @@ export default function SettlementAnalysis({
           />
         )
       })}
+
+      {perCharger.length > 0 && (
+        <div className="subsection">
+          <h3 className="subsection__title">
+            충전기별 이용량{' '}
+            <span className="count-tag">{perCharger.length}대</span>
+          </h3>
+          <p className="table-note">
+            코스텔 충전내역 기준 개별 충전기별 집계입니다. <b>적용 단가</b>는
+            금액 ÷ 사용량으로 <b>역산</b>한 실제 과금 단가(원/kWh)입니다. (미충전·테스트
+            세대 제외, 전체·월별 파일 중복은 거래 ID로 자동 제거)
+          </p>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>충전기명</th>
+                  <th>종류</th>
+                  <th>사용량(kWh)</th>
+                  <th>금액(원)</th>
+                  <th>적용 단가(원/kWh·역산)</th>
+                  <th>건수</th>
+                  <th>비중</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perCharger.map((c) => (
+                  <tr key={c.name}>
+                    <td className="col-name">{c.name}</td>
+                    <td>
+                      {c.kw}kW
+                      {c.type ? ` · ${c.type}` : ''}
+                    </td>
+                    <td>{formatNumber(c.kwh)}</td>
+                    <td>{Math.round(c.amount).toLocaleString()}</td>
+                    <td className="cell--strong">
+                      {c.kwh > 0 ? formatNumber(c.rate) : '—'}
+                    </td>
+                    <td>{c.count.toLocaleString()}</td>
+                    <td>
+                      {perChargerTotalKwh > 0
+                        ? `${((c.kwh / perChargerTotalKwh) * 100).toFixed(1)}%`
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="row--total">
+                  <td className="col-name">합계</td>
+                  <td />
+                  <td>{formatNumber(perChargerTotalKwh)}</td>
+                  <td>
+                    {Math.round(
+                      perCharger.reduce((a, c) => a + c.amount, 0),
+                    ).toLocaleString()}
+                  </td>
+                  <td className="cell--strong">
+                    {perChargerTotalKwh > 0
+                      ? formatNumber(
+                          perCharger.reduce((a, c) => a + c.amount, 0) /
+                            perChargerTotalKwh,
+                        )
+                      : '—'}
+                  </td>
+                  <td>
+                    {perCharger.reduce((a, c) => a + c.count, 0).toLocaleString()}
+                  </td>
+                  <td>100%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <MonthlyTrends
         rows={metrics.filter((m) => m.periodType === 'month')}
