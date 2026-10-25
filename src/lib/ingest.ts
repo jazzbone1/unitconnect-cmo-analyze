@@ -2,6 +2,7 @@ import { parseFile } from './parse'
 import { parseFileName } from './parseName'
 import { stripPii } from './privacy'
 import { detectRegistry, sanitizeRegistry } from './registry'
+import { detectCostel, slimCostelDataset } from './costel'
 import type { FileEntry } from '../types'
 
 let idCounter = 0
@@ -29,8 +30,13 @@ export async function parseUploadedFiles(files: File[]): Promise<IngestResult> {
       if (raw.columns.length === 0 || raw.rows.length === 0) {
         throw new Error('헤더 또는 데이터 행이 없습니다.')
       }
-      // 명부는 개인정보 제거(정제) 후 저장, 그 외는 개인정보 컬럼 제거
-      const dataset = detectRegistry(raw) ? sanitizeRegistry(raw) : stripPii(raw)
+      // 코스텔 충전내역은 분석에 필요한 컬럼만 슬림화(저장 용량·개인정보↓),
+      //  명부는 개인정보 제거(정제) 후 저장, 그 외는 개인정보 컬럼 제거
+      const dataset = detectCostel(raw)
+        ? slimCostelDataset(raw)
+        : detectRegistry(raw)
+          ? sanitizeRegistry(raw)
+          : stripPii(raw)
       const { category, period } = parseFileName(file.name)
       parsed.push({ id: nextFileId(), dataset, category, period })
     } catch (e) {

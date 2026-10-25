@@ -111,6 +111,41 @@ export function isTestDong(dong: unknown): boolean {
   return /999|1234/.test(s)
 }
 
+/**
+ * 코스텔 충전내역을 분석에 필요한 컬럼만 남기고 슬림화한다(원본 ~50열 → ~9열).
+ * 저장 payload·스토리지·개인정보(카드번호 등 제거)를 크게 줄인다.
+ * 코스텔 형식이 아니면 원본 그대로 반환.
+ */
+export function slimCostelDataset(dataset: Dataset): Dataset {
+  if (!detectCostel(dataset)) return dataset
+  const cols = costelCols(dataset)
+  const nameCol = findCostelCol(dataset.columns, ['충전기명', 'charger_name'])
+  const idCol =
+    dataset.columns.find((c) => norm(c) === 'id') ??
+    findCostelCol(dataset.columns, ['history_id', 'transaction_id'])
+  const keep = new Set<string>()
+  for (const c of [
+    cols.start,
+    cols.energy,
+    cols.cost,
+    cols.type,
+    cols.model,
+    cols.dong,
+    cols.noncharge,
+    nameCol,
+    idCol,
+  ])
+    if (c) keep.add(c)
+  if (keep.size === 0) return dataset
+  const columns = dataset.columns.filter((c) => keep.has(c))
+  const rows = dataset.rows.map((r) => {
+    const o: Record<string, import('../types').CellValue> = {}
+    for (const c of columns) o[c] = r[c] ?? null
+    return o
+  })
+  return { ...dataset, columns, rows }
+}
+
 function toNum(v: unknown): number | null {
   if (v == null) return null
   const n = Number(String(v).replace(/,/g, ''))

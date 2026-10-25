@@ -26,7 +26,7 @@ import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement, computeAll } from '../lib/settlement'
-import { detectCostel } from '../lib/costel'
+import { detectCostel, slimCostelDataset } from '../lib/costel'
 import {
   DEFAULT_INPUTS,
   computeFeasibility,
@@ -1529,7 +1529,12 @@ function ProjectDetail({
       parking: site.parking,
       hours: resolvedBase.hours,
       chargers: resolvedBase.chargers.map((c) => ({ ...c })),
-      files,
+      // 코스텔 충전내역은 저장 전 슬림화(기존에 통째로 올린 파일도 저장 시 축소)
+      files: files.map((f) =>
+        detectCostel(f.dataset)
+          ? { ...f, dataset: slimCostelDataset(f.dataset) }
+          : f,
+      ),
       feas: resolvedBase.feas,
       report,
       tariff: resolvedBase.tariff,
