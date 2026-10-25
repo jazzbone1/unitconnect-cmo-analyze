@@ -52,6 +52,35 @@ export interface Period {
   months: number
 }
 
+/** 개별 충전기 한 대의 이용량 집계(코스텔). */
+export interface PerChargerUsage {
+  name: string
+  type: string
+  kw: number
+  kwh: number
+  amount: number
+  rate: number
+  count: number
+}
+/** 코스텔 월별 집계(한 달). */
+export interface CostelMonthAgg {
+  ym: string
+  sortKey: number
+  users: number
+  amountRaw: number
+  usageTotal: number
+  /** 종류(kW, 문자열 키)별 사용량(kWh) */
+  byKw: Record<string, number>
+}
+/**
+ * 코스텔 충전내역 사전 집계 — 원본 거래 행 대신 저장되는 소형 요약.
+ * 저장 payload를 수 KB 수준으로 줄인다(거래 id 중복 제거 후 산출).
+ */
+export interface CostelAgg {
+  months: CostelMonthAgg[]
+  chargers: PerChargerUsage[]
+}
+
 /** 업로드되어 파싱·분류된 개별 파일 */
 export interface FileEntry {
   id: string
@@ -60,6 +89,8 @@ export interface FileEntry {
   category: string
   /** 파일명에서 추출한 기간. 인식 실패 시 null */
   period: Period | null
+  /** 코스텔 충전내역 사전 집계(저장용). 있으면 원본 행 대신 이 값으로 분석. */
+  costel?: CostelAgg
 }
 
 /** 같은 카테고리로 묶인 파일 그룹 */

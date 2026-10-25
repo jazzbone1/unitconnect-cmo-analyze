@@ -13,7 +13,7 @@ import { usePersistentState } from './lib/persist'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
-import { detectCostel } from './lib/costel'
+import { detectCostel, consolidateCostelFiles } from './lib/costel'
 import { detectRegistry, computeRegistry } from './lib/registry'
 import { parseUploadedFiles } from './lib/ingest'
 import { newSiteId, type SavedSite } from './lib/sites'
@@ -28,7 +28,7 @@ const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
 const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-38'
+const BUILD_TAG = 'v2026.08.26-39'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -192,7 +192,8 @@ export default function App() {
     const analysisData = {
       hours: config.hours,
       chargers,
-      files,
+      // 코스텔 충전내역은 저장 전 사전 집계 1개로 통합(payload↓)
+      files: consolidateCostelFiles(files),
       feas,
       savedAt: new Date().toISOString(),
     }

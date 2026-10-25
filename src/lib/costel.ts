@@ -1,4 +1,4 @@
-import type { Dataset } from '../types'
+import type { Dataset, CostelAgg, PerChargerUsage, FileEntry } from '../types'
 
 /**
  * 코스텔 충전내역관리 프로그램 내보내기(거래 단위 로그) 어댑터.
@@ -152,38 +152,28 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** 개별 충전기 한 대의 이용량 집계. */
-export interface PerChargerUsage {
-  /** 충전기명 (예: 1002) */
-  name: string
-  /** 구분 (AC/DC/SOCKET) */
-  type: string
-  /** 추정 종류(kW) */
-  kw: number
-  /** 총 이용량(kWh) */
-  kwh: number
-  /** 총 금액(원) — 코스텔 비용 합계(실제 과금액) */
-  amount: number
-  /** 역산 적용 단가(원/kWh) = 금액 ÷ 사용량 */
-  rate: number
-  /** 충전 건수 */
-  count: number
-}
-
 /**
- * 코스텔 충전내역 데이터셋들에서 개별 충전기별 이용량을 집계한다.
+ * 코스텔 충전내역 데이터셋들을 한 번에 집계한다(월별 + 충전기별).
  *  - 거래 고유 id 로 중복 제거(전체 파일 + 월별 파일을 함께 올려도 중복 합산 방지)
  *  - 미충전·테스트 동호·충전량 0 제외
- *  - 총 이용량 내림차순 정렬
+ * 결과(CostelAgg)는 원본 행 대신 저장 가능한 소형 요약이다.
  */
-export function aggregatePerCharger(datasets: Dataset[]): PerChargerUsage[] {
+export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
+  interface M {
+    ym: string
+    sortKey: number
+    users: Set<string>
+    amountRaw: number
+    usageTotal: number
+    byKw: Map<number, number>
+  }
+  const months = new Map<string, M>()
   const byName = new Map<string, PerChargerUsage>()
   const seenIds = new Set<string>()
   for (const ds of datasets) {
     const cols = costelCols(ds)
     const nameCol = findCostelCol(ds.columns, ['충전기명', 'charger_name'])
-    if (!cols.energy || !nameCol) continue
-    // 거래 PK: 정규화 이름이 정확히 'id' 인 컬럼(한글 섹션 id)
+    if (!cols.energy || !cols.start) continue
     const idCol =
       ds.columns.find((c) => norm(c) === 'id') ??
       findCostelCol(ds.columns, ['history_id', 'transaction_id'])
@@ -195,7 +185,8 @@ export function aggregatePerCharger(datasets: Dataset[]): PerChargerUsage[] {
         continue
       const e = toNum(row[cols.energy])
       if (e === null || e <= 0) continue
-      if (isTestDong(cols.dong ? row[cols.dong] : null)) continue
+      const dong = cols.dong ? row[cols.dong] : null
+      if (isTestDong(dong)) continue
       if (idCol) {
         const id = String(row[idCol] ?? '').trim()
         if (id !== '') {
@@ -204,13 +195,35 @@ export function aggregatePerCharger(datasets: Dataset[]): PerChargerUsage[] {
           seenIds.add(key)
         }
       }
-      const name = String(row[nameCol] ?? '').trim() || '(미상)'
+      const mk = monthKeyOf(row[cols.start])
+      if (!mk) continue
       const type = cols.type ? String(row[cols.type] ?? '').trim() : ''
       const kw = chargerKwFromModelType(
         cols.model ? String(row[cols.model] ?? '') : '',
         type,
       )
       const cost = cols.cost ? toNum(row[cols.cost]) ?? 0 : 0
+
+      // 월별
+      let m = months.get(mk.ym)
+      if (!m) {
+        m = {
+          ym: mk.ym,
+          sortKey: mk.sortKey,
+          users: new Set(),
+          amountRaw: 0,
+          usageTotal: 0,
+          byKw: new Map(),
+        }
+        months.set(mk.ym, m)
+      }
+      m.byKw.set(kw, (m.byKw.get(kw) ?? 0) + e)
+      m.usageTotal += e
+      m.amountRaw += cost
+      if (dong != null) m.users.add(String(dong).replace(/\s/g, ''))
+
+      // 충전기별
+      const name = nameCol ? String(row[nameCol] ?? '').trim() || '(미상)' : '(미상)'
       const prev = byName.get(name)
       if (prev) {
         prev.kwh += e
@@ -221,7 +234,60 @@ export function aggregatePerCharger(datasets: Dataset[]): PerChargerUsage[] {
       }
     }
   }
-  const list = [...byName.values()]
-  for (const c of list) c.rate = c.kwh > 0 ? c.amount / c.kwh : 0
-  return list.sort((a, b) => b.kwh - a.kwh)
+  const chargers = [...byName.values()]
+  for (const c of chargers) c.rate = c.kwh > 0 ? c.amount / c.kwh : 0
+  chargers.sort((a, b) => b.kwh - a.kwh)
+  const monthsOut = [...months.values()]
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .map((m) => ({
+      ym: m.ym,
+      sortKey: m.sortKey,
+      users: m.users.size,
+      amountRaw: m.amountRaw,
+      usageTotal: m.usageTotal,
+      byKw: Object.fromEntries([...m.byKw.entries()].map(([k, v]) => [String(k), v])),
+    }))
+  return { months: monthsOut, chargers }
+}
+
+/**
+ * 파일 목록에서 코스텔 충전기별 집계를 얻는다.
+ *  - 저장된 사전 집계(file.costel)가 있으면 그것을, 없으면 원본 행에서 즉시 집계.
+ */
+export function perChargerFromFiles(
+  files: { dataset: Dataset; costel?: CostelAgg }[],
+): PerChargerUsage[] {
+  const withAgg = files.find((f) => f.costel && f.costel.chargers.length > 0)
+  if (withAgg?.costel) return withAgg.costel.chargers
+  const raw = files.filter((f) => detectCostel(f.dataset)).map((f) => f.dataset)
+  if (raw.length === 0) return []
+  return buildCostelAgg(raw).chargers
+}
+
+/**
+ * 저장 전 코스텔 파일 정리:
+ *  원본 행이 있는 코스텔 파일들을 거래 id 중복제거 후 하나의 '사전 집계' 파일로
+ *  합쳐, 저장 payload를 수 KB 수준으로 줄인다(413 방지).
+ *  원본 행이 없는(이미 집계된) 코스텔 파일은 새 원본이 있으면 대체된다.
+ */
+export function consolidateCostelFiles(files: FileEntry[]): FileEntry[] {
+  const costelRaw = files.filter(
+    (f) => detectCostel(f.dataset) && f.dataset.rows.length > 0,
+  )
+  if (costelRaw.length === 0) return files // 새 원본 없음 → 그대로(기존 집계 유지)
+  // 코스텔(원본/집계) 외의 파일만 보존, 코스텔은 하나의 집계로 대체
+  const keep = files.filter((f) => !f.costel && !detectCostel(f.dataset))
+  const agg = buildCostelAgg(costelRaw.map((f) => f.dataset))
+  const aggFile: FileEntry = {
+    id: 'costel-agg',
+    dataset: {
+      columns: ['시작일시', '충전량(kWh)', '충전기구분'],
+      rows: [],
+      fileName: '충전내역(집계)',
+    },
+    category: '충전내역',
+    period: null,
+    costel: agg,
+  }
+  return [...keep, aggFile]
 }

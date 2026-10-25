@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import NumberInput from './NumberInput'
 import { usePersistentState } from '../lib/persist'
-import { detectCostel, aggregatePerCharger } from '../lib/costel'
+import { perChargerFromFiles } from '../lib/costel'
 import type { FileEntry, Period } from '../types'
 import {
   computeAll,
@@ -351,13 +351,8 @@ export default function SettlementAnalysis({
     [files, config, manualUsage, autoWeights],
   )
   // 코스텔 충전내역이 있으면 개별 충전기별 이용량·역산 단가 집계
-  const perCharger = useMemo(
-    () =>
-      aggregatePerCharger(
-        files.filter((f) => detectCostel(f.dataset)).map((f) => f.dataset),
-      ),
-    [files],
-  )
+  // (저장된 사전집계 우선, 없으면 원본 행에서 즉시 집계)
+  const perCharger = useMemo(() => perChargerFromFiles(files), [files])
   const perChargerTotalKwh = useMemo(
     () => perCharger.reduce((a, c) => a + c.kwh, 0),
     [perCharger],
