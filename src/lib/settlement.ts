@@ -313,17 +313,23 @@ function metricsFromCostelAgg(
       const types: TypeMetric[] = chargers.map((t) => {
         const usage = m.byKw[String(t.kw)] ?? 0
         const capacity = t.kw * t.count * hours * 1 // 월 1개월 기준
+        // 코스텔은 실제 과금액(데이터)을 종류별 금액으로 사용. 없으면 설정 단가×사용량.
+        const actual = m.byKwAmount?.[String(t.kw)]
+        const amount = actual != null ? actual : usage * t.rate
         return {
           id: t.id,
           name: t.name,
           usage,
-          amount: usage * t.rate,
+          amount,
           utilization: capacity > 0 ? (usage / capacity) * 100 : 0,
         }
       })
-      const amountCalc = hasRates
-        ? types.reduce((acc, t) => acc + t.amount, 0)
-        : m.amountRaw
+      // 실제 금액이 있으면 종류별 합(=실결제액), 없으면 설정 단가 기준/원본값
+      const hasActual = m.byKwAmount != null
+      const amountCalc =
+        hasActual || hasRates
+          ? types.reduce((acc, t) => acc + t.amount, 0)
+          : m.amountRaw
       const capTotal =
         chargers.reduce((a, t) => a + t.kw * t.count, 0) * hours * 1
       return {

@@ -71,6 +71,8 @@ export interface CostelMonthAgg {
   usageTotal: number
   /** 종류(kW, 문자열 키)별 사용량(kWh) */
   byKw: Record<string, number>
+  /** 종류(kW, 문자열 키)별 실제 금액(원) — 코스텔 비용 합계 */
+  byKwAmount?: Record<string, number>
 }
 /**
  * 코스텔 충전내역 사전 집계 — 원본 거래 행 대신 저장되는 소형 요약.

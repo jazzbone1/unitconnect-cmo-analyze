@@ -166,6 +166,7 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
     amountRaw: number
     usageTotal: number
     byKw: Map<number, number>
+    byKwAmount: Map<number, number>
   }
   const months = new Map<string, M>()
   const byName = new Map<string, PerChargerUsage>()
@@ -214,10 +215,12 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
           amountRaw: 0,
           usageTotal: 0,
           byKw: new Map(),
+          byKwAmount: new Map(),
         }
         months.set(mk.ym, m)
       }
       m.byKw.set(kw, (m.byKw.get(kw) ?? 0) + e)
+      m.byKwAmount.set(kw, (m.byKwAmount.get(kw) ?? 0) + cost)
       m.usageTotal += e
       m.amountRaw += cost
       if (dong != null) m.users.add(String(dong).replace(/\s/g, ''))
@@ -246,6 +249,9 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
       amountRaw: m.amountRaw,
       usageTotal: m.usageTotal,
       byKw: Object.fromEntries([...m.byKw.entries()].map(([k, v]) => [String(k), v])),
+      byKwAmount: Object.fromEntries(
+        [...m.byKwAmount.entries()].map(([k, v]) => [String(k), v]),
+      ),
     }))
   return { months: monthsOut, chargers }
 }
