@@ -415,3 +415,20 @@ export function consolidateCostelFiles(files: FileEntry[]): FileEntry[] {
   }
   return [...keep, aggFile]
 }
+
+/**
+ * 저장 직전 파일 축소(413 방지, 모든 경로 공용):
+ *  1) 코스텔 충전내역 → 사전 집계 1개로 통합
+ *  2) 분석에 쓰지 않는 대용량 원본(예: 충전진행상세 수십만 행)은 행을 저장하지 않음
+ *     (열·파일명은 보존). 정상 정산/명부 파일(소량)은 그대로 유지.
+ */
+export function shrinkFilesForSave(files: FileEntry[]): FileEntry[] {
+  const MAX_ROWS = 10000
+  return consolidateCostelFiles(files).map((f) => {
+    if (f.costel) return f
+    if (f.dataset.rows.length > MAX_ROWS) {
+      return { ...f, dataset: { ...f.dataset, rows: [] } }
+    }
+    return f
+  })
+}

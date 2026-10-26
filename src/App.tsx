@@ -13,7 +13,7 @@ import { usePersistentState } from './lib/persist'
 import { DEFAULT_INPUTS, type FeasibilityInputs } from './lib/feasibility'
 import { groupFiles } from './lib/group'
 import { detectSettlement, DEFAULT_CONFIG, type SettlementConfig } from './lib/settlement'
-import { detectCostel, consolidateCostelFiles } from './lib/costel'
+import { detectCostel, shrinkFilesForSave } from './lib/costel'
 import { detectRegistry, computeRegistry } from './lib/registry'
 import { parseUploadedFiles } from './lib/ingest'
 import { newSiteId, type SavedSite } from './lib/sites'
@@ -28,7 +28,7 @@ const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
 const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-42'
+const BUILD_TAG = 'v2026.08.26-43'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -177,7 +177,7 @@ export default function App() {
     // 저장 직전 모든 프로젝트의 코스텔 데이터를 사전 집계로 축소(모든 경로 방어).
     const payload = sites.map((s) =>
       s.files && s.files.length
-        ? { ...s, files: consolidateCostelFiles(s.files) }
+        ? { ...s, files: shrinkFilesForSave(s.files) }
         : s,
     )
     const kb = Math.round(JSON.stringify(payload).length / 1024)
@@ -197,8 +197,8 @@ export default function App() {
     const analysisData = {
       hours: config.hours,
       chargers,
-      // 코스텔 충전내역은 저장 전 사전 집계 1개로 통합(payload↓)
-      files: consolidateCostelFiles(files),
+      // 코스텔 집계 통합 + 대용량 원본 행 제거(payload↓)
+      files: shrinkFilesForSave(files),
       feas,
       savedAt: new Date().toISOString(),
     }

@@ -26,7 +26,7 @@ import ApprovalPanel from './ApprovalPanel'
 import { usePersistentState } from '../lib/persist'
 import { DEFAULT_CONFIG, type SettlementConfig } from '../lib/settlement'
 import { detectSettlement, computeAll } from '../lib/settlement'
-import { detectCostel, consolidateCostelFiles } from '../lib/costel'
+import { detectCostel, shrinkFilesForSave } from '../lib/costel'
 import {
   DEFAULT_INPUTS,
   computeFeasibility,
@@ -1529,8 +1529,8 @@ function ProjectDetail({
       parking: site.parking,
       hours: resolvedBase.hours,
       chargers: resolvedBase.chargers.map((c) => ({ ...c })),
-      // 코스텔 충전내역은 저장 전 '사전 집계' 1개로 통합(원본 행 제거 → payload 수 KB)
-      files: consolidateCostelFiles(files),
+      // 코스텔 집계 통합 + 대용량 원본(충전진행상세 등) 행 제거 → payload 축소
+      files: shrinkFilesForSave(files),
       feas: resolvedBase.feas,
       report,
       tariff: resolvedBase.tariff,
