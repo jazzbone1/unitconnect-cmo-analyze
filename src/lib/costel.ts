@@ -42,6 +42,7 @@ export interface CostelCols {
   type: string | null
   model: string | null
   start: string | null
+  end: string | null
   dong: string | null
   noncharge: string | null
 }
@@ -53,6 +54,7 @@ export function costelCols(dataset: Dataset): CostelCols {
     type: findCostelCol(c, ['충전기구분', 'charger_type']),
     model: findCostelCol(c, ['충전기모델', 'charger_model', 'model']),
     start: findCostelCol(c, ['시작일시', 'charging_start']),
+    end: findCostelCol(c, ['종료일시', 'charging_end']),
     dong: findCostelCol(c, ['동호', 'customer_dong']),
     noncharge: findCostelCol(c, ['미충전', 'non_start_charging']),
   }
@@ -126,6 +128,7 @@ export function slimCostelDataset(dataset: Dataset): Dataset {
   const keep = new Set<string>()
   for (const c of [
     cols.start,
+    cols.end,
     cols.energy,
     cols.cost,
     cols.type,
@@ -152,8 +155,33 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** 'YYYY-MM-DD HH:MM:SS' 등을 Date로. 실패 시 null. */
+function parseDateTime(v: unknown): Date | null {
+  const s = String(v ?? '').trim().replace(' ', 'T')
+  if (!s) return null
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
+}
+/** [start,end] 구간을 시간대(0~23)별 '분'으로 분배해 arr[h]에 누적. */
+function spreadMinutes(start: Date, end: Date, arr: number[]): void {
+  if (end <= start) return
+  // 과도한 루프 방지(이상치): 최대 31일
+  const cap = start.getTime() + 31 * 24 * 3600 * 1000
+  let t = start.getTime()
+  const endMs = Math.min(end.getTime(), cap)
+  while (t < endMs) {
+    const d = new Date(t)
+    const h = d.getHours()
+    const next = new Date(d)
+    next.setMinutes(60, 0, 0)
+    const seg = (Math.min(endMs, next.getTime()) - t) / 60000
+    arr[h] += seg
+    t = Math.min(endMs, next.getTime())
+  }
+}
+
 /**
- * 코스텔 충전내역 데이터셋들을 한 번에 집계한다(월별 + 충전기별).
+ * 코스텔 충전내역 데이터셋들을 한 번에 집계한다(월별 + 충전기별 + 시간대 + 연간).
  *  - 거래 고유 id 로 중복 제거(전체 파일 + 월별 파일을 함께 올려도 중복 합산 방지)
  *  - 미충전·테스트 동호·충전량 0 제외
  * 결과(CostelAgg)는 원본 행 대신 저장 가능한 소형 요약이다.
@@ -167,6 +195,8 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
     usageTotal: number
     byKw: Map<number, number>
     byKwAmount: Map<number, number>
+    hourByKw: Map<number, number[]>
+    dates: Set<string>
   }
   const months = new Map<string, M>()
   const byName = new Map<string, PerChargerUsage>()
@@ -216,6 +246,8 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
           usageTotal: 0,
           byKw: new Map(),
           byKwAmount: new Map(),
+          hourByKw: new Map(),
+          dates: new Set(),
         }
         months.set(mk.ym, m)
       }
@@ -224,6 +256,21 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
       m.usageTotal += e
       m.amountRaw += cost
       if (dong != null) m.users.add(String(dong).replace(/\s/g, ''))
+      // 시간대 프로파일: [시작,종료] 구간을 시간대별 분으로 분배
+      const sdt = parseDateTime(row[cols.start])
+      const edt = cols.end ? parseDateTime(row[cols.end]) : null
+      if (sdt) {
+        m.dates.add(
+          `${sdt.getFullYear()}-${sdt.getMonth()}-${sdt.getDate()}`,
+        )
+        let arr = m.hourByKw.get(kw)
+        if (!arr) {
+          arr = new Array(24).fill(0)
+          m.hourByKw.set(kw, arr)
+        }
+        if (edt && edt > sdt) spreadMinutes(sdt, edt, arr)
+        else arr[sdt.getHours()] += 1 // 종료 없거나 0분: 시작 시각에 1분만
+      }
 
       // 충전기별
       const name = nameCol ? String(row[nameCol] ?? '').trim() || '(미상)' : '(미상)'
@@ -240,34 +287,105 @@ export function buildCostelAgg(datasets: Dataset[]): CostelAgg {
   const chargers = [...byName.values()]
   for (const c of chargers) c.rate = c.kwh > 0 ? c.amount / c.kwh : 0
   chargers.sort((a, b) => b.kwh - a.kwh)
-  const monthsOut = [...months.values()]
-    .sort((a, b) => a.sortKey - b.sortKey)
-    .map((m) => ({
-      ym: m.ym,
-      sortKey: m.sortKey,
-      users: m.users.size,
-      amountRaw: m.amountRaw,
-      usageTotal: m.usageTotal,
-      byKw: Object.fromEntries([...m.byKw.entries()].map(([k, v]) => [String(k), v])),
+
+  const hourlyOf = (m: M): CostelAgg['months'][number]['hourly'] => ({
+    byHourByKw: Object.fromEntries(
+      [...m.hourByKw.entries()].map(([k, v]) => [
+        String(k),
+        v.map((x) => Math.round(x)),
+      ]),
+    ),
+    days: m.dates.size,
+  })
+  const sortedM = [...months.values()].sort((a, b) => a.sortKey - b.sortKey)
+  const monthsOut = sortedM.map((m) => ({
+    ym: m.ym,
+    sortKey: m.sortKey,
+    users: m.users.size,
+    amountRaw: m.amountRaw,
+    usageTotal: m.usageTotal,
+    byKw: Object.fromEntries([...m.byKw.entries()].map(([k, v]) => [String(k), v])),
+    byKwAmount: Object.fromEntries(
+      [...m.byKwAmount.entries()].map(([k, v]) => [String(k), v]),
+    ),
+    hourly: hourlyOf(m),
+  }))
+
+  // 최근 12개월 연간 집계(월이 2개 이상일 때만)
+  let annual: CostelAgg['annual']
+  if (sortedM.length >= 2) {
+    const last12 = sortedM.slice(-12)
+    const byKw = new Map<number, number>()
+    const byKwAmount = new Map<number, number>()
+    const hourByKw = new Map<number, number[]>()
+    const users = new Set<string>()
+    let usageTotal = 0
+    let amountRaw = 0
+    let days = 0
+    for (const m of last12) {
+      usageTotal += m.usageTotal
+      amountRaw += m.amountRaw
+      days += m.dates.size
+      for (const u of m.users) users.add(u)
+      for (const [k, v] of m.byKw) byKw.set(k, (byKw.get(k) ?? 0) + v)
+      for (const [k, v] of m.byKwAmount)
+        byKwAmount.set(k, (byKwAmount.get(k) ?? 0) + v)
+      for (const [k, arr] of m.hourByKw) {
+        let a = hourByKw.get(k)
+        if (!a) {
+          a = new Array(24).fill(0)
+          hourByKw.set(k, a)
+        }
+        for (let h = 0; h < 24; h++) a[h] += arr[h]
+      }
+    }
+    const fromYm = last12[0].ym
+    const toYm = last12[last12.length - 1].ym
+    annual = {
+      label: `최근 12개월 (${fromYm}~${toYm})`,
+      fromYm,
+      toYm,
+      sortKey: last12[last12.length - 1].sortKey,
+      users: users.size,
+      amountRaw,
+      usageTotal,
+      byKw: Object.fromEntries([...byKw.entries()].map(([k, v]) => [String(k), v])),
       byKwAmount: Object.fromEntries(
-        [...m.byKwAmount.entries()].map(([k, v]) => [String(k), v]),
+        [...byKwAmount.entries()].map(([k, v]) => [String(k), v]),
       ),
-    }))
-  return { months: monthsOut, chargers }
+      hourly: {
+        byHourByKw: Object.fromEntries(
+          [...hourByKw.entries()].map(([k, v]) => [
+            String(k),
+            v.map((x) => Math.round(x)),
+          ]),
+        ),
+        days,
+      },
+    }
+  }
+  return { months: monthsOut, chargers, annual }
 }
 
 /**
  * 파일 목록에서 코스텔 충전기별 집계를 얻는다.
  *  - 저장된 사전 집계(file.costel)가 있으면 그것을, 없으면 원본 행에서 즉시 집계.
  */
+/** 파일 목록에서 단일 코스텔 집계를 얻는다(저장분 우선, 없으면 원본에서 즉시 집계). */
+export function costelAggFromFiles(
+  files: { dataset: Dataset; costel?: CostelAgg }[],
+): CostelAgg | null {
+  const withAgg = files.find((f) => f.costel)
+  if (withAgg?.costel) return withAgg.costel
+  const raw = files.filter((f) => detectCostel(f.dataset)).map((f) => f.dataset)
+  if (raw.length === 0) return null
+  return buildCostelAgg(raw)
+}
+
 export function perChargerFromFiles(
   files: { dataset: Dataset; costel?: CostelAgg }[],
 ): PerChargerUsage[] {
-  const withAgg = files.find((f) => f.costel && f.costel.chargers.length > 0)
-  if (withAgg?.costel) return withAgg.costel.chargers
-  const raw = files.filter((f) => detectCostel(f.dataset)).map((f) => f.dataset)
-  if (raw.length === 0) return []
-  return buildCostelAgg(raw).chargers
+  return costelAggFromFiles(files)?.chargers ?? []
 }
 
 /**

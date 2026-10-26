@@ -3447,3 +3447,9 @@ tr.row--detail .col-name {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
+
+/* 시간대별 이용률 표(코스텔) */
+.hour-table { font-size: 0.72rem; }
+.hour-table th, .hour-table td { padding: 0.2rem 0.3rem; text-align: center; }
+.hour-table .col-name { white-space: nowrap; text-align: left; font-weight: 700; }
+.hour-cell { font-variant-numeric: tabular-nums; min-width: 2.1rem; }

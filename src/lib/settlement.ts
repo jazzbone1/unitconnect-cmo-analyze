@@ -306,7 +306,7 @@ function metricsFromCostelAgg(
   const chargers = config.chargers
   const hours = config.hours
   const hasRates = chargers.some((t) => t.rate > 0)
-  return agg.months
+  const monthly = agg.months
     .slice()
     .sort((a, b) => a.sortKey - b.sortKey)
     .map((m) => {
@@ -349,6 +349,44 @@ function metricsFromCostelAgg(
         splitMode: 'auto' as const,
       }
     })
+
+  // 최근 12개월 연간 집계(있으면) → 연간 유형 1건 추가
+  if (agg.annual) {
+    const a = agg.annual
+    const types: TypeMetric[] = chargers.map((t) => {
+      const usage = a.byKw[String(t.kw)] ?? 0
+      const capacity = t.kw * t.count * hours * 12 // 12개월 기준
+      const actual = a.byKwAmount[String(t.kw)]
+      const amount = actual != null ? actual : usage * t.rate
+      return {
+        id: t.id,
+        name: t.name,
+        usage,
+        amount,
+        utilization: capacity > 0 ? (usage / capacity) * 100 : 0,
+      }
+    })
+    const amountCalc = types.reduce((acc, t) => acc + t.amount, 0)
+    const capTotal =
+      chargers.reduce((acc, t) => acc + t.kw * t.count, 0) * hours * 12
+    monthly.push({
+      id: `${fileId}:annual`,
+      fileName,
+      periodLabel: a.label,
+      sortKey: a.sortKey + 1, // 월들 뒤로
+      periodType: 'year' as Period['type'],
+      months: 12,
+      users: a.users,
+      usageTotal: a.usageTotal,
+      amountRaw: a.amountRaw,
+      amountCalc,
+      utilTotal: capTotal > 0 ? (a.usageTotal / capTotal) * 100 : 0,
+      types,
+      splittable: true,
+      splitMode: 'auto' as const,
+    })
+  }
+  return monthly
 }
 
 /**

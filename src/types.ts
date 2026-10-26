@@ -62,6 +62,13 @@ export interface PerChargerUsage {
   rate: number
   count: number
 }
+/** 시간대(0~23시)별 종류(kW)별 가동 시간(분) 프로파일 + 운영일수. */
+export interface CostelHourly {
+  /** kW(문자열 키) → 길이 24 배열(시간대별 가동 분) */
+  byHourByKw: Record<string, number[]>
+  /** 운영 일수(해당 기간 내 충전이 있었던 고유 날짜 수) — 이용률 분모용 */
+  days: number
+}
 /** 코스텔 월별 집계(한 달). */
 export interface CostelMonthAgg {
   ym: string
@@ -73,6 +80,21 @@ export interface CostelMonthAgg {
   byKw: Record<string, number>
   /** 종류(kW, 문자열 키)별 실제 금액(원) — 코스텔 비용 합계 */
   byKwAmount?: Record<string, number>
+  /** 시간대별 가동 프로파일 */
+  hourly?: CostelHourly
+}
+/** 최근 12개월 연간 집계. */
+export interface CostelAnnual {
+  label: string
+  fromYm: string
+  toYm: string
+  sortKey: number
+  users: number
+  amountRaw: number
+  usageTotal: number
+  byKw: Record<string, number>
+  byKwAmount: Record<string, number>
+  hourly: CostelHourly
 }
 /**
  * 코스텔 충전내역 사전 집계 — 원본 거래 행 대신 저장되는 소형 요약.
@@ -81,6 +103,8 @@ export interface CostelMonthAgg {
 export interface CostelAgg {
   months: CostelMonthAgg[]
   chargers: PerChargerUsage[]
+  /** 최근 12개월 연간 집계(있을 때) */
+  annual?: CostelAnnual
 }
 
 /** 업로드되어 파싱·분류된 개별 파일 */

@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import NumberInput from './NumberInput'
 import { usePersistentState } from '../lib/persist'
-import { perChargerFromFiles } from '../lib/costel'
-import type { FileEntry, Period } from '../types'
+import { perChargerFromFiles, costelAggFromFiles } from '../lib/costel'
+import type { FileEntry, Period, CostelHourly } from '../types'
 import {
   computeAll,
   type ChargerType,
@@ -353,6 +353,21 @@ export default function SettlementAnalysis({
   // 코스텔 충전내역이 있으면 개별 충전기별 이용량·역산 단가 집계
   // (저장된 사전집계 우선, 없으면 원본 행에서 즉시 집계)
   const perCharger = useMemo(() => perChargerFromFiles(files), [files])
+  // 시간대별 이용률(코스텔) — 기간(월/연간) 선택 지원
+  const costelAgg = useMemo(() => costelAggFromFiles(files), [files])
+  const hourPeriods = useMemo(() => {
+    type Opt = { key: string; label: string; hourly: CostelHourly }
+    if (!costelAgg) return [] as Opt[]
+    const out: Opt[] = []
+    if (costelAgg.annual)
+      out.push({ key: 'annual', label: costelAgg.annual.label, hourly: costelAgg.annual.hourly })
+    for (const m of [...costelAgg.months].sort((a, b) => b.sortKey - a.sortKey))
+      if (m.hourly) out.push({ key: m.ym, label: m.ym, hourly: m.hourly })
+    return out
+  }, [costelAgg])
+  const [hourPeriod, setHourPeriod] = useState<string>('annual')
+  const selHour =
+    hourPeriods.find((p) => p.key === hourPeriod) ?? hourPeriods[0] ?? null
   const perChargerTotalKwh = useMemo(
     () => perCharger.reduce((a, c) => a + c.kwh, 0),
     [perCharger],
@@ -519,6 +534,94 @@ export default function SettlementAnalysis({
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {selHour && (
+        <div className="subsection">
+          <div className="settings-sec__head">
+            <h3 className="subsection__title">시간대별 이용률 (종류별)</h3>
+            <label className="summary-years">
+              기간
+              <select
+                value={selHour.key}
+                onChange={(e) => setHourPeriod(e.target.value)}
+              >
+                {hourPeriods.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="table-note">
+            시간대별 평균 이용률 = 해당 시간대 가동시간 ÷ (종류 대수 × 운영일수) ×
+            100. 운영일수 {selHour.hourly.days}일 · 대수는 단지 설정 기준(미설정 시
+            —). 세션의 시작~종료 구간을 시간대로 분배해 산출합니다.
+          </p>
+          <div className="table-scroll">
+            {(() => {
+              const days = selHour.hourly.days || 1
+              const kws = Object.keys(selHour.hourly.byHourByKw)
+                .map(Number)
+                .filter((k) => Number.isFinite(k))
+                .sort((a, b) => a - b)
+              const countOf = (kw: number) =>
+                config.chargers.find((c) => c.kw === kw)?.count ?? 0
+              const nameOf = (kw: number) =>
+                config.chargers.find((c) => c.kw === kw)?.name ?? `${kw}kW`
+              const util = (kw: number, h: number): number | null => {
+                const cnt = countOf(kw)
+                if (cnt <= 0) return null
+                const min = selHour.hourly.byHourByKw[String(kw)]?.[h] ?? 0
+                return (min / (cnt * days * 60)) * 100
+              }
+              let maxU = 0.0001
+              for (const kw of kws)
+                for (let h = 0; h < 24; h++) maxU = Math.max(maxU, util(kw, h) ?? 0)
+              return (
+                <table className="data-table hour-table">
+                  <thead>
+                    <tr>
+                      <th>종류</th>
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <th key={h} className="proj-num">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kws.map((kw) => (
+                      <tr key={kw}>
+                        <td className="col-name">{nameOf(kw)}</td>
+                        {Array.from({ length: 24 }, (_, h) => {
+                          const u = util(kw, h)
+                          return (
+                            <td
+                              key={h}
+                              className="proj-num hour-cell"
+                              style={
+                                u != null
+                                  ? {
+                                      background: `rgba(34,139,84,${Math.min(0.85, u / maxU)})`,
+                                      color: u / maxU > 0.5 ? '#fff' : undefined,
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {u == null ? '—' : u.toFixed(1)}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
           </div>
         </div>
       )}
