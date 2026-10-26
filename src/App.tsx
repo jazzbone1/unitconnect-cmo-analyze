@@ -28,7 +28,7 @@ const LS_UTIL_PROFILE = 'unitconnect.ui.settle.utilProfile'
 const LS_BIZ_FEE = 'unitconnect.ui.feasibility.bizFeeByYear'
 
 /** 빌드 버전 태그 — 배포/캐시 확인용(이 값이 보이면 최신 번들). */
-const BUILD_TAG = 'v2026.08.26-40'
+const BUILD_TAG = 'v2026.08.26-41'
 
 function cloneDefaultConfig(): SettlementConfig {
   return {
@@ -174,15 +174,20 @@ export default function App() {
     // 최초 로드 완료 전에는 저장하지 않는다(빈 배열로 덮어쓰기 방지)
     if (!sitesLoaded) return
     setSaveState({ status: 'saving' })
+    // 저장 직전 모든 프로젝트의 코스텔 데이터를 사전 집계로 축소(모든 경로 방어).
+    const payload = sites.map((s) =>
+      s.files && s.files.length
+        ? { ...s, files: consolidateCostelFiles(s.files) }
+        : s,
+    )
+    const kb = Math.round(JSON.stringify(payload).length / 1024)
     store
-      .save(sites)
+      .save(payload)
       .then(() => setSaveState({ status: 'saved' }))
-      .catch((e) =>
-        setSaveState({
-          status: 'error',
-          msg: e instanceof Error ? e.message : String(e),
-        }),
-      )
+      .catch((e) => {
+        const base = e instanceof Error ? e.message : String(e)
+        setSaveState({ status: 'error', msg: `${base} · 전송 ${kb}KB` })
+      })
   }, [sites, sitesLoaded, store])
 
   function saveCurrentSite() {
